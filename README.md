@@ -1,2 +1,124 @@
 # ImageViewer
-윈도우용 이미지 뷰어.
+
+윈도우용 이미지 뷰어. 일반 폴더와 ZIP 아카이브 내부의 이미지를 압축 해제 없이 빠르게 탐색한다.
+
+- 플랫폼: Windows 10 / 11
+- 기술 스택: C# / .NET 10 / WPF (MVVM) / Magick.NET (Q8) / SharpCompress
+- 구현 계획: [ImageViewer_Implementation_Plan.md](ImageViewer_Implementation_Plan.md)
+
+## 주요 기능
+
+- 폴더 · ZIP(CBZ) · 이미지 파일 열기 (명령행, 메뉴, 드래그 앤 드롭, 탐색기 우클릭 메뉴)
+- 파일명 자연 정렬(image2 < image10), 처음/끝 순환 탐색
+- 표시 모드: 원본 / 폭 맞춤 / 높이 맞춤 / 꽉 차게(비율을 유지한 채 이미지 전체를 창에 맞춤), 확대·축소
+  (맞춤 모드는 작은 이미지도 표시 영역에 맞춰 확대)
+- 필터: 없음 / 부드럽게 / 부드럽게 + 선명하게 (화면 표시용 이미지에만 적용)
+- 슬라이드쇼: 5~90초, 순차 / 랜덤(직전 이미지 연속 방지), 반복 옵션
+- 이미지 위에 떠 있는 반투명 하단 바(버블): 축소·배율 초기화·확대 | 이전 · 위치 · 다음 | 슬라이드쇼 · 고정 핀, 썸네일 목록
+  - 상단 바 · 하단 바 각각 핀(Pin)으로 고정하면 ` 키 · 전체 화면 · 마우스 위치와 관계없이 항상 표시,
+    해제하면 마우스를 위쪽 / 아래쪽 가장자리에 올렸을 때만 표시
+- ` 키로 상단 · 하단 바 고정(Pin) 일괄 전환 (하나라도 고정이면 모두 해제, 모두 해제면 모두 고정)
+- 이미지 목록 대화 상자: 상단 썸네일 줄 + 파일명·날짜·크기 정렬 목록
+- 회전(90° 단위) · 좌우 / 상하 반전: 화면 표시에만 적용, 다른 이미지로 이동하면 초기화
+- GIF / WebP 애니메이션 재생 (보기 메뉴에서 끄면 첫 프레임만 표시)
+  - 왼쪽 아래에 반투명 정보 표시: 프레임 n / m · 재생 상태, 재생 위치 / 전체 길이 · 현재 프레임 지연, 크기 · 형식
+    (다중 페이지 TIFF 는 페이지 n / m, 크기 · 형식)
+- 다중 페이지 TIFF: PageUp / PageDown 으로 페이지 이동, 하단 바에 "n/m쪽" 표시
+- 이미지 정보(EXIF) 패널: Tab 으로 여닫음 (파일 · 해상도 · 형식 · 카메라 · 렌즈 · 촬영 일시 · 노출 · 조리개 · ISO · 초점 거리 · GPS 등)
+- 폴더 감시: 이미지 추가 · 삭제 · 이름 변경 · 수정을 자동으로 목록에 반영 (설정에서 끌 수 있음, ZIP 은 제외)
+- 기본 제목 표시줄 없는 창: 직접 그린 타이틀바(파일명 · 앱 이름 · 창 버튼)와 아이콘 메뉴바를 이미지 위에 겹쳐 표시
+- 창 / 테두리 없는 전체 화면 전환(Alt+Enter), 이미지 영역 드래그로 창 이동, 창 위치·설정 저장
+
+## 단축키
+
+| 키 | 기능 |
+|---|---|
+| Alt + Enter | 전체 화면 전환 |
+| Esc | 프로그램 종료 (대화 상자에서는 대화 상자 닫기) |
+| ` | 상단 · 하단 바 고정(Pin) 일괄 전환 |
+| ← / ↑ , → / ↓ | 이전 / 다음 이미지 |
+| Home / End | 처음 / 마지막 이미지 |
+| PgUp / PgDn | 이전 / 다음 페이지 (다중 페이지 TIFF, 그 밖에는 이전 / 다음 이미지) |
+| R / L | 시계 / 반시계 방향 90° 회전 |
+| H / V | 좌우 / 상하 반전 |
+| Tab | 이미지 정보(EXIF) 패널 표시 / 숨김 |
+| Enter | 이미지 목록 |
+| 0 / 7 / 8 / 9 | 원본 / 폭 맞춤 / 높이 맞춤 / 꽉 차게 |
+| U / I / S | 필터 없음 / 부드럽게 / 부드럽게 + 선명하게 |
+| + 또는 = / - | 확대 / 축소 (Ctrl+0: 배율 초기화) |
+| Space | 슬라이드쇼 재생 / 일시정지 |
+| Ctrl+O / Ctrl+Shift+O | 파일·ZIP 열기 / 폴더 열기 |
+
+마우스: 휠 위 = 이전 이미지, 휠 아래 = 다음 이미지(설정에서 확대·축소로 변경 가능, Ctrl+휠은 반대 동작), Shift+휠 = 상하 이동,
+드래그 = 창 이동(전체 화면에서는 이미지 이동), 가운데 버튼 드래그 = 이미지 이동, 더블클릭 = 최대화 / 복원,
+뒤로/앞으로 버튼 = 이전/다음.
+
+## 빌드 · 실행 · 테스트
+
+```bash
+dotnet build ImageViewer.sln
+dotnet run --project src/ImageViewer -- "D:\Images"
+dotnet test ImageViewer.sln
+```
+
+## 배포
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build\publish.ps1
+```
+
+- `artifacts\publish\win-x64` 에 Self-contained 실행 파일을 만든다 (.NET 설치 불필요).
+- [NSIS 3](https://nsis.sourceforge.io) 이 설치되어 있으면 `artifacts\installer\ImageViewer-<버전>-setup.exe` 설치 프로그램도 만든다
+  (`src/ImageViewer.Installer/ImageViewer.nsi`).
+- 설치 프로그램은 관리자 권한 없이 현재 사용자로 설치한다 (`%LOCALAPPDATA%\Programs\ImageViewer`, 64비트 Windows 전용).
+  탐색기 메뉴 등록은 구성 요소 페이지의 선택 항목으로 동의를 받는다.
+- 제거 시 탐색기 메뉴 키, 시작 메뉴 · 바탕 화면 바로 가기, 설치 폴더, 프로그램 추가/제거 정보를 삭제한다.
+  사용자 설정(`%LOCALAPPDATA%\ImageViewer`)은 남긴다.
+
+## Windows 탐색기 연동
+
+- 설치 프로그램의 "탐색기 우클릭 메뉴" 구성 요소, 또는 앱의 **설정 → Windows 탐색기 연동 → 등록** (HKCU, 관리자 권한 불필요)
+- 명령행: `ImageViewer.exe --register-shell` / `--unregister-shell`
+- 등록 위치: `Directory\shell`, `Directory\Background\shell`, `SystemFileAssociations\.zip|.cbz\shell`
+- Windows 11 에서는 클래식 메뉴(**추가 옵션 표시**, Shift+F10)에 표시된다.
+
+## 설정 파일
+
+`%LOCALAPPDATA%\ImageViewer\settings.json` (없거나 손상되면 기본값 사용, 종료 시 저장).
+로그는 `%LOCALAPPDATA%\ImageViewer\logs` 에 7일간 보관하며, 전체 경로 대신 파일명만 기록한다.
+
+## 1차 버전 정책 (계획서 14장)
+
+| 항목 | 결정 |
+|---|---|
+| 작은 이미지 | 보기 모드를 따름 (맞춤 모드는 확대, 원본 크기는 1:1) |
+| Fill 모드 | 비율을 유지한 채 이미지 전체가 창 안에 들어오는 가장 큰 크기 (잘리지 않음) |
+| 이미지 순환 | 기본 사용 (설정 가능) |
+| ZIP 암호 | 미지원 — 해당 항목에 안내 메시지 표시 |
+| GIF / WebP 애니메이션 | 모든 프레임 재생 (지연 0 · 너무 짧은 프레임은 100ms, 필터 미적용, 최대 1,000프레임 · 픽셀 합계 한도 초과 시 첫 프레임만) |
+| 다중 페이지 TIFF | 첫 페이지부터 표시, PageUp / PageDown 으로 이동 (회전 · 반전 유지) |
+| ICO | 가장 큰 프레임 표시 |
+| 회전 · 반전 | 화면 표시에만 적용, 파일은 변경하지 않음, 다른 이미지로 이동하면 초기화 |
+| 폴더 감시 | 0.7초 동안 변경을 모아 한 번에 반영, 현재 이미지가 지워지면 같은 위치의 이미지 표시 |
+| SVG · PDF · PS 등 | 미지원 (확장자를 바꿔도 헤더·포맷 검사로 거부) |
+| 마우스 휠 | 기본 이전/다음 이미지 (Ctrl+휠 확대·축소), 설정으로 바꿀 수 있음 |
+| 슬라이드쇼 중 수동 이동 | 타이머 재시작 |
+| 중복 실행 | 다중 실행 허용 (탐색기에서 연 경로마다 새 창) |
+| 투명 이미지 | 배경색 위에 표시 (설정에서 체크무늬 배경 선택 가능) |
+
+## 메모리 · 안전 한도
+
+- 디코딩 전에 픽셀 수를 검사 (기본 150 MP, 설정 가능), ZIP 항목은 실제 압축 해제 바이트 수로 한도 검사 (기본 512 MB)
+- 원본 디코딩 결과(최대 4개)와 표시용 비트맵은 크기 제한 LRU 캐시, 썸네일은 최근 300개만 메모리에 유지
+- 디코딩·리사이즈·필터는 백그라운드에서 수행하고, 오래된 요청 결과는 버전/취소 토큰으로 폐기
+
+## 프로젝트 구조
+
+```text
+src/ImageViewer/            WPF 앱 (Models, ViewModels, Views, Services, Helpers)
+  Services/ImageSources/    IImageSource, FolderImageSource, ZipImageSource
+src/ImageViewer.Installer/  NSIS 설치 스크립트
+tests/ImageViewer.Tests/             단위 테스트 (배율 계산, 탐색, 슬라이드쇼, 설정, 단축키 등)
+tests/ImageViewer.IntegrationTests/  통합 테스트 (폴더/ZIP 소스, 디코딩, 렌더링, 썸네일)
+build/publish.ps1           게시 + 설치 프로그램 생성 스크립트
+```
