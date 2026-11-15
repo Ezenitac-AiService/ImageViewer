@@ -68,6 +68,65 @@
         </Setter>
     </Style>
 
+    <!-- 하단 썸네일 목록의 가로 스크롤바: 어두운 하단 바에 맞춘 얇은 막대 (화살표 없음, 빈 곳 클릭 = 한 페이지 이동) -->
+    <Style x:Key="ThumbnailScrollBarPage" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="Transparent" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ThumbnailScrollBarThumb" TargetType="Thumb">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Bd" Background="#FF5A5A5A" CornerRadius="3" Height="6" VerticalAlignment="Center" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF808080" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ThumbnailScrollBar" TargetType="ScrollBar">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Height" Value="12" />
+        <Setter Property="MinHeight" Value="12" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Border Background="#FF262626" CornerRadius="4">
+                        <Track x:Name="PART_Track" IsDirectionReversed="False" Margin="2,0">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource ThumbnailScrollBarPage}" Command="ScrollBar.PageLeftCommand" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource ThumbnailScrollBarThumb}" />
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource ThumbnailScrollBarPage}" Command="ScrollBar.PageRightCommand" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- 아이콘 버튼 (Windows 기본 아이콘 글꼴: Win11 Segoe Fluent Icons, Win10 Segoe MDL2 Assets) -->
     <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource ToolButton}">
         <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />

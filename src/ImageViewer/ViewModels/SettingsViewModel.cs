@@ -25,6 +25,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _slideShowRepeat = settings.Slideshow.Repeat;
         _thumbnailVisible = settings.Thumbnail.Visible;
         _thumbnailSize = settings.Thumbnail.Size;
+        _thumbnailScrollBar = settings.Thumbnail.ShowScrollBar;
         _smoothSigma = settings.Filter.SmoothSigma;
         _sharpenSigma = settings.Filter.SharpenSigma;
         _sharpenAmount = settings.Filter.SharpenAmount;
@@ -54,6 +55,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _slideShowRepeat;
     [ObservableProperty] private bool _thumbnailVisible;
     [ObservableProperty] private int _thumbnailSize;
+    [ObservableProperty] private bool _thumbnailScrollBar;
     [ObservableProperty] private double _smoothSigma;
     [ObservableProperty] private double _sharpenSigma;
     [ObservableProperty] private double _sharpenAmount;
@@ -113,6 +115,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         settings.Slideshow.Repeat = SlideShowRepeat;
         settings.Thumbnail.Visible = ThumbnailVisible;
         settings.Thumbnail.Size = ThumbnailSize;
+        settings.Thumbnail.ShowScrollBar = ThumbnailScrollBar;
         settings.Filter.SmoothSigma = SmoothSigma;
         settings.Filter.SharpenSigma = SharpenSigma;
         settings.Filter.SharpenAmount = SharpenAmount;

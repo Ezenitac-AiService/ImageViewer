@@ -334,6 +334,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public double ThumbnailSize => Settings.Thumbnail.Size;
 
+    /// <summary>하단 썸네일 목록의 가로 스크롤바 (설정 &gt; 썸네일). 켜면 넘칠 때만 표시.</summary>
+    public System.Windows.Controls.ScrollBarVisibility ThumbnailScrollBarVisibility =>
+        Settings.Thumbnail.ShowScrollBar
+            ? System.Windows.Controls.ScrollBarVisibility.Auto
+            : System.Windows.Controls.ScrollBarVisibility.Hidden;
+
     public ViewerBackground Background => Settings.Display.Background;
 
     /// <summary>상단 바 고정 여부. 해제하면 마우스를 위쪽에 올렸을 때만 나타난다.</summary>
@@ -1132,6 +1138,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SlideShowRepeat));
         OnPropertyChanged(nameof(ThumbnailsVisible));
         OnPropertyChanged(nameof(ThumbnailSize));
+        OnPropertyChanged(nameof(ThumbnailScrollBarVisibility));
         OnPropertyChanged(nameof(Background));
         OnPropertyChanged(nameof(MouseWheelAction));
 

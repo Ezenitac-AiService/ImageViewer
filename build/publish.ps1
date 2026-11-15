@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     ImageViewer 를 Self-contained 로 게시하고, NSIS 가 설치되어 있으면 설치 프로그램을 만든다.
 
@@ -57,8 +57,20 @@ if (-not $makensis) {
 $version = ($csproj.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
 if (-not $version) { $version = "1.0.0" }
 
-Write-Host "== 설치 프로그램 생성 (NSIS, v$version)" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force (Join-Path $root "artifacts\installer") | Out-Null
+
+$portableDir = Join-Path $root "artifacts\publish\portable-$Runtime"
+$portableExe = Join-Path $root "artifacts\installer\ImageViewer-$version-portable.exe"
+Write-Host "== 포터블 단일 실행 파일 생성 (v$version) -> $portableExe" -ForegroundColor Cyan
+if (Test-Path $portableDir) { Remove-Item $portableDir -Recurse -Force }
+dotnet publish $project -c $Configuration -r $Runtime --self-contained true -o $portableDir `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=true -p:DebugType=none
+if ($LASTEXITCODE -ne 0) { throw "포터블 게시 실패" }
+Copy-Item (Join-Path $portableDir "ImageViewer.exe") $portableExe -Force
+Get-Item $portableExe
+
+Write-Host "== 설치 프로그램 생성 (NSIS, v$version)" -ForegroundColor Cyan
 & $makensis /V2 /INPUTCHARSET UTF8 "/DVERSION=$version" "/DPUBLISH_DIR=$output" (Join-Path $root "src\ImageViewer.Installer\ImageViewer.nsi")
 if ($LASTEXITCODE -ne 0) { throw "설치 프로그램 생성 실패" }
 Get-Item (Join-Path $root "artifacts\installer\ImageViewer-$version-setup.exe")

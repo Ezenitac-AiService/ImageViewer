@@ -60,6 +60,8 @@
         <GroupBox Header="썸네일">
             <StackPanel>
                 <CheckBox Content="하단 썸네일 목록 표시" IsChecked="{Binding ThumbnailVisible}" />
+                <CheckBox Content="하단 썸네일 목록 아래에 가로 스크롤바 표시" IsChecked="{Binding ThumbnailScrollBar}"
+                          IsEnabled="{Binding ThumbnailVisible}" />
                 <DockPanel Margin="0,6,0,0">
                     <TextBlock Style="{StaticResource Label}" Text="크기" Width="112" />
                     <TextBlock DockPanel.Dock="Right" Text="{Binding ThumbnailSize, StringFormat={}{0} px}" Width="50"

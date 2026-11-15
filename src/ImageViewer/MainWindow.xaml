@@ -364,6 +364,7 @@
                             <MenuItem Header="설정(_S)..." Command="{Binding ShowSettingsCommand}" />
                             <Separator />
                             <MenuItem Header="단축키 안내(_K)" Click="OnShowShortcuts" />
+                            <MenuItem Header="정보(_A)..." Click="OnShowAbout" />
                         </MenuItem>
                     </Menu>
                     <ToggleButton Grid.Column="1" Style="{StaticResource PinToggleButton}" Margin="0,0,10,4"
@@ -428,7 +429,7 @@
                          ItemContainerStyle="{StaticResource ThumbnailItemStyle}"
                          Focusable="False"
                          Background="Transparent" BorderThickness="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                         ScrollViewer.HorizontalScrollBarVisibility="{Binding ThumbnailScrollBarVisibility}"
                          ScrollViewer.VerticalScrollBarVisibility="Disabled"
                          ScrollViewer.CanContentScroll="True"
                          VirtualizingPanel.IsVirtualizing="True"
@@ -438,6 +439,9 @@
                          VirtualizingPanel.CacheLengthUnit="Page"
                          PreviewMouseWheel="OnThumbnailMouseWheel"
                          PreviewMouseLeftButtonDown="OnThumbnailMouseLeftButtonDown">
+                    <ListBox.Resources>
+                        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThumbnailScrollBar}" />
+                    </ListBox.Resources>
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <VirtualizingStackPanel Orientation="Horizontal" />

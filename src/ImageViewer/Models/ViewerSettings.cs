@@ -74,7 +74,8 @@ public sealed class WindowSettings
 
 public sealed class DisplaySettings
 {
-    public DisplayMode Mode { get; set; } = DisplayMode.FitWidth;
+    /// <summary>보기 모드. 기본은 꽉 차게 (이미지 전체가 창에 들어오게).</summary>
+    public DisplayMode Mode { get; set; } = DisplayMode.Fill;
 
     /// <summary>상단 바(타이틀바 + 메뉴바) 고정(항상 표시) 여부. 해제하면 마우스를 올렸을 때만 표시.</summary>
     public bool TopBarPinned { get; set; } = true;
@@ -109,6 +110,9 @@ public sealed class ThumbnailSettings
 {
     public bool Visible { get; set; } = true;
     public int Size { get; set; } = 96;
+
+    /// <summary>하단 썸네일 목록 아래에 가로 스크롤바를 표시한다 (썸네일이 한 줄에 다 들어가면 숨김).</summary>
+    public bool ShowScrollBar { get; set; }
 }
 
 /// <summary>필터 강도 (sigma 는 화면 픽셀 기준). 설정 화면에서 조절한다.</summary>

@@ -237,7 +237,8 @@ public class SettingsServiceTests : IDisposable
     {
         var service = new SettingsService(settingsPath: SettingsFile);
         var settings = service.Load();
-        Assert.Equal(DisplayMode.FitWidth, settings.Display.Mode);
+        Assert.Equal(DisplayMode.Fill, settings.Display.Mode);
+        Assert.Equal(ImageFilter.None, settings.Display.Filter);
         Assert.Equal(5, settings.Slideshow.IntervalSeconds);
         Assert.True(settings.Navigation.WrapAround);
     }
@@ -288,6 +289,19 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(100, settings.Window.Left);
         Assert.Equal(ViewerBackground.Black, settings.Display.Background);
         Assert.NotNull(settings.Filter);
+        Assert.False(settings.Thumbnail.ShowScrollBar); // 항목이 없으면 스크롤바 숨김 (이전 동작)
+    }
+
+    [Fact]
+    public void Thumbnail_scroll_bar_option_round_trips()
+    {
+        var service = new SettingsService(settingsPath: SettingsFile);
+        service.Load();
+        service.Current.Thumbnail.ShowScrollBar = true;
+        service.Save();
+
+        Assert.Contains("\"showScrollBar\": true", File.ReadAllText(SettingsFile));
+        Assert.True(new SettingsService(settingsPath: SettingsFile).Load().Thumbnail.ShowScrollBar);
     }
 
     [Fact]

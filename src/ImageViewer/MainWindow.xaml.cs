@@ -537,6 +537,9 @@ public partial class MainWindow : Window
         MessageBox.Show(this, text, "단축키 안내", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+    private void OnShowAbout(object sender, RoutedEventArgs e) =>
+        new Views.AboutWindow(Services.AboutInfo.Create()) { Owner = this }.ShowDialog();
+
     #endregion
 
     #region 표시 영역 · 이동(Pan) · 확대

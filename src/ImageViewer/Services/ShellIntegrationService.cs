@@ -19,11 +19,21 @@ namespace ImageViewer.Services;
 ///
 /// 여러 항목을 선택했을 때 창이 여러 개 뜨지 않도록 단일 선택에서만 메뉴를 보인다.
 /// Windows 11 에서는 클래식 메뉴(추가 옵션 표시, Shift+F10)에 표시된다.
+/// 메뉴 이름은 "ImageViewer에서 보기(3)" 이고, 메뉴를 연 뒤 3 을 누르면 바로 실행된다.
 /// </summary>
 public sealed class ShellIntegrationService
 {
     public const string VerbName = "ImageViewer";
     public const string MenuText = "ImageViewer에서 보기";
+
+    /// <summary>
+    /// 메뉴 단축키. 우클릭(Shift+우클릭) 메뉴를 연 뒤 이 키를 누르면 바로 실행된다.
+    /// 다른 메뉴 항목과 겹치기 쉬운 영문자 대신 숫자를 쓴다 (Shift 를 누른 왼손으로 누르기 쉬운 3).
+    /// </summary>
+    public const char AccessKey = '3';
+
+    /// <summary>레지스트리에 쓰는 메뉴 이름. 탐색기는 "&amp;" 다음 글자를 밑줄 친 단축키로 표시한다.</summary>
+    public static string MenuLabel => $"{MenuText}(&{AccessKey})";
 
     private const string Classes = @"Software\Classes\";
 
@@ -65,10 +75,14 @@ public sealed class ShellIntegrationService
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(TargetKeys[0].Path + @"\command");
-            var value = key?.GetValue(null) as string;
+            using var key = Registry.CurrentUser.OpenSubKey(TargetKeys[0].Path);
+            using var command = key?.OpenSubKey("command");
+            var value = command?.GetValue(null) as string;
+
+            // 메뉴 이름이 예전 것(단축키 없음)이면 미등록으로 보고 다시 등록하게 한다.
             return value is not null &&
-                   value.Contains(ExecutablePath, StringComparison.OrdinalIgnoreCase);
+                   value.Contains(ExecutablePath, StringComparison.OrdinalIgnoreCase) &&
+                   key?.GetValue(null) as string == MenuLabel;
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
         {
@@ -83,7 +97,7 @@ public sealed class ShellIntegrationService
         foreach (var (path, background) in TargetKeys)
         {
             using var key = Registry.CurrentUser.CreateSubKey(path, writable: true);
-            key.SetValue(null, MenuText);
+            key.SetValue(null, MenuLabel);
             key.SetValue("Icon", $"\"{exe}\",0");
             key.SetValue("MultiSelectModel", "Single");
             using var command = key.CreateSubKey("command", writable: true);

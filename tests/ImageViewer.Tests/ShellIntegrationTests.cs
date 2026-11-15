@@ -32,4 +32,11 @@ public class ShellIntegrationTests
         Assert.Equal("\"C:\\App\\ImageViewer.exe\" \"%V\"", ShellIntegrationService.BuildCommand(@"C:\App\ImageViewer.exe", background: true));
         Assert.Equal("\"C:\\App\\ImageViewer.exe\" \"%1\"", ShellIntegrationService.BuildCommand(@"C:\App\ImageViewer.exe", background: false));
     }
+
+    [Fact]
+    public void Menu_label_has_numeric_access_key()
+    {
+        Assert.Equal("ImageViewer에서 보기(&3)", ShellIntegrationService.MenuLabel);
+        Assert.Single(ShellIntegrationService.MenuLabel, '&');
+    }
 }

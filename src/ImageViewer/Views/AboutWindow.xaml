@@ -1,0 +1,91 @@
+<Window x:Class="ImageViewer.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:services="clr-namespace:ImageViewer.Services"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=services:AboutInfo}"
+        Title="ImageViewer 정보"
+        Icon="/Resources/ImageViewer.ico"
+        Width="680" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <Style x:Key="Muted" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FF555555" />
+        </Style>
+        <Style x:Key="Cell" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,3,12,3" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="16">
+        <DockPanel>
+            <Image Source="/Resources/ImageViewer.ico" Width="48" Height="48" Margin="0,0,14,0"
+                   RenderOptions.BitmapScalingMode="HighQuality" />
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock FontSize="20" FontWeight="SemiBold">
+                    <Run Text="{Binding ProductName, Mode=OneWay}" />
+                    <Run Text="{Binding Version, Mode=OneWay}" FontWeight="Normal" Foreground="#FF555555" />
+                </TextBlock>
+                <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+            </StackPanel>
+        </DockPanel>
+
+        <GroupBox Header="사용한 라이브러리" Margin="0,14,0,0" Padding="8,6">
+            <ItemsControl ItemsSource="{Binding Libraries}" Grid.IsSharedSizeScope="True">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type services:LibraryInfo}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Name" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Version" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="License" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource Cell}" ToolTip="{Binding Url}">
+                                <Hyperlink NavigateUri="{Binding Url}" RequestNavigate="OnRequestNavigate">
+                                    <Run Text="{Binding Name, Mode=OneWay}" />
+                                </Hyperlink>
+                            </TextBlock>
+                            <TextBlock Grid.Column="1" Style="{StaticResource Cell}" Text="{Binding Version}" />
+                            <TextBlock Grid.Column="2" Style="{StaticResource Cell}" Text="{Binding Purpose}"
+                                       Foreground="#FF555555" TextTrimming="CharacterEllipsis" ToolTip="{Binding Purpose}" />
+                            <TextBlock Grid.Column="3" Style="{StaticResource Cell}" Text="{Binding License}"
+                                       Foreground="#FF555555" Margin="0,3,0,3" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </GroupBox>
+
+        <GroupBox Header="실행 환경" Margin="0,10,0,0" Padding="8,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Style="{StaticResource Cell}" Text="런타임" />
+                <TextBlock Grid.Column="1" Style="{StaticResource Cell}" Text="{Binding Runtime}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="1" Style="{StaticResource Cell}" Text="운영체제" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Cell}" Text="{Binding OperatingSystem}" TextWrapping="Wrap" />
+            </Grid>
+        </GroupBox>
+
+        <DockPanel Margin="0,12,0,0">
+            <Button Content="정보 복사" Width="96" Height="28" Click="OnCopy" ToolTip="버전 정보를 클립보드에 복사합니다" />
+            <TextBlock x:Name="CopiedText" Text="복사했습니다." Style="{StaticResource Muted}" Margin="10,0,0,0"
+                       VerticalAlignment="Center" Visibility="Collapsed" />
+            <Button DockPanel.Dock="Right" Content="닫기" Width="84" Height="28" IsDefault="True" IsCancel="True"
+                    HorizontalAlignment="Right" />
+        </DockPanel>
+    </StackPanel>
+</Window>
