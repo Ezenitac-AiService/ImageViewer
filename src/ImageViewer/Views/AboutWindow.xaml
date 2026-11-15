@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:services="clr-namespace:ImageViewer.Services"
+        xmlns:vm="clr-namespace:ImageViewer.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=services:AboutInfo}"
         Title="ImageViewer 정보"
@@ -36,7 +37,28 @@
             </StackPanel>
         </DockPanel>
 
-        <GroupBox Header="사용한 라이브러리" Margin="0,14,0,0" Padding="8,6">
+        <GroupBox x:Name="UpdateGroup" Header="업데이트" Margin="0,14,0,0" Padding="8,6"
+                  d:DataContext="{d:DesignInstance Type=vm:UpdateViewModel}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button Content="{Binding InstallButtonText}" MinWidth="96" Height="26" Padding="10,0" Margin="0,0,6,0"
+                            Command="{Binding InstallCommand}"
+                            Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Content="업데이트 확인" MinWidth="96" Height="26" Padding="10,0"
+                            Command="{Binding CheckNowCommand}" />
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0" FontSize="11">
+                        <Run Text="설치 방식:" /> <Run Text="{Binding KindText, Mode=OneWay}" />
+                    </TextBlock>
+                    <ProgressBar Height="4" Margin="0,6,0,0" Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}"
+                                 Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </DockPanel>
+        </GroupBox>
+
+        <GroupBox Header="사용한 라이브러리" Margin="0,10,0,0" Padding="8,6">
             <ItemsControl ItemsSource="{Binding Libraries}" Grid.IsSharedSizeScope="True">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type services:LibraryInfo}">
@@ -82,6 +104,15 @@
 
         <DockPanel Margin="0,12,0,0">
             <Button Content="정보 복사" Width="96" Height="28" Click="OnCopy" ToolTip="버전 정보를 클립보드에 복사합니다" />
+            <Button x:Name="ProjectButton" Width="120" Height="28" Margin="6,0,0,0" Click="OnOpenProject"
+                    ToolTip="{Binding ProjectUrl}"
+                    Visibility="{Binding ProjectUrl, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center"
+                               Margin="0,1,6,0" />
+                    <TextBlock Text="GitHub 페이지" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
             <TextBlock x:Name="CopiedText" Text="복사했습니다." Style="{StaticResource Muted}" Margin="10,0,0,0"
                        VerticalAlignment="Center" Visibility="Collapsed" />
             <Button DockPanel.Dock="Right" Content="닫기" Width="84" Height="28" IsDefault="True" IsCancel="True"

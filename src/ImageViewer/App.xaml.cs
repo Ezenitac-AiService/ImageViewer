@@ -4,6 +4,7 @@ using ImageMagick;
 using ImageViewer.Helpers;
 using ImageViewer.Services;
 using ImageViewer.Services.ImageSources;
+using ImageViewer.Services.Updates;
 using ImageViewer.ViewModels;
 using ImageViewer.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public partial class App : Application
 {
     private ServiceProvider? _services;
     private ILogger<App>? _logger;
+    private readonly AppLifetime _lifetime = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -37,6 +39,9 @@ public partial class App : Application
 
         _services.GetRequiredService<SettingsService>().Load();
 
+        // 포터블 업데이트로 남은 이전 실행 파일(.old) 정리
+        _ = UpdateInstaller.CleanupLeftoversAsync(UpdateInstaller.CurrentExePath);
+
         var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;
         window.Show();
@@ -50,15 +55,19 @@ public partial class App : Application
         {
             _ = window.ViewModel.OpenPathAsync(options.Path);
         }
+
+        // 새 버전 자동 확인 (하루 한 번, 시작 뒤 잠시 기다렸다가)
+        _ = _services.GetRequiredService<UpdateViewModel>().AutoCheckAsync(TimeSpan.FromSeconds(5));
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         _services?.Dispose();
+        _lifetime.RunPending(_logger);
         base.OnExit(e);
     }
 
-    private static ServiceProvider ConfigureServices()
+    private ServiceProvider ConfigureServices()
     {
         var services = new ServiceCollection();
 
@@ -79,6 +88,13 @@ public partial class App : Application
         services.AddSingleton<SlideShowService>(_ => new SlideShowService());
         services.AddSingleton<ShellIntegrationService>();
         services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<IAppLifetime>(_lifetime);
+        services.AddSingleton<UpdateService>(sp => new UpdateService(sp.GetRequiredService<ILogger<UpdateService>>()));
+        services.AddSingleton<UpdateViewModel>(sp => new UpdateViewModel(
+            sp.GetRequiredService<UpdateService>(),
+            sp.GetRequiredService<SettingsService>(),
+            sp.GetRequiredService<IAppLifetime>(),
+            sp.GetRequiredService<ILogger<UpdateViewModel>>()));
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
@@ -136,7 +152,9 @@ public partial class App : Application
         {
             if (options.UnregisterShell)
             {
+                // 제거 프로그램이 실행한다: 탐색기 메뉴와 기본 앱 등록을 함께 지운다.
                 shell.Unregister();
+                shell.UnregisterDefaultApp();
             }
 
             if (options.RegisterShell)

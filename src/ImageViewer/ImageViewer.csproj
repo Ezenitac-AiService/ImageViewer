@@ -12,7 +12,7 @@
     <AssemblyName>ImageViewer</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Resources\ImageViewer.ico</ApplicationIcon>
-    <Version>1.0.5</Version>
+    <Version>1.0.6</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>ImageViewer</Product>
     <Description>Windows image viewer for folders and ZIP archives</Description>
@@ -39,6 +39,11 @@
   <ItemGroup>
     <!-- 창 제목 표시줄 · 작업 표시줄용 아이콘 (exe 아이콘은 ApplicationIcon) -->
     <Resource Include="Resources\ImageViewer.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 자동 업데이트가 새 버전을 확인할 GitHub 저장소 (owner/name). 이 저장소의 최신 릴리스를 본다. -->
+    <AssemblyMetadata Include="UpdateRepository" Value="edith2580/ImageViewer" />
   </ItemGroup>
 
   <ItemGroup>

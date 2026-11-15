@@ -68,6 +68,35 @@
         </Setter>
     </Style>
 
+    <!-- 강조 버튼 (업데이트 알림의 [지금 업데이트]) -->
+    <Style x:Key="AccentToolButton" TargetType="Button" BasedOn="{StaticResource ToolButton}">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF5A9CFF" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#FF2F74DB" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- 하단 썸네일 목록의 가로 스크롤바: 어두운 하단 바에 맞춘 얇은 막대 (화살표 없음, 빈 곳 클릭 = 한 페이지 이동) -->
     <Style x:Key="ThumbnailScrollBarPage" TargetType="RepeatButton">
         <Setter Property="Focusable" Value="False" />

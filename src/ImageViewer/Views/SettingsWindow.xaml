@@ -111,6 +111,11 @@
             </DockPanel>
         </GroupBox>
 
+        <GroupBox Header="업데이트">
+            <CheckBox Content="시작할 때 새 버전 자동 확인 (하루 한 번, 설정 > 정보에서 직접 확인 가능)"
+                      IsChecked="{Binding AutoCheckUpdates}" />
+        </GroupBox>
+
         <GroupBox Header="Windows 탐색기 연동">
             <StackPanel>
                 <TextBlock TextWrapping="Wrap" Foreground="#FF555555">
@@ -125,9 +130,14 @@
             </StackPanel>
         </GroupBox>
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
-            <Button Content="확인" Width="84" Height="28" IsDefault="True" Click="OnOk" Margin="0,0,8,0" />
-            <Button Content="취소" Width="84" Height="28" IsCancel="True" />
-        </StackPanel>
+        <DockPanel Margin="0,4,0,0">
+            <Button Content="기본 앱 설정..." MinWidth="110" Height="28" Padding="10,0"
+                    Command="{Binding OpenDefaultAppsCommand}"
+                    ToolTip="ImageViewer 를 Windows 기본 앱 목록에 등록하고 [설정 &gt; 앱 &gt; 기본 앱] 을 엽니다" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="확인" Width="84" Height="28" IsDefault="True" Click="OnOk" Margin="0,0,8,0" />
+                <Button Content="취소" Width="84" Height="28" IsCancel="True" />
+            </StackPanel>
+        </DockPanel>
     </StackPanel>
 </Window>

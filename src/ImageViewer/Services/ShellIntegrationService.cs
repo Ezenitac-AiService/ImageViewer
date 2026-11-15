@@ -119,6 +119,35 @@ public sealed class ShellIntegrationService
         _logger.LogInformation("탐색기 컨텍스트 메뉴를 제거했습니다.");
     }
 
+    /// <summary>Windows 기본 앱 후보로 지금 실행 파일이 등록되어 있는지.</summary>
+    public bool IsDefaultAppRegistered()
+    {
+        try
+        {
+            return DefaultAppRegistration.IsRegistered(Registry.CurrentUser, ExecutablePath);
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            _logger.LogWarning(ex, "기본 앱 등록 상태를 확인하지 못했습니다.");
+            return false;
+        }
+    }
+
+    /// <summary>Windows 기본 앱 후보로 등록한다 (기본 앱 지정은 사용자가 Windows 설정에서 한다).</summary>
+    public void RegisterDefaultApp()
+    {
+        DefaultAppRegistration.Register(Registry.CurrentUser, ExecutablePath);
+        NotifyShell();
+        _logger.LogInformation("Windows 기본 앱 후보로 등록했습니다. ({Count}개 형식)", DefaultAppRegistration.Associations.Count);
+    }
+
+    public void UnregisterDefaultApp()
+    {
+        DefaultAppRegistration.Unregister(Registry.CurrentUser);
+        NotifyShell();
+        _logger.LogInformation("Windows 기본 앱 등록을 제거했습니다.");
+    }
+
     private static void NotifyShell()
     {
         const int SHCNE_ASSOCCHANGED = 0x08000000;

@@ -25,6 +25,9 @@ public sealed class AboutInfo
     public required string Runtime { get; init; }
     public required string OperatingSystem { get; init; }
 
+    /// <summary>GitHub 프로젝트 페이지 (프로젝트 파일의 UpdateRepository 값으로 만든다, 없으면 null).</summary>
+    public string? ProjectUrl { get; init; }
+
     public static AboutInfo Create()
     {
         var app = typeof(AboutInfo).Assembly;
@@ -46,6 +49,7 @@ public sealed class AboutInfo
             ],
             Runtime = $"{RuntimeInformation.FrameworkDescription} ({RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()})",
             OperatingSystem = RuntimeInformation.OSDescription,
+            ProjectUrl = Updates.UpdateService.Repository is { Length: > 0 } repo ? $"https://github.com/{repo}" : null,
         };
     }
 
@@ -62,6 +66,10 @@ public sealed class AboutInfo
         lines.Add("");
         lines.Add($"런타임: {Runtime}");
         lines.Add($"운영체제: {OperatingSystem}");
+        if (ProjectUrl is not null)
+        {
+            lines.Add($"프로젝트: {ProjectUrl}");
+        }
         return string.Join(Environment.NewLine, lines);
     }
 

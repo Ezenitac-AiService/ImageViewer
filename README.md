@@ -76,6 +76,32 @@ powershell -ExecutionPolicy Bypass -File build\publish.ps1
   탐색기 메뉴 등록은 구성 요소 페이지의 선택 항목으로 동의를 받는다.
 - 제거 시 탐색기 메뉴 키(이미지 확장자 포함), 시작 메뉴 · 바탕 화면 바로 가기, 설치 폴더, 프로그램 추가/제거 정보를 삭제한다.
   사용자 설정(`%LOCALAPPDATA%\ImageViewer`)은 남긴다.
+- 포터블 단일 실행 파일 `ImageViewer-<버전>-portable.exe` 와, 두 파일의 확인값 `SHA256SUMS.txt` 도 함께 만든다.
+
+## 자동 업데이트
+
+GitHub 저장소(`ImageViewer.csproj` 의 `UpdateRepository`, 현재 `edith2580/ImageViewer`)의 **최신 릴리스**로 업데이트한다.
+저장소가 **공개(public)** 여야 한다 (비공개면 릴리스 정보를 읽지 못해 "최신 버전"으로 처리된다).
+
+- 시작 5초 뒤, 하루 한 번 최신 릴리스를 확인한다 (설정 > 업데이트에서 끌 수 있음, 설정 > 정보 > **업데이트 확인** 으로 직접 확인).
+  새 버전이 있으면 메인 창 오른쪽 위에 알림: **지금 업데이트** / **이 버전 건너뛰기** / 변경 내용 / 닫기.
+- 받은 파일은 SHA-256 이 맞을 때만 쓴다. 값은 GitHub 가 계산한 파일 digest, 없으면 릴리스의 `SHA256SUMS.txt`.
+  둘 다 없으면 설치하지 않고 다운로드 페이지를 안내한다.
+- **설치 버전** (설치 폴더가 프로그램 추가/제거 정보의 InstallLocation 과 같음): `ImageViewer-x.y.z-setup.exe` 를 `%TEMP%` 에 받고,
+  앱을 종료한 뒤 `setup.exe /S /RELAUNCH=<보던 경로>` 로 조용히 설치한다. 설치 프로그램은 앱이 끝나기를 기다렸다가 덮어쓰고
+  다시 실행한다. 관리자 권한 창은 뜨지 않는다. 탐색기 메뉴는 이미 등록된 경우에만 다시 등록한다.
+- **포터블** (단일 실행 파일): `ImageViewer-x.y.z-portable.exe` 를 exe 옆에 `ImageViewer.exe.new` 로 받고,
+  `ImageViewer.exe` → `.old`, `.new` → `ImageViewer.exe` 로 바꿔 끼운 뒤 보던 경로로 다시 실행한다. 새 버전이 시작하면서 `.old` 를 지운다.
+  파일 이름 · 경로가 그대로라 바로 가기와 탐색기 메뉴가 그대로 동작한다. 폴더에 쓸 수 없으면 다운로드 페이지를 안내한다.
+- 개발 빌드(exe 옆에 ImageViewer.dll 이 있는 빌드)는 자동 설치하지 않고 다운로드 페이지만 연다.
+  Debug 빌드는 환경 변수 `IMAGEVIEWER_UPDATE_FEED=http://127.0.0.1:8765/` 로 로컬 테스트 서버를 가리킬 수 있다 (`releases/latest` 를 읽는다).
+
+릴리스 절차:
+
+1. `ImageViewer.csproj` 의 `<Version>` 을 올리고 `build\publish.ps1` 실행.
+2. GitHub 에서 태그 `v<버전>` (예: `v1.0.6`) 으로 릴리스를 만들고 (Pre-release 체크 해제),
+   `artifacts\installer` 의 `ImageViewer-<버전>-setup.exe`, `ImageViewer-<버전>-portable.exe`, `SHA256SUMS.txt` 를 올린다.
+   파일 이름은 바꾸지 않는다 (`-setup.exe` / `-portable.exe` 로 끝나는 파일을 찾는다).
 
 ## Windows 탐색기 연동
 
@@ -88,6 +114,14 @@ powershell -ExecutionPolicy Bypass -File build\publish.ps1
 - Windows 11 에서는 클래식 메뉴(**추가 옵션 표시**, Shift+F10)에 표시된다.
 - 메뉴 이름은 `ImageViewer에서 보기(3)`: Shift+우클릭으로 메뉴를 연 뒤 **3** 을 누르면 바로 실행된다.
   (이전 버전으로 등록했다면 설정에서 미등록으로 보이므로 **등록**을 한 번 더 누르거나 설치 프로그램으로 다시 설치)
+
+### Windows 기본 앱
+
+- 설정 창 왼쪽 아래 **기본 앱 설정...**: ImageViewer 를 Windows 기본 앱 후보로 등록하고 **설정 > 앱 > 기본 앱** 의 ImageViewer 화면을 연다.
+  Windows 10 / 11 은 앱이 스스로 기본 앱이 되는 것을 막으므로, 그 화면에서 "기본값으로 설정" 또는 형식별로 직접 고른다.
+- 등록 (HKCU, 관리자 권한 불필요): ProgID `ImageViewer.Image` · `ImageViewer.Archive`, 확장자별 `OpenWithProgids`,
+  `Software\ImageViewer\Capabilities`, `Software\RegisteredApplications\ImageViewer`. 대상은 지원하는 모든 이미지 확장자와 .zip / .cbz.
+- 제거 프로그램(`--unregister-shell`)이 탐색기 메뉴와 함께 지운다.
 
 ## 설정 파일
 
@@ -162,6 +196,7 @@ powershell -ExecutionPolicy Bypass -File build\publish.ps1
 ```text
 src/ImageViewer/            WPF 앱 (Models, ViewModels, Views, Services, Helpers)
   Services/ImageSources/    IImageSource, FolderImageSource, ZipImageSource
+  Services/Updates/         UpdateService (릴리스 확인 · 다운로드 · SHA-256), UpdateInstaller (설치 / 포터블 교체)
 src/ImageViewer.Installer/  NSIS 설치 스크립트
 tests/ImageViewer.Tests/             단위 테스트 (배율 계산, 탐색, 슬라이드쇼, 설정, 단축키 등)
 tests/ImageViewer.IntegrationTests/  통합 테스트 (폴더/ZIP 소스, 디코딩, 렌더링, 썸네일)

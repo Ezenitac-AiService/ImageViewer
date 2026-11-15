@@ -66,7 +66,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         SlideShowService slideShow,
         ShellIntegrationService shell,
         IDialogService dialogs,
-        ILogger<MainViewModel> logger)
+        ILogger<MainViewModel> logger,
+        UpdateViewModel? update = null)
     {
         _settingsService = settingsService;
         _sourceFactory = sourceFactory;
@@ -77,6 +78,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _slideShow = slideShow;
         _shell = shell;
         _dialogs = dialogs;
+        Update = update;
+        if (update is not null)
+        {
+            update.RelaunchPathProvider = () => RelaunchPath;
+        }
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
@@ -1184,6 +1190,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>종료 시 설정을 저장한다.</summary>
     public void SaveSettings() => _settingsService.Save();
+
+    /// <summary>자동 업데이트 (메인 창 오른쪽 위 알림, 정보 창). 테스트에서는 없을 수 있다.</summary>
+    public UpdateViewModel? Update { get; }
+
+    /// <summary>업데이트 뒤 다시 열 경로: 폴더의 이미지는 그 파일, ZIP 은 ZIP 파일.</summary>
+    public string? RelaunchPath =>
+        CurrentImage is { SourceType: ImageSourceType.File, FullPath: { } file } && File.Exists(file)
+            ? file
+            : SourceInfo?.Path;
 
     public void Dispose()
     {

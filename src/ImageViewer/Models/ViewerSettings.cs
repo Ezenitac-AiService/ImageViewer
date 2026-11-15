@@ -25,6 +25,8 @@ public sealed class ViewerSettings
 
     public LimitSettings Limits { get; set; } = new();
 
+    public UpdateSettings Update { get; set; } = new();
+
     /// <summary>읽어 들인 값의 범위를 보정한다.</summary>
     public ViewerSettings Normalize()
     {
@@ -35,6 +37,7 @@ public sealed class ViewerSettings
         Thumbnail ??= new();
         Filter ??= new();
         Limits ??= new();
+        Update ??= new();
 
         if (Version < 2)
         {
@@ -130,4 +133,17 @@ public sealed class LimitSettings
 {
     public int MaxImageMegapixels { get; set; } = 150;
     public int MaxZipEntryMegabytes { get; set; } = 512;
+}
+
+/// <summary>자동 업데이트 (GitHub 릴리스).</summary>
+public sealed class UpdateSettings
+{
+    /// <summary>시작할 때 새 버전을 확인한다 (하루 한 번).</summary>
+    public bool AutoCheck { get; set; } = true;
+
+    /// <summary>마지막으로 자동 확인한 시각 (UTC).</summary>
+    public DateTimeOffset? LastCheckUtc { get; set; }
+
+    /// <summary>"이 버전 건너뛰기" 로 알림을 끈 버전 (예: 1.0.6). 더 새 버전이 나오면 다시 알린다.</summary>
+    public string? SkippedVersion { get; set; }
 }

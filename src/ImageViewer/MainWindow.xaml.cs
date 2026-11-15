@@ -265,6 +265,13 @@ public partial class MainWindow : Window
         {
             InfoPanel.Margin = new Thickness(12, infoTop, 0, 0);
         }
+
+        // 업데이트 알림은 보이는 상단 바 아래에 둔다.
+        var noticeTop = (TopBar.Visibility == Visibility.Visible ? TopBar.ActualHeight : 0) + 12;
+        if (Math.Abs(UpdateNotice.Margin.Top - noticeTop) > 0.5)
+        {
+            UpdateNotice.Margin = new Thickness(0, noticeTop, 16, 0);
+        }
     }
 
     private void OnWindowPreviewMouseMove(object sender, MouseEventArgs e)
@@ -538,7 +545,7 @@ public partial class MainWindow : Window
     }
 
     private void OnShowAbout(object sender, RoutedEventArgs e) =>
-        new Views.AboutWindow(Services.AboutInfo.Create()) { Owner = this }.ShowDialog();
+        new Views.AboutWindow(Services.AboutInfo.Create(), _vm.Update) { Owner = this }.ShowDialog();
 
     #endregion
 

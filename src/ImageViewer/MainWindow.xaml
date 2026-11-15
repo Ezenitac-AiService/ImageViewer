@@ -463,5 +463,44 @@
                 </ListBox>
             </StackPanel>
         </Border>
+
+        <!-- 업데이트 알림: 새 버전이 있으면 오른쪽 위에 띄운다 (창을 막지 않는다).
+             위치는 상단 바 높이에 맞춰 코드에서 조정 -->
+        <Border x:Name="UpdateNotice" DataContext="{Binding Update}"
+                Visibility="{Binding IsNoticeVisible, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"
+                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,16,0" Width="360"
+                Background="#F21B1B1E" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="10"
+                Padding="14,8,8,12">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.45" />
+            </Border.Effect>
+            <StackPanel>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;"
+                            FontSize="11" Width="28" Height="26" ToolTip="닫기 (다음에 다시 알림)"
+                            Command="{Binding DismissCommand}" />
+                    <TextBlock Foreground="{StaticResource PanelForeground}" FontSize="14" FontWeight="SemiBold"
+                               VerticalAlignment="Center">
+                        <Run Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}" />
+                        <Run Text=" 새 버전" /><Run Text="{Binding AvailableVersionText, Mode=OneWay, StringFormat={} {0}}" />
+                    </TextBlock>
+                </DockPanel>
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource SubtleForeground}" FontSize="12"
+                           TextWrapping="Wrap" Margin="0,4,6,0" />
+                <ProgressBar Height="4" Margin="0,10,6,0" Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}"
+                             Foreground="{StaticResource AccentBrush}" Background="#FF333333" BorderThickness="0"
+                             Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}" />
+                <DockPanel Margin="0,12,6,0" Visibility="{Binding CanInstall, Converter={StaticResource BoolToVisibility}}">
+                    <Button Style="{StaticResource ToolButton}" Content="변경 내용" FontSize="12" Foreground="#FF7DB4FF"
+                            Command="{Binding OpenReleasePageCommand}" ToolTip="릴리스 페이지를 엽니다" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Style="{StaticResource ToolButton}" Content="이 버전 건너뛰기" FontSize="12" Margin="0,0,6,0"
+                                Command="{Binding SkipVersionCommand}" ToolTip="이 버전은 다시 알리지 않습니다 (더 새 버전이 나오면 알림)" />
+                        <Button Style="{StaticResource AccentToolButton}" Content="{Binding InstallButtonText}"
+                                Command="{Binding InstallCommand}" />
+                    </StackPanel>
+                </DockPanel>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

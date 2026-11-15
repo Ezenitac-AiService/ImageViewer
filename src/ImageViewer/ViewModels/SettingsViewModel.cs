@@ -26,6 +26,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _thumbnailVisible = settings.Thumbnail.Visible;
         _thumbnailSize = settings.Thumbnail.Size;
         _thumbnailScrollBar = settings.Thumbnail.ShowScrollBar;
+        _autoCheckUpdates = settings.Update.AutoCheck;
         _smoothSigma = settings.Filter.SmoothSigma;
         _sharpenSigma = settings.Filter.SharpenSigma;
         _sharpenAmount = settings.Filter.SharpenAmount;
@@ -56,6 +57,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _thumbnailVisible;
     [ObservableProperty] private int _thumbnailSize;
     [ObservableProperty] private bool _thumbnailScrollBar;
+    [ObservableProperty] private bool _autoCheckUpdates;
     [ObservableProperty] private double _smoothSigma;
     [ObservableProperty] private double _sharpenSigma;
     [ObservableProperty] private double _sharpenAmount;
@@ -68,6 +70,44 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string ShellStatusText => IsShellRegistered
         ? "현재 사용자에 등록되어 있습니다."
         : "등록되어 있지 않습니다.";
+
+    /// <summary>
+    /// 설정 창 아래 [기본 앱 설정]: ImageViewer 를 Windows 기본 앱 후보로 등록하고 기본 앱 설정 화면을 연다.
+    /// (Windows 는 앱이 스스로 기본 앱이 되는 것을 막으므로, 형식 선택은 사용자가 그 화면에서 한다)
+    /// </summary>
+    [RelayCommand]
+    private void OpenDefaultApps()
+    {
+        if (!_shell.IsDefaultAppRegistered())
+        {
+            if (!_dialogs.Confirm(
+                    "ImageViewer 를 Windows 기본 앱 목록에 등록하고 [설정 > 앱 > 기본 앱] 을 엽니다.\n" +
+                    "열리는 화면에서 ImageViewer 를 기본값으로 설정하거나, .jpg · .png 등 형식별로 선택해 주세요.\n" +
+                    "(현재 사용자 레지스트리에 등록, 관리자 권한 불필요)\n\n계속하시겠습니까?"))
+            {
+                return;
+            }
+
+            try
+            {
+                _shell.RegisterDefaultApp();
+            }
+            catch (Exception ex)
+            {
+                _dialogs.ShowMessage("기본 앱 목록에 등록하지 못했습니다.\n" + ex.Message, isError: true);
+                return;
+            }
+        }
+
+        try
+        {
+            DefaultAppRegistration.OpenSettings();
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowMessage("Windows 기본 앱 설정을 열지 못했습니다.\n" + ex.Message, isError: true);
+        }
+    }
 
     [RelayCommand]
     private void RegisterShell()
@@ -116,6 +156,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         settings.Thumbnail.Visible = ThumbnailVisible;
         settings.Thumbnail.Size = ThumbnailSize;
         settings.Thumbnail.ShowScrollBar = ThumbnailScrollBar;
+        settings.Update.AutoCheck = AutoCheckUpdates;
         settings.Filter.SmoothSigma = SmoothSigma;
         settings.Filter.SharpenSigma = SharpenSigma;
         settings.Filter.SharpenAmount = SharpenAmount;

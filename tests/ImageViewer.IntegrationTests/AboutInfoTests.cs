@@ -1,4 +1,5 @@
 using ImageViewer.Services;
+using ImageViewer.Services.Updates;
 
 namespace ImageViewer.IntegrationTests;
 
@@ -24,7 +25,12 @@ public class AboutInfoTests
             Assert.StartsWith("https://", l.Url);
         });
 
+        // GitHub 프로젝트 페이지 (자동 업데이트와 같은 저장소)
+        Assert.Equal($"https://github.com/{UpdateService.Repository}", info.ProjectUrl);
+        Assert.Matches(@"^https://github\.com/[^/]+/[^/]+$", info.ProjectUrl);
+
         var text = info.ToText();
+        Assert.Contains(info.ProjectUrl!, text);
         Assert.Contains(info.Version, text);
         Assert.Contains(".NET", text);
     }
