@@ -289,6 +289,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _slideShow.Mode = value;
             OnPropertyChanged();
             ShowOsd(value == SlideShowMode.Random ? "랜덤 재생" : "순차 재생");
+            if (IsSlideShowPlaying)
+            {
+                StartPrefetch(); // 재생 순서가 바뀌었으므로 다음 이미지를 다시 미리 읽는다
+            }
         }
     }
 
@@ -305,6 +309,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Settings.Slideshow.Repeat = value;
             _slideShow.Repeat = value;
             OnPropertyChanged();
+            if (IsSlideShowPlaying)
+            {
+                StartPrefetch();
+            }
         }
     }
 
@@ -979,6 +987,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _slideShow.Start();
         IsSlideShowPlaying = true;
         ShowOsd($"슬라이드쇼 재생 ({SlideShowInterval}초, {(SlideShowMode == SlideShowMode.Random ? "랜덤" : "순차")})");
+
+        // 재생 순서(랜덤이면 섞은 목록)를 바로 만들고 첫 번째 다음 이미지와 좌우 이미지를 미리 읽는다.
+        StartPrefetch();
     }
 
     private void StopSlideShow(bool showMessage)

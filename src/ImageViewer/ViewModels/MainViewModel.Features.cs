@@ -382,8 +382,10 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
-    /// 이동 방향의 다음 두 장과 반대 방향 한 장을 미리 디코딩하고 현재 표시 조건으로 렌더링까지 해 둔다.
+    /// 다음에 볼 가능성이 높은 이미지를 우선순위대로 미리 디코딩하고 현재 표시 조건으로 렌더링까지 해 둔다.
     /// 이동하면 캐시에서 바로 꺼내 보여 줄 수 있다. 다른 이미지로 이동하면 취소된다.
+    /// - 슬라이드쇼 재생 중: ① 슬라이드쇼의 다음 이미지(랜덤이면 섞은 순서의 다음) ② 오른쪽 ③ 왼쪽
+    /// - 그 밖에는: 이동 방향의 다음 두 장, 반대 방향 한 장
     /// </summary>
     private void StartPrefetch()
     {
@@ -393,29 +395,63 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var forward = _lastDirection >= 0 ? 1 : -1;
-        var candidates = new List<int>();
-        void Add(int offset)
+        var candidates = GetPrefetchCandidates();
+        if (candidates.Count == 0)
         {
-            var index = CurrentIndex + offset;
-            if (_navigation.WrapAround && _images.Count > 0)
-            {
-                index = ((index % _images.Count) + _images.Count) % _images.Count;
-            }
+            return;
+        }
 
-            if (index >= 0 && index < _images.Count && index != CurrentIndex && !candidates.Contains(index))
+        _prefetchCts?.Cancel();
+        _prefetchCts = new CancellationTokenSource();
+        _ = PrefetchAsync(source, candidates.Select(i => _images[i]).ToList(), target, Filter, _prefetchCts.Token);
+    }
+
+    internal List<int> GetPrefetchCandidates()
+    {
+        var count = _images.Count;
+        var candidates = new List<int>();
+        if (CurrentIndex < 0 || count < 2)
+        {
+            return candidates;
+        }
+
+        void AddIndex(int index)
+        {
+            if (index >= 0 && index < count && index != CurrentIndex && !candidates.Contains(index))
             {
                 candidates.Add(index);
             }
         }
 
-        Add(forward);
-        Add(forward * 2);
-        Add(-forward);
+        void AddOffset(int offset)
+        {
+            var index = CurrentIndex + offset;
+            if (_navigation.WrapAround)
+            {
+                index = ((index % count) + count) % count;
+            }
 
-        _prefetchCts?.Cancel();
-        _prefetchCts = new CancellationTokenSource();
-        _ = PrefetchAsync(source, candidates.Select(i => _images[i]).ToList(), target, Filter, _prefetchCts.Token);
+            AddIndex(index);
+        }
+
+        if (IsSlideShowPlaying)
+        {
+            // 랜덤 재생이면 이 호출에서 섞은 순서가 만들어지고, 다음 타이머가 같은 이미지를 꺼낸다.
+            if (_slideShow.PeekNextIndex(CurrentIndex, count) is { } next)
+            {
+                AddIndex(next);
+            }
+
+            AddOffset(+1);
+            AddOffset(-1);
+            return candidates;
+        }
+
+        var forward = _lastDirection >= 0 ? 1 : -1;
+        AddOffset(forward);
+        AddOffset(forward * 2);
+        AddOffset(-forward);
+        return candidates;
     }
 
     private async Task PrefetchAsync(

@@ -95,8 +95,23 @@ public sealed class SlideShowService : IDisposable
         _bagCompletedOnce = false;
     }
 
-    /// <summary>다음에 보여 줄 이미지 위치. 재생을 끝내야 하면 null.</summary>
+    /// <summary>다음에 보여 줄 이미지 위치를 꺼낸다 (랜덤 순서에서 소비). 재생을 끝내야 하면 null.</summary>
     public int? GetNextIndex(int currentIndex, int count)
+    {
+        var next = PeekNextIndex(currentIndex, count);
+        if (next is not null && Mode == SlideShowMode.Random && count > 1)
+        {
+            _bag.Dequeue();
+        }
+
+        return next;
+    }
+
+    /// <summary>
+    /// 다음 타이머에 보여 줄 이미지 위치를 소비하지 않고 미리 본다 (미리 읽기용).
+    /// 랜덤 재생이면 섞은 순서가 아직 없을 때 여기서 만들어 두므로, 이후 <see cref="GetNextIndex"/> 와 같은 결과를 준다.
+    /// </summary>
+    public int? PeekNextIndex(int currentIndex, int count)
     {
         if (count <= 0)
         {
@@ -139,12 +154,14 @@ public sealed class SlideShowService : IDisposable
                 _bagCompletedOnce = true;
             }
 
-            var candidate = _bag.Dequeue();
+            // 현재 이미지(수동으로 이동한 경우 등)이거나 목록 밖이면 건너뛴다. 꺼낼 때도 똑같이 건너뛰므로 버려도 된다.
+            var candidate = _bag.Peek();
             if (candidate != currentIndex && candidate < count)
             {
                 return candidate;
             }
 
+            _bag.Dequeue();
             if (_bag.Count == 0 && !Repeat)
             {
                 return null;

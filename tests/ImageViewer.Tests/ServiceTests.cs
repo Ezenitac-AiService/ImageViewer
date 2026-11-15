@@ -181,6 +181,41 @@ public class SlideShowServiceTests
         Assert.Equal(10, seen.Count);
     }
 
+    [Theory]
+    [InlineData(SlideShowMode.Random, true)]
+    [InlineData(SlideShowMode.Random, false)]
+    [InlineData(SlideShowMode.Sequential, true)]
+    public void Peek_predicts_next_tick_without_consuming(SlideShowMode mode, bool repeat)
+    {
+        var s = new SlideShowService(new Random(3)) { Mode = mode, Repeat = repeat };
+        var current = 4;
+        for (var i = 0; i < 40; i++)
+        {
+            var peeked = s.PeekNextIndex(current, 8);
+            Assert.Equal(peeked, s.PeekNextIndex(current, 8)); // 여러 번 봐도 같다
+            var next = s.GetNextIndex(current, 8);
+            Assert.Equal(peeked, next);                       // 다음 타이머가 실제로 같은 이미지를 보여 준다
+            if (next is null)
+            {
+                break;
+            }
+
+            current = next.Value;
+        }
+    }
+
+    [Fact]
+    public void Peek_skips_image_reached_by_manual_navigation()
+    {
+        var s = new SlideShowService(new Random(5)) { Mode = SlideShowMode.Random, Repeat = true };
+        var peeked = s.PeekNextIndex(0, 6)!.Value;
+
+        // 사용자가 미리 본 이미지로 직접 이동하면, 다음 타이머는 그 이미지를 다시 보여 주지 않는다.
+        var next = s.GetNextIndex(peeked, 6);
+        Assert.NotNull(next);
+        Assert.NotEqual(peeked, next);
+    }
+
     [Fact]
     public void Interval_is_clamped_to_5_to_90_seconds()
     {

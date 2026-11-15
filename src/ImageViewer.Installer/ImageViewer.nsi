@@ -1,7 +1,7 @@
-﻿; ImageViewer 설치 프로그램 (NSIS 3, Unicode)
+; ImageViewer 설치 프로그램 (NSIS 3, Unicode)
 ;
 ; 빌드: build\publish.ps1  (게시 후 자동으로 makensis 실행)
-;   또는 makensis /DVERSION=1.0.1 /DPUBLISH_DIR=..\..\artifacts\publish\win-x64 ImageViewer.nsi
+;   또는 makensis /DVERSION=1.0.2 /DPUBLISH_DIR=..\..\artifacts\publish\win-x64 ImageViewer.nsi
 ;
 ; - 현재 사용자 설치 (관리자 권한 불필요): %LOCALAPPDATA%\Programs\ImageViewer
 ; - 탐색기 우클릭 메뉴 등록은 구성 요소 페이지에서 선택 (사용자 동의)
@@ -19,7 +19,7 @@ Unicode true
 ManifestDPIAware true
 
 !ifndef VERSION
-  !define VERSION "1.0.1"
+  !define VERSION "1.0.2"
 !endif
 !ifndef PUBLISH_DIR
   !define PUBLISH_DIR "..\..\artifacts\publish\win-x64"
