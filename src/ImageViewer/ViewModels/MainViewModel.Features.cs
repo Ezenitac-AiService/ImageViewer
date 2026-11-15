@@ -17,7 +17,9 @@ namespace ImageViewer.ViewModels;
 public sealed partial class MainViewModel
 {
     private ImageTransform _transform = ImageTransform.Identity;
-    private IReadOnlyList<RenderedFrame>? _animationFrames;
+    private AnimationPlayback? _playback;
+    private readonly System.Diagnostics.Stopwatch _animationClock = new();
+    private double _nextFrameDueMs;
     private int _animationIndex;
     private DispatcherTimer? _animationTimer;
     private DispatcherTimer? _watchDebounce;
@@ -135,24 +137,42 @@ public sealed partial class MainViewModel
     [RelayCommand]
     private void TogglePlayAnimations() => PlayAnimations = !PlayAnimations;
 
-    private void StartAnimation(IReadOnlyList<RenderedFrame> frames)
+    /// <summary>
+    /// 애니메이션을 표시할 디코딩 배율. 모든 프레임을 원본 크기로 보관할 수 있으면 원본(1),
+    /// 아니면 화면 표시에 필요한 크기와 메모리 한도에 맞는 크기 중 큰 쪽으로 줄인다.
+    /// </summary>
+    internal static double AnimationScale(DecodedImage decoded, AnimationSource animation, ImageTransform transform, uint renderPixelWidth, uint renderPixelHeight)
     {
-        // 같은 프레임 묶음이면(창 크기 변경 · 확대 등) 재생 위치를 유지한다.
-        if (ReferenceEquals(frames, _animationFrames))
+        var budgetScale = Math.Sqrt(AnimationPlayback.DefaultBudgetBytes /
+                                    ((double)animation.Width * animation.Height * 4 * animation.FrameCount));
+        if (budgetScale >= 1)
+        {
+            return 1;
+        }
+
+        var (width, height) = transform.Apply(decoded.OriginalWidth, decoded.OriginalHeight);
+        var displayScale = Math.Max((double)renderPixelWidth / Math.Max(1u, width), (double)renderPixelHeight / Math.Max(1u, height));
+        return Math.Min(1, Math.Max(budgetScale, displayScale));
+    }
+
+    /// <summary>지금 재생 중인 애니메이션을 이 조건에서 그대로 쓸 수 있는지 (해상도가 모자라면 다시 만든다).</summary>
+    private bool CanReusePlayback(AnimationSource animation, ImageTransform transform, double scale) =>
+        _playback is { } p && ReferenceEquals(p.Source, animation) && p.Transform == transform &&
+        (p.Scale >= 0.999 || p.Scale + 0.02 >= scale);
+
+    private void StartAnimation(AnimationPlayback playback)
+    {
+        // 같은 재생이면(창 크기 변경 · 확대 등) 재생 위치를 유지한다.
+        if (ReferenceEquals(playback, _playback))
         {
             return;
         }
 
         StopAnimation();
-        if (frames.Count == 0)
-        {
-            return;
-        }
-
-        _animationFrames = frames;
+        _playback = playback;
         _animationIndex = 0;
-        _animationDelaysMs = frames.Select(f => (int)f.Delay.TotalMilliseconds).ToArray();
-        CurrentBitmap = frames[0].Bitmap;
+        _animationDelaysMs = playback.DelaysMs.ToArray();
+        CurrentBitmap = playback.TryGetFrame(0);
         UpdateAnimationInfo();
 
         if (_animationTimer is null)
@@ -161,22 +181,37 @@ public sealed partial class MainViewModel
             _animationTimer.Tick += OnAnimationTick;
         }
 
-        _animationTimer.Interval = frames[0].Delay;
+        _animationClock.Restart();
+        _nextFrameDueMs = _animationDelaysMs[0];
+        _animationTimer.Interval = TimeSpan.FromMilliseconds(_animationDelaysMs[0]);
         _animationTimer.Start();
     }
 
     private void OnAnimationTick(object? sender, EventArgs e)
     {
-        if (_animationFrames is not { Count: > 0 } frames || _animationTimer is null)
+        if (_playback is not { } playback || _animationTimer is null)
         {
             return;
         }
 
-        _animationIndex = (_animationIndex + 1) % frames.Count;
-        var frame = frames[_animationIndex];
-        CurrentBitmap = frame.Bitmap;
+        var next = (_animationIndex + 1) % playback.FrameCount;
+        if (playback.TryGetFrame(next) is not { } frame)
+        {
+            // 다음 프레임을 아직 디코딩 중: 현재 프레임을 유지하고 곧 다시 확인한다.
+            _animationTimer.Interval = TimeSpan.FromMilliseconds(10);
+            return;
+        }
+
+        _animationIndex = next;
+        playback.SetPosition(next);
+        CurrentBitmap = frame;
         UpdateAnimationInfo();
-        _animationTimer.Interval = frame.Delay;
+
+        // 타이머는 매번 조금씩 늦게 울리므로(약 15ms 단위) 실제 경과 시간 기준으로 다음 프레임 시각을 잡아
+        // 늦어진 만큼 다음 간격을 줄인다. 디코딩을 기다리느라 크게 밀렸으면 지금부터 다시 센다.
+        var now = _animationClock.Elapsed.TotalMilliseconds;
+        _nextFrameDueMs = now - _nextFrameDueMs > 250 ? now + _animationDelaysMs[next] : _nextFrameDueMs + _animationDelaysMs[next];
+        _animationTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, _nextFrameDueMs - now));
     }
 
     private int[] _animationDelaysMs = [];
@@ -227,7 +262,8 @@ public sealed partial class MainViewModel
     private void StopAnimation()
     {
         _animationTimer?.Stop();
-        _animationFrames = null;
+        _playback?.Dispose();
+        _playback = null;
     }
 
     #endregion
@@ -515,11 +551,8 @@ public sealed partial class MainViewModel
                 var decoded = await _loader.LoadAsync(source, info, 0, target, ct, background: true);
                 try
                 {
-                    if (decoded.IsAnimated && PlayAnimations)
-                    {
-                        await _renderer.RenderAnimationAsync(decoded, ImageTransform.Identity, ct, background: true);
-                    }
-                    else
+                    // 애니메이션은 첫 프레임만 디코딩해 두고, 나머지 프레임은 재생하면서 디코딩한다.
+                    if (!(decoded.IsAnimated && PlayAnimations))
                     {
                         // 이동하면 회전 · 반전과 배율은 초기화되므로 그 조건으로 미리 그린다.
                         var (width, height) = (decoded.OriginalWidth, decoded.OriginalHeight);

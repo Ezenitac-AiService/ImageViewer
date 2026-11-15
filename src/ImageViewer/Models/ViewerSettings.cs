@@ -6,7 +6,7 @@ namespace ImageViewer.Models;
 public sealed class ViewerSettings
 {
     /// <summary>설정 파일 형식 버전. 기본값이 바뀐 항목을 이전 설정에서 옮길 때 사용한다.</summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>파일에 없으면 0 (버전 관리 이전에 저장된 설정).</summary>
     public int Version { get; set; }
@@ -42,13 +42,19 @@ public sealed class ViewerSettings
             Display.MouseWheel = MouseWheelAction.Navigate;
         }
 
+        if (Version < 3 && Math.Abs(Filter.SmoothSigma - 0.8) < 0.001)
+        {
+            // v3: 부드럽게 강도를 화면 픽셀 기준으로 바꾸면서 기본값을 0.8 → 0.5 로 낮춤 (직접 바꾼 값은 유지)
+            Filter.SmoothSigma = FilterSettings.DefaultSmoothSigma;
+        }
+
         Version = CurrentVersion;
 
         Window.Width = Math.Clamp(Window.Width, 320, 20000);
         Window.Height = Math.Clamp(Window.Height, 240, 20000);
         Slideshow.IntervalSeconds = SlideShowSettings.ClampInterval(Slideshow.IntervalSeconds);
         Thumbnail.Size = Math.Clamp(Thumbnail.Size, 48, 256);
-        Filter.SmoothSigma = Math.Clamp(Filter.SmoothSigma, 0.1, 5.0);
+        Filter.SmoothSigma = Math.Clamp(Filter.SmoothSigma, 0.1, 3.0);
         Filter.SharpenSigma = Math.Clamp(Filter.SharpenSigma, 0.1, 5.0);
         Filter.SharpenAmount = Math.Clamp(Filter.SharpenAmount, 0.1, 5.0);
         Limits.MaxImageMegapixels = Math.Clamp(Limits.MaxImageMegapixels, 10, 1000);
@@ -105,10 +111,12 @@ public sealed class ThumbnailSettings
     public int Size { get; set; } = 96;
 }
 
-/// <summary>필터 강도. 추후 설정 화면에서 조절할 수 있도록 분리한다.</summary>
+/// <summary>필터 강도 (sigma 는 화면 픽셀 기준). 설정 화면에서 조절한다.</summary>
 public sealed class FilterSettings
 {
-    public double SmoothSigma { get; set; } = 0.8;
+    public const double DefaultSmoothSigma = 0.5;
+
+    public double SmoothSigma { get; set; } = DefaultSmoothSigma;
     public double SharpenSigma { get; set; } = 1.0;
     public double SharpenAmount { get; set; } = 1.0;
 }

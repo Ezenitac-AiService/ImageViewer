@@ -82,8 +82,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Style="{StaticResource Label}" Text="부드럽게 (sigma)" />
-                <Slider Grid.Column="1" Minimum="0.1" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                <TextBlock Style="{StaticResource Label}" Text="부드럽게 강도" ToolTip="화면 픽셀 기준 흐림 정도 (sigma). 기본값 0.5" />
+                <Slider Grid.Column="1" Minimum="0.1" Maximum="2" TickFrequency="0.1" IsSnapToTickEnabled="True"
                         Value="{Binding SmoothSigma}" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="2" Text="{Binding SmoothSigma, StringFormat={}{0:0.0}}" TextAlignment="Right" VerticalAlignment="Center" />
 

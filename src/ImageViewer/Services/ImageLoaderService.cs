@@ -50,10 +50,7 @@ public sealed record DecodeTarget(DisplayMode Mode, double ViewportPixelWidth, d
     }
 }
 
-/// <summary>애니메이션 한 프레임 (GIF / WebP, 합성(coalesce)된 전체 캔버스).</summary>
-public sealed record AnimationFrame(MagickImage Image, int DelayMs);
-
-/// <summary>디코딩 결과. 애니메이션이면 <see cref="Frames"/>, 다중 페이지면 <see cref="PageCount"/> 가 1보다 크다.</summary>
+/// <summary>디코딩 결과. 애니메이션이면 <see cref="Animation"/>, 다중 페이지면 <see cref="PageCount"/> 가 1보다 크다.</summary>
 public sealed class DecodeResult(MagickImage image, string format)
 {
     public MagickImage Image { get; } = image;
@@ -69,7 +66,8 @@ public sealed class DecodeResult(MagickImage image, string format)
 
     public int PageCount { get; init; } = 1;
 
-    public IReadOnlyList<AnimationFrame>? Frames { get; init; }
+    /// <summary>애니메이션(GIF / WebP)이면 프레임을 재생하면서 디코딩할 원본. <see cref="Image"/> 는 첫 프레임.</summary>
+    public AnimationSource? Animation { get; init; }
 
     public IReadOnlyList<MetadataItem> Exif { get; init; } = [];
 
@@ -82,13 +80,12 @@ public sealed class DecodeResult(MagickImage image, string format)
 
 /// <summary>
 /// 디코딩된 원본 이미지 (EXIF 방향 반영, sRGB 변환).
-/// 다중 페이지 이미지는 페이지 하나, 애니메이션은 모든 프레임을 가진다.
+/// 다중 페이지 이미지는 페이지 하나, 애니메이션은 첫 프레임과 재생용 원본 데이터(<see cref="Animation"/>)를 가진다.
 /// 캐시와 화면이 동시에 참조할 수 있으므로 참조 카운트로 해제 시점을 관리한다.
 /// </summary>
 public sealed class DecodedImage
 {
     private readonly MagickImage _image;
-    private readonly IReadOnlyList<AnimationFrame>? _frames;
     private readonly Lock _lock = new();
     private int _refCount = 1;
 
@@ -96,7 +93,7 @@ public sealed class DecodedImage
     {
         Info = info;
         _image = result.Image;
-        _frames = result.Frames;
+        Animation = result.Animation;
         Width = _image.Width;
         Height = _image.Height;
         OriginalWidth = Math.Max(result.OriginalWidth, Width);
@@ -104,8 +101,8 @@ public sealed class DecodedImage
         Format = result.Format;
         PageIndex = result.PageIndex;
         PageCount = result.PageCount;
-        FrameCount = _frames?.Count ?? 1;
-        FrameDelaysMs = _frames?.Select(f => f.DelayMs).ToArray() ?? [];
+        FrameCount = Animation?.FrameCount ?? 1;
+        FrameDelaysMs = Animation?.DelaysMs ?? [];
         Exif = result.Exif;
     }
 
@@ -135,6 +132,9 @@ public sealed class DecodedImage
 
     public bool IsAnimated => FrameCount > 1;
 
+    /// <summary>애니메이션 재생용 원본 (프레임은 <see cref="AnimationPlayback"/> 이 재생하며 디코딩한다).</summary>
+    public AnimationSource? Animation { get; }
+
     /// <summary>애니메이션 각 프레임의 표시 시간(ms). 애니메이션이 아니면 비어 있다.</summary>
     public IReadOnlyList<int> FrameDelaysMs { get; }
 
@@ -146,8 +146,8 @@ public sealed class DecodedImage
     /// </summary>
     public string Key => ImageLoaderService.CacheKey(Info, PageIndex) + (IsReduced ? $"~{Width}x{Height}" : string.Empty);
 
-    /// <summary>메모리 사용량 추정치 (8bit BGRA 기준).</summary>
-    public long Cost => (long)Width * Height * 4 * Math.Max(1, FrameCount);
+    /// <summary>메모리 사용량 추정치 (8bit BGRA 기준 + 애니메이션 원본 데이터).</summary>
+    public long Cost => (long)Width * Height * 4 + (Animation?.DataLength ?? 0);
 
     public bool IsDisposed
     {
@@ -186,13 +186,6 @@ public sealed class DecodedImage
             if (--_refCount == 0)
             {
                 _image.Dispose();
-                if (_frames is not null)
-                {
-                    foreach (var frame in _frames)
-                    {
-                        frame.Image.Dispose();
-                    }
-                }
             }
         }
     }
@@ -206,20 +199,6 @@ public sealed class DecodedImage
         lock (_lock)
         {
             return _refCount <= 0 ? null : (MagickImage)_image.Clone();
-        }
-    }
-
-    /// <summary>애니메이션 프레임 복제본. 애니메이션이 아니거나 해제되었으면 null.</summary>
-    public IReadOnlyList<AnimationFrame>? CloneFrames()
-    {
-        lock (_lock)
-        {
-            if (_refCount <= 0 || _frames is null)
-            {
-                return null;
-            }
-
-            return _frames.Select(f => new AnimationFrame((MagickImage)f.Image.Clone(), f.DelayMs)).ToList();
         }
     }
 }
@@ -433,7 +412,7 @@ public sealed class ImageLoaderService : IDisposable
     /// <summary>
     /// 공통 디코딩 절차.
     /// 1) 헤더 검사로 스크립트/문서 포맷 거부 2) Ping 으로 포맷·픽셀 수 검증
-    /// 3) 프레임 수 확인 (GIF / WebP 애니메이션, 다중 페이지 TIFF)
+    /// 3) GIF / WebP 애니메이션은 첫 프레임만 디코딩 (나머지는 재생하며 디코딩), 다중 페이지 TIFF 는 페이지 수 확인
     /// 4) 디코딩 5) EXIF 읽기 · 방향 반영 6) sRGB 변환
     /// 내용으로 포맷을 판별할 수 없는 경우(ICO, TGA, RAW 등)에는 파일 확장자를 힌트로 다시 시도한다.
     /// 썸네일(<paramref name="thumbnailHint"/>)은 항상 첫 프레임 / 첫 페이지만 읽는다.
@@ -472,7 +451,6 @@ public sealed class ImageLoaderService : IDisposable
         }
 
         MagickFormat format;
-        uint canvasWidth, canvasHeight;
         uint originalWidth, originalHeight;
         try
         {
@@ -495,9 +473,6 @@ public sealed class ImageLoaderService : IDisposable
             {
                 throw new ImageLoadException($"지원하지 않는 형식입니다. ({format})");
             }
-
-            canvasWidth = info.Width;
-            canvasHeight = info.Height;
 
             // EXIF 방향이 90° 회전(5~8)이면 화면 기준 폭 · 높이가 바뀐다.
             var swapped = (int)info.Orientation is >= 5 and <= 8;
@@ -531,16 +506,18 @@ public sealed class ImageLoaderService : IDisposable
         var formatName = format.ToString().ToUpperInvariant();
         var animated = formatName is "GIF" or "WEBP";
         var paged = formatName is "TIFF" or "TIF" or "TIFF64" or "PTIF";
-        var frameCount = 1;
-        if (thumbnailHint is null && (animated || paged))
+
+        // 애니메이션: 첫 프레임만 바로 디코딩하고, 나머지는 재생하면서 차례로 디코딩한다 (AnimationPlayback).
+        // ImageMagick 은 첫 프레임만 요청해도 모든 프레임을 풀기 때문에 큰 애니메이션에서 수 초 · 수 GB 가 든다.
+        if (animated && TryReadAnimation(stream, formatName, keepAnimation: thumbnailHint is null) is { } animation)
         {
-            frameCount = CountFrames(stream, settings.Format);
+            return animation;
         }
 
-        // 애니메이션: 모든 프레임의 픽셀 합이 한도 안이면 전체 프레임을 읽는다 (넘으면 첫 프레임만 표시).
-        if (animated && frameCount > 1 && (long)canvasWidth * canvasHeight * frameCount <= maxPixels)
+        var frameCount = 1;
+        if (thumbnailHint is null && paged)
         {
-            return ReadAnimation(stream, settings.Format, formatName);
+            frameCount = CountFrames(stream, settings.Format);
         }
 
         var page = paged ? Math.Clamp(pageIndex, 0, frameCount - 1) : 0;
@@ -631,54 +608,32 @@ public sealed class ImageLoaderService : IDisposable
     }
 
     /// <summary>
-    /// 애니메이션 전체 프레임을 읽어 합성(coalesce)한다.
-    /// 지연 시간이 0 또는 너무 짧은 프레임은 브라우저와 같이 100ms 로 표시한다.
+    /// GIF / WebP 가 애니메이션(프레임 2개 이상)이면 첫 프레임과 재생용 원본을 만든다.
+    /// 애니메이션이 아니거나 읽을 수 없으면 null (ImageMagick 으로 다시 읽는다).
     /// </summary>
-    private static DecodeResult ReadAnimation(Stream stream, MagickFormat? formatHint, string formatName)
+    private static DecodeResult? TryReadAnimation(Stream stream, string formatName, bool keepAnimation)
     {
-        var settings = new MagickReadSettings();
-        if (formatHint is { } f)
-        {
-            settings.Format = f;
-        }
+        stream.Position = 0;
+        var data = new byte[stream.Length];
+        stream.ReadExactly(data);
+        stream.Position = 0;
 
-        var frames = new List<AnimationFrame>();
         try
         {
-            using var collection = new MagickImageCollection(stream, settings);
-            collection.Coalesce();
-            foreach (var frame in collection.Take(MaxFrames))
+            if (AnimationSource.TryCreate(data, formatName) is not { } animation)
             {
-                var ticksPerSecond = frame.AnimationTicksPerSecond > 0 ? frame.AnimationTicksPerSecond : 100;
-                var delayMs = (int)(frame.AnimationDelay * 1000L / ticksPerSecond);
-                if (delayMs < 20)
-                {
-                    delayMs = 100;
-                }
-
-                var image = (MagickImage)frame.Clone();
-                NormalizeColor(image);
-                frames.Add(new AnimationFrame(image, delayMs));
+                return null;
             }
 
-            if (frames.Count == 0)
+            var first = animation.DecodeFirstFrame();
+            return new DecodeResult(first, formatName)
             {
-                throw new ImageLoadException("애니메이션 프레임이 없습니다.");
-            }
-
-            return new DecodeResult((MagickImage)frames[0].Image.Clone(), formatName)
-            {
-                Frames = frames,
+                Animation = keepAnimation ? animation : null,
             };
         }
-        catch (MagickException ex)
+        catch (ImageLoadException)
         {
-            foreach (var frame in frames)
-            {
-                frame.Image.Dispose();
-            }
-
-            throw new ImageLoadException(DescribeMagickError(ex), ex);
+            return null;
         }
     }
 

@@ -713,16 +713,33 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var transform = _transform;
         try
         {
-            // 애니메이션: 프레임을 원본 해상도로 만들어 재생한다 (확대 · 축소는 화면에서 처리).
-            if (decoded.IsAnimated && PlayAnimations)
+            // 애니메이션: 재생하면서 프레임을 차례로 디코딩한다 (확대 · 축소는 화면에서 처리).
+            // 모든 프레임이 메모리 한도 안이면 원본 크기로, 넘으면 화면에 필요한 크기로 줄여 디코딩한다.
+            if (decoded is { IsAnimated: true, Animation: { } animation } && PlayAnimations)
             {
-                var frames = await _renderer.RenderAnimationAsync(decoded, transform, ct);
-                if (version != _renderVersion || loadVersion != _loadVersion || !ReferenceEquals(decoded, _decoded))
+                var scale = AnimationScale(decoded, animation, transform, layout.RenderPixelWidth, layout.RenderPixelHeight);
+                if (!CanReusePlayback(animation, transform, scale))
                 {
-                    return;
+                    var playback = new AnimationPlayback(animation, transform, scale);
+                    try
+                    {
+                        await playback.WaitForFrameAsync(0, ct);
+                    }
+                    catch
+                    {
+                        playback.Dispose();
+                        throw;
+                    }
+
+                    if (version != _renderVersion || loadVersion != _loadVersion || !ReferenceEquals(decoded, _decoded))
+                    {
+                        playback.Dispose();
+                        return;
+                    }
+
+                    StartAnimation(playback);
                 }
 
-                StartAnimation(frames);
                 IsShowingPlaceholder = false;
                 _bitmapImageKey = decoded.Key;
                 ErrorMessage = null;

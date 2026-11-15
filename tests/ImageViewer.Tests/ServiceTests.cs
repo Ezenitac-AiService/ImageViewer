@@ -307,6 +307,24 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(MouseWheelAction.Zoom, kept.Display.MouseWheel);
     }
 
+    [Fact]
+    public void Old_default_smooth_strength_is_lowered_once()
+    {
+        Directory.CreateDirectory(_dir);
+
+        // v2 기본값(0.8)은 새 기본값으로 낮춘다.
+        File.WriteAllText(SettingsFile, """{ "version": 2, "filter": { "smoothSigma": 0.8 } }""");
+        var migrated = new SettingsService(settingsPath: SettingsFile).Load();
+        Assert.Equal(FilterSettings.DefaultSmoothSigma, migrated.Filter.SmoothSigma);
+
+        // 사용자가 직접 바꾼 값은 유지한다.
+        File.WriteAllText(SettingsFile, """{ "version": 2, "filter": { "smoothSigma": 1.2 } }""");
+        Assert.Equal(1.2, new SettingsService(settingsPath: SettingsFile).Load().Filter.SmoothSigma);
+
+        File.WriteAllText(SettingsFile, """{ "version": 3, "filter": { "smoothSigma": 0.8 } }""");
+        Assert.Equal(0.8, new SettingsService(settingsPath: SettingsFile).Load().Filter.SmoothSigma);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_dir))

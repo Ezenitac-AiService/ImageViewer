@@ -145,11 +145,15 @@ public class MultiFrameTests
             "프레임 2 / 3 \n0.50 / 1.50초  ·  지연 500ms\n30 × 20  ·  GIF",
             ImageViewer.ViewModels.MainViewModel.FormatAnimationInfo(1, decoded.FrameDelaysMs, 30, 20, "GIF", playing: true));
 
-        var renderer = new ImageRenderService(new ImageFilterService(settings));
-        var frames = await renderer.RenderAnimationAsync(decoded, ImageTransform.Identity, CancellationToken.None);
-        Assert.Equal(3, frames.Count);
-        Assert.All(frames, f => Assert.Equal(TimeSpan.FromMilliseconds(500), f.Delay));
-        Assert.All(frames, f => Assert.Equal(30, f.Bitmap.PixelWidth));
+        using var playback = new AnimationPlayback(decoded.Animation!, ImageTransform.Identity);
+        Assert.True(playback.FitsInBudget);
+        for (var i = 0; i < 3; i++)
+        {
+            var frame = await playback.WaitForFrameAsync(i, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(30, frame.PixelWidth);
+            Assert.True(frame.IsFrozen);
+        }
+
         decoded.Release();
     }
 
@@ -164,9 +168,7 @@ public class MultiFrameTests
         using var loader = new ImageLoaderService(settings);
         var decoded = await loader.LoadAsync(folder, info, CancellationToken.None);
 
-        var renderer = new ImageRenderService(new ImageFilterService(settings));
-        var frames = await renderer.RenderAnimationAsync(decoded, ImageTransform.Identity, CancellationToken.None);
-        Assert.All(frames, f => Assert.Equal(TimeSpan.FromMilliseconds(100), f.Delay));
+        Assert.Equal([100, 100], decoded.FrameDelaysMs);
         decoded.Release();
     }
 

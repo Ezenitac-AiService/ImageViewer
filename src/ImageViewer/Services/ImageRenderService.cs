@@ -5,9 +5,6 @@ using ImageViewer.Models;
 
 namespace ImageViewer.Services;
 
-/// <summary>화면에 표시할 애니메이션 프레임 (비트맵 + 표시 시간).</summary>
-public sealed record RenderedFrame(BitmapSource Bitmap, TimeSpan Delay);
-
 /// <summary>
 /// 디코딩된 이미지를 화면 표시 크기로 변환하고 필터 · 회전 · 반전을 적용한 뒤 WPF BitmapSource 로 만든다.
 /// 결과는 (이미지, 크기, 필터, 변환) 단위로 LRU 캐시한다. 모든 처리는 UI 스레드 밖에서 수행한다.
@@ -16,24 +13,16 @@ public sealed class ImageRenderService(ImageFilterService filterService)
 {
     private readonly record struct RenderKey(string ImageKey, uint Width, uint Height, ImageFilter Filter, ImageTransform Transform);
 
-    private readonly record struct AnimationKey(string ImageKey, ImageTransform Transform);
-
     private readonly LruCache<RenderKey, BitmapSource> _cache = new(
         maxCount: 16,
         maxCost: 384L * 1024 * 1024,
         costOf: b => (long)b.PixelWidth * b.PixelHeight * 4);
-
-    private readonly LruCache<AnimationKey, IReadOnlyList<RenderedFrame>> _animationCache = new(
-        maxCount: 4,
-        maxCost: 512L * 1024 * 1024,
-        costOf: frames => frames.Sum(f => (long)f.Bitmap.PixelWidth * f.Bitmap.PixelHeight * 4));
 
     // 화면에 바로 보일 렌더링(전경)과 미리 읽기(백그라운드)는 서로 기다리지 않도록 대기열을 나눈다.
     // 전경은 2개까지 동시에 처리해, 빠르게 넘길 때 이미 지나간 이미지의 렌더링이 새 이미지를 막지 않게 한다.
     private readonly PriorityGate _foregroundGate = new(capacity: 2, burstCapacity: 4);
     private readonly SemaphoreSlim _backgroundGate = new(2, 2);
     private readonly SharedWork<RenderKey, BitmapSource> _renders = new();
-    private readonly SharedWork<AnimationKey, IReadOnlyList<RenderedFrame>> _animations = new();
 
     /// <summary>
     /// 정지 이미지를 렌더링한다. <paramref name="width"/> · <paramref name="height"/> 는 회전 후(화면 기준) 크기.
@@ -85,82 +74,15 @@ public sealed class ImageRenderService(ImageFilterService filterService)
                     work.Resize(new MagickGeometry(targetW, targetH) { IgnoreAspectRatio = true }, FilterType.Triangle);
                 }
 
-                filterService.Apply(work, key.Filter);
+                // 필터 강도는 화면 픽셀 기준: CPU 로 줄이지 않은 경우 WPF 가 확대 · 축소하는 비율을 반영한다.
+                var displayScale = work.Width > 0 ? (double)targetW / work.Width : 1.0;
+                filterService.Apply(work, key.Filter, displayScale);
                 key.Transform.Apply(work);
                 return ToBitmapSource(work);
             }).ConfigureAwait(false);
 
             _cache.Add(key, bitmap);
             return bitmap;
-        }
-        finally
-        {
-            slot.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// 애니메이션 프레임을 원본 해상도로 렌더링한다 (화면 확대 · 축소는 WPF 가 처리).
-    /// 필터는 적용하지 않고 회전 · 반전만 적용한다.
-    /// </summary>
-    public Task<IReadOnlyList<RenderedFrame>> RenderAnimationAsync(
-        DecodedImage image,
-        ImageTransform transform,
-        CancellationToken cancellationToken,
-        bool background = false)
-    {
-        var key = new AnimationKey(image.Key, transform);
-        if (_animationCache.TryGet(key, out var cached))
-        {
-            return Task.FromResult(cached);
-        }
-
-        return _animations.RunAsync(key, () => RenderAnimationCoreAsync(image, key, background, cancellationToken), cancellationToken);
-    }
-
-    private async Task<IReadOnlyList<RenderedFrame>> RenderAnimationCoreAsync(
-        DecodedImage image,
-        AnimationKey key,
-        bool background,
-        CancellationToken cancellationToken)
-    {
-        // 전경 작업은 이미 지나간 이미지의 작업이 자리를 막고 있으면 넘어서 바로 시작한다 (PriorityGate).
-        var slot = background
-            ? await _backgroundGate.EnterAsync(cancellationToken).ConfigureAwait(false)
-            : await _foregroundGate.EnterAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (_animationCache.TryGet(key, out var cached))
-            {
-                return cached;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            var frames = await Task.Run<IReadOnlyList<RenderedFrame>>(() =>
-            {
-                var clones = image.CloneFrames() ?? throw new ObjectDisposedException(nameof(DecodedImage));
-                var result = new List<RenderedFrame>(clones.Count);
-                try
-                {
-                    foreach (var frame in clones)
-                    {
-                        key.Transform.Apply(frame.Image);
-                        result.Add(new RenderedFrame(ToBitmapSource(frame.Image), TimeSpan.FromMilliseconds(frame.DelayMs)));
-                    }
-                }
-                finally
-                {
-                    foreach (var frame in clones)
-                    {
-                        frame.Image.Dispose();
-                    }
-                }
-
-                return result;
-            }).ConfigureAwait(false);
-
-            _animationCache.Add(key, frames);
-            return frames;
         }
         finally
         {
@@ -192,13 +114,11 @@ public sealed class ImageRenderService(ImageFilterService filterService)
     {
         var prefix = info.Key + "#";
         _cache.RemoveWhere(k => k.ImageKey.StartsWith(prefix, StringComparison.Ordinal));
-        _animationCache.RemoveWhere(k => k.ImageKey.StartsWith(prefix, StringComparison.Ordinal));
     }
 
     public void ClearCache()
     {
         _cache.Clear();
-        _animationCache.Clear();
     }
 
     /// <summary>

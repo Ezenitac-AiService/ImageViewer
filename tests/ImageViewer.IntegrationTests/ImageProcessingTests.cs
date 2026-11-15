@@ -141,6 +141,32 @@ public class ImageLoaderServiceTests
 
 public class ImageRenderServiceTests
 {
+    /// <summary>검은색 | 흰색 경계에서 흐림이 번진 정도 (경계 옆 픽셀이 원래 값에서 벗어난 양, 0~1).</summary>
+    private static double EdgeSpread(double displayScale)
+    {
+        using var temp = new TempFolder();
+        var settings = new SettingsService(settingsPath: temp.File("s.json"));
+        settings.Load();
+        using var image = new MagickImage(MagickColors.Black, 40, 10);
+        image.Draw(new ImageMagick.Drawing.DrawableFillColor(MagickColors.White), new ImageMagick.Drawing.DrawableRectangle(20, 0, 40, 10));
+        new ImageFilterService(settings).Apply(image, ImageFilter.Smooth, displayScale);
+        using var pixels = image.GetPixels();
+        var nextToEdge = pixels.GetPixel(19, 5)!.ToColor()!;
+        return nextToEdge.R / 255.0;
+    }
+
+    [Fact]
+    public void Smooth_strength_follows_screen_pixels()
+    {
+        var actualSize = EdgeSpread(1.0);
+        var enlarged = EdgeSpread(4.0);   // 작은 이미지를 4배로 키워 볼 때: 이미지 픽셀 기준으로는 더 약하게
+        var reduced = EdgeSpread(0.5);    // 화면에서 절반으로 줄여 볼 때: 이미지 픽셀 기준으로는 더 강하게
+
+        Assert.True(actualSize > 0.01, $"기본 강도에서도 경계가 부드러워져야 함 ({actualSize:0.000})");
+        Assert.True(enlarged < actualSize, $"{enlarged:0.000} < {actualSize:0.000}");
+        Assert.True(reduced > actualSize, $"{reduced:0.000} > {actualSize:0.000}");
+    }
+
     [Theory]
     [InlineData(ImageFilter.None)]
     [InlineData(ImageFilter.Smooth)]
