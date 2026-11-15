@@ -587,7 +587,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
-            var decoded = await _loader.LoadAsync(source, info, pageIndex, ct);
+            var decoded = await _loader.LoadAsync(source, info, pageIndex, CurrentDecodeTarget(), ct);
             if (version != _loadVersion)
             {
                 decoded.Release();
@@ -696,6 +696,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            // 화면 크기로 줄여 읽은 이미지로는 해상도가 부족하면(원본 크기 · 확대) 원본을 백그라운드에서 읽는다.
+            RequestFullResolutionIfNeeded(decoded, layout, transform);
+
             var bitmap = await _renderer.RenderAsync(decoded, layout.RenderPixelWidth, layout.RenderPixelHeight, Filter, transform, ct);
             if (version != _renderVersion || loadVersion != _loadVersion || !ReferenceEquals(decoded, _decoded))
             {
@@ -737,9 +740,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>회전 · 반전을 적용한 화면 기준 이미지 크기.</summary>
+    /// <summary>회전 · 반전을 적용한 화면 기준 원본 이미지 크기 (축소 디코딩과 관계없이 원본 기준).</summary>
     private (uint Width, uint Height) DisplayedSize(DecodedImage decoded) =>
-        _transform.Apply(decoded.Width, decoded.Height);
+        _transform.Apply(decoded.OriginalWidth, decoded.OriginalHeight);
 
     private DisplayLayout ComputeLayout(DecodedImage decoded)
     {
@@ -824,25 +827,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var old = _decoded;
         _decoded = decoded;
         old?.Release();
-    }
-
-    private void StartPrefetch()
-    {
-        var source = _source;
-        if (source is null || _images.Count < 2)
-        {
-            return;
-        }
-
-        var index = _lastDirection >= 0 ? _navigation.GetNextIndex() : _navigation.GetPreviousIndex();
-        if (index < 0 || index == CurrentIndex)
-        {
-            return;
-        }
-
-        _prefetchCts?.Cancel();
-        _prefetchCts = new CancellationTokenSource();
-        _ = _loader.PrefetchAsync(source, _images[index], _prefetchCts.Token);
     }
 
     private void CancelPending()

@@ -164,11 +164,46 @@
                 <TextBlock Text="{Binding OsdMessage}" Foreground="White" FontSize="14" />
             </Border>
 
-            <Border Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"
-                    Background="#C0000000" CornerRadius="4" Padding="10,4"
-                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0"
-                    IsHitTestVisible="False">
-                <TextBlock Text="불러오는 중…" Foreground="#FFDDDDDD" />
+            <!-- 로딩 게이지: 화면 가운데 회전하는 원호. 디코딩 진행률은 알 수 없으므로 진행 중 표시만 한다.
+                 (짧은 로딩에는 나타나지 않도록 ViewModel 에서 250ms 뒤에 IsLoading 을 켠다) -->
+            <Border x:Name="LoadingIndicator"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"
+                    Width="76" Height="76" CornerRadius="38"
+                    Background="#99000000"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsHitTestVisible="False" ToolTip="불러오는 중">
+                <Grid Width="44" Height="44">
+                    <Ellipse Stroke="#33FFFFFF" StrokeThickness="4" />
+                    <Path Stroke="{StaticResource AccentBrush}" StrokeThickness="4"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          RenderTransformOrigin="0.5,0.5"
+                          Data="M 22,2 A 20,20 0 0 1 42,22">
+                        <Path.RenderTransform>
+                            <RotateTransform />
+                        </Path.RenderTransform>
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Style.Triggers>
+                                    <!-- 보일 때만 회전 애니메이션을 돌린다 -->
+                                    <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="SpinStoryboard">
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                     From="0" To="360" Duration="0:0:0.9"
+                                                                     RepeatBehavior="Forever" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <StopStoryboard BeginStoryboardName="SpinStoryboard" />
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+                </Grid>
             </Border>
         </Grid>
 

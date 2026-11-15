@@ -10,6 +10,46 @@ namespace ImageViewer.Services;
 /// <summary>디코딩 실패 등 사용자에게 안내할 이미지 오류.</summary>
 public sealed class ImageLoadException(string message, Exception? inner = null) : Exception(message, inner);
 
+/// <summary>
+/// 화면 표시에 필요한 크기만큼만 디코딩하기 위한 정보 (장치 픽셀 기준 표시 영역과 표시 모드).
+/// JPEG 은 디코딩 단계에서 1/2 · 1/4 · 1/8 등으로 줄여 읽을 수 있어 큰 사진을 훨씬 빨리 연다.
+/// 원본 크기 보기 · 확대 등 더 큰 해상도가 필요하면 원본을 다시 디코딩한다.
+/// </summary>
+public sealed record DecodeTarget(DisplayMode Mode, double ViewportPixelWidth, double ViewportPixelHeight)
+{
+    /// <summary>
+    /// 원본(방향 반영) 크기가 <paramref name="width"/>×<paramref name="height"/> 인 이미지를 표시하는 데 필요한 크기.
+    /// 원본에 가까운 크기가 필요하면(축소 효과가 작으면) null = 원본 디코딩.
+    /// </summary>
+    public (uint Width, uint Height)? RequiredSize(uint width, uint height)
+    {
+        if (width == 0 || height == 0 || ViewportPixelWidth <= 0 || ViewportPixelHeight <= 0)
+        {
+            return null;
+        }
+
+        var scale = ImageResizeService.GetBaseScale(Mode, width, height, ViewportPixelWidth, ViewportPixelHeight);
+        if (scale >= 0.9)
+        {
+            return null;
+        }
+
+        return ((uint)Math.Ceiling(width * scale), (uint)Math.Ceiling(height * scale));
+    }
+
+    /// <summary>이미 디코딩된 이미지가 이 표시 조건에 충분한 해상도인지.</summary>
+    public bool IsSatisfiedBy(DecodedImage image)
+    {
+        if (!image.IsReduced)
+        {
+            return true;
+        }
+
+        return RequiredSize(image.OriginalWidth, image.OriginalHeight) is { } required &&
+               image.Width >= required.Width && image.Height >= required.Height;
+    }
+}
+
 /// <summary>애니메이션 한 프레임 (GIF / WebP, 합성(coalesce)된 전체 캔버스).</summary>
 public sealed record AnimationFrame(MagickImage Image, int DelayMs);
 
@@ -19,6 +59,11 @@ public sealed class DecodeResult(MagickImage image, string format)
     public MagickImage Image { get; } = image;
 
     public string Format { get; } = format;
+
+    /// <summary>원본(방향 반영) 크기. 화면 크기로 줄여 디코딩했으면 <see cref="Image"/> 보다 크다.</summary>
+    public uint OriginalWidth { get; init; } = image.Width;
+
+    public uint OriginalHeight { get; init; } = image.Height;
 
     public int PageIndex { get; init; }
 
@@ -54,6 +99,8 @@ public sealed class DecodedImage
         _frames = result.Frames;
         Width = _image.Width;
         Height = _image.Height;
+        OriginalWidth = Math.Max(result.OriginalWidth, Width);
+        OriginalHeight = Math.Max(result.OriginalHeight, Height);
         Format = result.Format;
         PageIndex = result.PageIndex;
         PageCount = result.PageCount;
@@ -64,9 +111,18 @@ public sealed class DecodedImage
 
     public ImageInfo Info { get; }
 
+    /// <summary>디코딩된 픽셀 크기 (화면 크기로 줄여 읽었으면 원본보다 작다).</summary>
     public uint Width { get; }
 
     public uint Height { get; }
+
+    /// <summary>원본 이미지 크기 (EXIF 방향 반영). 배율 계산과 정보 표시에 쓴다.</summary>
+    public uint OriginalWidth { get; }
+
+    public uint OriginalHeight { get; }
+
+    /// <summary>화면 표시용으로 원본보다 작게 디코딩했는지.</summary>
+    public bool IsReduced => Width < OriginalWidth || Height < OriginalHeight;
 
     public string Format { get; }
 
@@ -84,8 +140,11 @@ public sealed class DecodedImage
 
     public IReadOnlyList<MetadataItem> Exif { get; }
 
-    /// <summary>캐시 키 (이미지 + 페이지).</summary>
-    public string Key => ImageLoaderService.CacheKey(Info, PageIndex);
+    /// <summary>
+    /// 렌더링 캐시 키 (이미지 + 페이지 + 디코딩 해상도).
+    /// 줄여 읽은 결과와 원본 결과를 구분해, 원본으로 바꾼 뒤 흐린 렌더링이 재사용되지 않게 한다.
+    /// </summary>
+    public string Key => ImageLoaderService.CacheKey(Info, PageIndex) + (IsReduced ? $"~{Width}x{Height}" : string.Empty);
 
     /// <summary>메모리 사용량 추정치 (8bit BGRA 기준).</summary>
     public long Cost => (long)Width * Height * 4 * Math.Max(1, FrameCount);
@@ -183,7 +242,7 @@ public sealed class ImageLoaderService : IDisposable
         _settings = settings;
         _logger = logger ?? NullLogger<ImageLoaderService>.Instance;
         _cache = new LruCache<string, DecodedImage>(
-            maxCount: 4,
+            maxCount: 8,
             maxCost: 1024L * 1024 * 1024,
             costOf: d => d.Cost,
             onEvicted: (_, d) => d.Release());
@@ -197,16 +256,27 @@ public sealed class ImageLoaderService : IDisposable
     internal static string CacheKey(ImageInfo info, int pageIndex) => $"{info.Key}#{pageIndex}";
 
     public Task<DecodedImage> LoadAsync(IImageSource source, ImageInfo info, CancellationToken cancellationToken) =>
-        LoadAsync(source, info, 0, cancellationToken);
+        LoadAsync(source, info, 0, target: null, cancellationToken);
+
+    public Task<DecodedImage> LoadAsync(IImageSource source, ImageInfo info, int pageIndex, CancellationToken cancellationToken) =>
+        LoadAsync(source, info, pageIndex, target: null, cancellationToken);
 
     /// <summary>
     /// 이미지(다중 페이지면 지정한 페이지)를 디코딩해 반환한다.
+    /// <paramref name="target"/> 이 있으면 화면 표시에 필요한 크기까지만 디코딩할 수 있다 (JPEG).
+    /// 캐시에 원본이 있거나 충분히 큰 결과가 있으면 그것을 돌려준다.
     /// 반환된 객체는 호출자가 사용 후 <see cref="DecodedImage.Release"/> 해야 한다.
     /// </summary>
-    public async Task<DecodedImage> LoadAsync(IImageSource source, ImageInfo info, int pageIndex, CancellationToken cancellationToken)
+    public async Task<DecodedImage> LoadAsync(
+        IImageSource source,
+        ImageInfo info,
+        int pageIndex,
+        DecodeTarget? target,
+        CancellationToken cancellationToken)
     {
-        var key = CacheKey(info, pageIndex);
-        if (TryGetCached(key, out var cached))
+        var fullKey = CacheKey(info, pageIndex);
+        var reducedKey = fullKey + ReducedSuffix;
+        if (TryGetSuitable(fullKey, reducedKey, target, out var cached))
         {
             return cached;
         }
@@ -215,7 +285,7 @@ public sealed class ImageLoaderService : IDisposable
         try
         {
             // 대기하는 동안 미리 읽기 작업이 같은 이미지를 디코딩했을 수 있다.
-            if (TryGetCached(key, out cached))
+            if (TryGetSuitable(fullKey, reducedKey, target, out cached))
             {
                 return cached;
             }
@@ -226,14 +296,14 @@ public sealed class ImageLoaderService : IDisposable
             {
                 await using var stream = await OpenSeekableAsync(source, info, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                var result = Decode(stream, MaxPixels, thumbnailHint: null, info.Name, pageIndex);
+                var result = Decode(stream, MaxPixels, thumbnailHint: null, info.Name, pageIndex, target);
                 return new DecodedImage(info, result);
             }, cancellationToken).ConfigureAwait(false);
 
             // 캐시가 한 참조를, 호출자가 한 참조를 가진다.
             // (범위를 벗어난 페이지를 요청했으면 실제 페이지 키로 저장된다)
             decoded.TryAcquire();
-            _cache.Add(decoded.Key, decoded);
+            _cache.Add(CacheKey(info, decoded.PageIndex) + (decoded.IsReduced ? ReducedSuffix : string.Empty), decoded);
             return decoded;
         }
         finally
@@ -242,26 +312,28 @@ public sealed class ImageLoaderService : IDisposable
         }
     }
 
-    /// <summary>인접 이미지를 미리 디코딩해 캐시에 넣는다. 실패는 무시한다.</summary>
-    public async Task PrefetchAsync(IImageSource source, ImageInfo info, CancellationToken cancellationToken)
+    private const string ReducedSuffix = "~r";
+
+    /// <summary>원본이 캐시에 있으면 원본을, 없으면 이 표시 조건에 충분한 축소 결과를 찾는다.</summary>
+    private bool TryGetSuitable(string fullKey, string reducedKey, DecodeTarget? target, out DecodedImage decoded)
     {
-        if (!info.IsSupported)
+        if (TryGetCached(fullKey, out decoded))
         {
-            return;
+            return true;
         }
 
-        try
+        if (target is not null && TryGetCached(reducedKey, out decoded))
         {
-            var decoded = await LoadAsync(source, info, cancellationToken).ConfigureAwait(false);
+            if (target.IsSatisfiedBy(decoded))
+            {
+                return true;
+            }
+
             decoded.Release();
         }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "미리 읽기 실패: {Name}", info.Name);
-        }
+
+        decoded = null!;
+        return false;
     }
 
     private bool TryGetCached(string key, out DecodedImage decoded)
@@ -330,7 +402,8 @@ public sealed class ImageLoaderService : IDisposable
         long maxPixels,
         uint? thumbnailHint,
         string? fileName = null,
-        int pageIndex = 0)
+        int pageIndex = 0,
+        DecodeTarget? target = null)
     {
         Span<byte> header = stackalloc byte[64];
         var read = stream.Read(header);
@@ -359,6 +432,7 @@ public sealed class ImageLoaderService : IDisposable
 
         MagickFormat format;
         uint canvasWidth, canvasHeight;
+        uint originalWidth, originalHeight;
         try
         {
             MagickImageInfo info;
@@ -383,6 +457,18 @@ public sealed class ImageLoaderService : IDisposable
 
             canvasWidth = info.Width;
             canvasHeight = info.Height;
+
+            // EXIF 방향이 90° 회전(5~8)이면 화면 기준 폭 · 높이가 바뀐다.
+            var swapped = (int)info.Orientation is >= 5 and <= 8;
+            (originalWidth, originalHeight) = swapped ? (info.Height, info.Width) : (info.Width, info.Height);
+
+            // JPEG: 화면에 필요한 크기만큼만 디코딩 (libjpeg 의 1/2 · 1/4 · 1/8 등 축소 디코딩)
+            if (thumbnailHint is null && target?.RequiredSize(originalWidth, originalHeight) is { } required &&
+                format is MagickFormat.Jpeg or MagickFormat.Jpg or MagickFormat.Jpe or MagickFormat.Pjpeg)
+            {
+                var (hintW, hintH) = swapped ? (required.Height, required.Width) : (required.Width, required.Height);
+                settings.SetDefine(MagickFormat.Jpeg, "size", $"{hintW}x{hintH}");
+            }
             var pixels = (long)info.Width * info.Height;
             if (info.Width == 0 || info.Height == 0)
             {
@@ -435,6 +521,8 @@ public sealed class ImageLoaderService : IDisposable
             NormalizeColor(image);
             return new DecodeResult(image, formatName)
             {
+                OriginalWidth = Math.Max(originalWidth, image.Width),
+                OriginalHeight = Math.Max(originalHeight, image.Height),
                 PageIndex = page,
                 PageCount = paged ? frameCount : 1,
                 Exif = exif,

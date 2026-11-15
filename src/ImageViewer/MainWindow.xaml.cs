@@ -36,10 +36,11 @@ public partial class MainWindow : Window
     private ResizeMode _restoreResizeMode;
     private Rect _restoreBounds;
 
-    // 메뉴 · 하단 바 마우스 오버 상태
-    private const double TopHoverZone = 36;
-    private const double BottomHoverZone = 90;
-    private readonly DispatcherTimer _chromeHideTimer;
+    // 고정 해제된 상단 · 하단 바를 불러내는 영역 = 각 바가 차지하는 높이 (DIP).
+    // 숨겨진(Collapsed) 바는 높이가 0 이므로 마지막으로 보였을 때의 높이를 기억해 둔다.
+    private const double MinRevealZone = 24;
+    private double _topBarExtent = 70;     // 타이틀바 32 + 메뉴바 38
+    private double _bottomBarExtent = 170; // 컨트롤 줄 + 썸네일 + 아래 여백
     private bool _menuHover;
     private bool _barHover;
 
@@ -49,18 +50,26 @@ public partial class MainWindow : Window
         _vm = viewModel;
         DataContext = viewModel;
 
-        _chromeHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        _chromeHideTimer.Tick += (_, _) =>
-        {
-            _chromeHideTimer.Stop();
-            UpdateChrome(allowHide: true);
-        };
-
         _vm.LayoutChanged += OnLayoutChanged;
         _vm.PropertyChanged += OnViewModelPropertyChanged;
 
-        // 하단 바 높이가 바뀌면(썸네일 표시 전환 등) 프레임 정보 위치를 다시 맞춘다.
-        BottomBar.SizeChanged += (_, _) => UpdateChrome(allowHide: false);
+        // 바 높이가 바뀌면(썸네일 표시 전환 등) 마우스 오버 영역과 프레임 정보 위치를 다시 맞춘다.
+        TopBar.SizeChanged += (_, _) =>
+        {
+            if (TopBar.ActualHeight > 0)
+            {
+                _topBarExtent = TopBar.ActualHeight;
+            }
+        };
+        BottomBar.SizeChanged += (_, _) =>
+        {
+            if (BottomBar.ActualHeight > 0)
+            {
+                _bottomBarExtent = BottomBar.ActualHeight + BottomBar.Margin.Bottom;
+            }
+
+            UpdateChrome(allowHide: false);
+        };
 
         RestoreWindowPlacement();
         Loaded += (_, _) =>
@@ -268,26 +277,18 @@ public partial class MainWindow : Window
         var p = e.GetPosition(RootGrid);
         var height = RootGrid.ActualHeight;
 
-        _menuHover = p.Y <= TopHoverZone ||
-                     (TopBar.IsVisible && p.Y <= TopBar.ActualHeight + 8);
-        _barHover = p.Y >= height - BottomHoverZone ||
-                    (BottomBar.IsVisible && BottomBar.IsMouseOver);
-        RefreshChrome();
+        // 상단 바 높이만큼의 위쪽 영역 / 하단 바 높이만큼의 아래쪽 영역에 마우스가 들어오면 바로 나타나고,
+        // 그 영역을 벗어나면 바로 숨긴다.
+        _menuHover = p.Y <= Math.Max(MinRevealZone, _topBarExtent);
+        _barHover = p.Y >= height - Math.Max(MinRevealZone, _bottomBarExtent);
+        UpdateChrome(allowHide: true);
     }
 
     private void OnWindowMouseLeave(object sender, MouseEventArgs e)
     {
         _menuHover = false;
         _barHover = false;
-        RefreshChrome();
-    }
-
-    /// <summary>나타날 때는 즉시, 사라질 때는 잠시 기다렸다가 처리해 깜박임을 줄인다.</summary>
-    private void RefreshChrome()
-    {
-        UpdateChrome(allowHide: false);
-        _chromeHideTimer.Stop();
-        _chromeHideTimer.Start();
+        UpdateChrome(allowHide: true);
     }
 
     #endregion

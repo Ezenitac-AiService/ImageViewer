@@ -11,7 +11,8 @@
     <AssemblyName>ImageViewer</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Resources\ImageViewer.ico</ApplicationIcon>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>ImageViewer</Product>
     <Description>Windows image viewer for folders and ZIP archives</Description>
     <SatelliteResourceLanguages>ko;en</SatelliteResourceLanguages>

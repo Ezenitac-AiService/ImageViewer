@@ -64,17 +64,7 @@ public sealed class ImageRenderService(ImageFilterService filterService)
                 var (targetW, targetH) = transform.SwapsDimensions ? (height, width) : (width, height);
                 if (work.Width != targetW || work.Height != targetH)
                 {
-                    var geometry = new MagickGeometry(targetW, targetH) { IgnoreAspectRatio = true };
-                    var ratio = (double)targetW / work.Width;
-                    if (ratio < 0.25)
-                    {
-                        // 큰 폭으로 축소할 때는 Thumbnail 이 빠르다 (샘플링 후 리샘플링).
-                        work.Thumbnail(geometry);
-                    }
-                    else
-                    {
-                        work.Resize(geometry);
-                    }
+                    work.Resize(new MagickGeometry(targetW, targetH) { IgnoreAspectRatio = true });
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();

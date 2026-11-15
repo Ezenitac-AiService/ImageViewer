@@ -112,7 +112,7 @@ public class ImageLoaderServiceTests
     public async Task Cached_image_survives_until_released()
     {
         using var temp = new TempFolder();
-        for (var i = 0; i < 6; i++)
+        for (var i = 0; i < 12; i++) // 캐시(8개)보다 많이 읽어 첫 이미지가 밀려나게 한다
         {
             File.WriteAllBytes(temp.File($"{i}.png"), TestImages.Png());
         }

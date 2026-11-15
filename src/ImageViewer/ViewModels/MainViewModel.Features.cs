@@ -285,7 +285,7 @@ public sealed partial class MainViewModel
         }
 
         items.Add(MetadataItem.Header("이미지"));
-        items.Add(new("해상도", $"{decoded.Width:N0} × {decoded.Height:N0}"));
+        items.Add(new("해상도", $"{decoded.OriginalWidth:N0} × {decoded.OriginalHeight:N0}"));
         items.Add(new("형식", decoded.Format));
         if (decoded.PageCount > 1)
         {
@@ -309,6 +309,167 @@ public sealed partial class MainViewModel
         }
 
         return items;
+    }
+
+    #endregion
+
+    #region 빠른 표시: 화면 크기 디코딩 · 원본 업그레이드 · 미리 읽기
+
+    private string? _upgradingKey;
+
+    /// <summary>현재 표시 영역 · 모드에서 필요한 디코딩 크기 정보. 표시 영역을 아직 모르면 null (원본 디코딩).</summary>
+    private DecodeTarget? CurrentDecodeTarget() =>
+        _viewportWidth > 0 && _viewportHeight > 0
+            ? new DecodeTarget(DisplayMode, _viewportWidth * _dpiScale, _viewportHeight * _dpiScale)
+            : null;
+
+    /// <summary>
+    /// 줄여 읽은 이미지로 그려야 할 크기가 디코딩된 크기보다 크면(원본 크기 모드 · 확대 · 창 확대)
+    /// 원본을 백그라운드에서 다시 읽어 바꿔 끼운다. 그동안은 줄여 읽은 이미지를 늘려 보여 준다.
+    /// </summary>
+    private void RequestFullResolutionIfNeeded(DecodedImage decoded, DisplayLayout layout, ImageTransform transform)
+    {
+        if (!decoded.IsReduced)
+        {
+            return;
+        }
+
+        var (width, height) = transform.Apply(decoded.Width, decoded.Height);
+        if (layout.RenderPixelWidth <= width * 1.02 && layout.RenderPixelHeight <= height * 1.02)
+        {
+            return;
+        }
+
+        _ = UpgradeToFullResolutionAsync(decoded);
+    }
+
+    private async Task UpgradeToFullResolutionAsync(DecodedImage reduced)
+    {
+        var source = _source;
+        if (source is null || _upgradingKey == reduced.Key)
+        {
+            return;
+        }
+
+        _upgradingKey = reduced.Key;
+        var loadVersion = _loadVersion;
+        try
+        {
+            var full = await _loader.LoadAsync(source, reduced.Info, reduced.PageIndex, target: null, CancellationToken.None);
+            if (loadVersion != _loadVersion || !ReferenceEquals(reduced, _decoded))
+            {
+                full.Release();
+                return;
+            }
+
+            // 같은 이미지 · 같은 비율이므로 현재 비트맵을 그대로 둔 채 바꿔 끼우고 정확한 크기로 다시 그린다.
+            ReplaceDecoded(full);
+            _bitmapImageKey = full.Key;
+            _renderDebounce.Stop();
+            await RenderCurrentAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _logger.LogDebug(ex, "원본 해상도 읽기 실패: {Name}", reduced.Info.Name);
+        }
+        finally
+        {
+            if (_upgradingKey == reduced.Key)
+            {
+                _upgradingKey = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 이동 방향의 다음 두 장과 반대 방향 한 장을 미리 디코딩하고 현재 표시 조건으로 렌더링까지 해 둔다.
+    /// 이동하면 캐시에서 바로 꺼내 보여 줄 수 있다. 다른 이미지로 이동하면 취소된다.
+    /// </summary>
+    private void StartPrefetch()
+    {
+        var source = _source;
+        if (source is null || _images.Count < 2 || CurrentDecodeTarget() is not { } target)
+        {
+            return;
+        }
+
+        var forward = _lastDirection >= 0 ? 1 : -1;
+        var candidates = new List<int>();
+        void Add(int offset)
+        {
+            var index = CurrentIndex + offset;
+            if (_navigation.WrapAround && _images.Count > 0)
+            {
+                index = ((index % _images.Count) + _images.Count) % _images.Count;
+            }
+
+            if (index >= 0 && index < _images.Count && index != CurrentIndex && !candidates.Contains(index))
+            {
+                candidates.Add(index);
+            }
+        }
+
+        Add(forward);
+        Add(forward * 2);
+        Add(-forward);
+
+        _prefetchCts?.Cancel();
+        _prefetchCts = new CancellationTokenSource();
+        _ = PrefetchAsync(source, candidates.Select(i => _images[i]).ToList(), target, Filter, _prefetchCts.Token);
+    }
+
+    private async Task PrefetchAsync(
+        IImageSource source,
+        IReadOnlyList<ImageInfo> images,
+        DecodeTarget target,
+        ImageFilter filter,
+        CancellationToken ct)
+    {
+        foreach (var info in images)
+        {
+            if (ct.IsCancellationRequested || !ReferenceEquals(source, _source))
+            {
+                return;
+            }
+
+            if (!info.IsSupported)
+            {
+                continue;
+            }
+
+            try
+            {
+                var decoded = await _loader.LoadAsync(source, info, 0, target, ct);
+                try
+                {
+                    if (decoded.IsAnimated && PlayAnimations)
+                    {
+                        await _renderer.RenderAnimationAsync(decoded, ImageTransform.Identity, ct);
+                    }
+                    else
+                    {
+                        // 이동하면 회전 · 반전과 배율은 초기화되므로 그 조건으로 미리 그린다.
+                        var (width, height) = (decoded.OriginalWidth, decoded.OriginalHeight);
+                        var layout = ImageResizeService.Calculate(
+                            DisplayMode, 1.0, width, height,
+                            _viewportWidth * _dpiScale, _viewportHeight * _dpiScale);
+                        await _renderer.RenderAsync(decoded, layout.RenderPixelWidth, layout.RenderPixelHeight, filter, ImageTransform.Identity, ct);
+                    }
+                }
+                finally
+                {
+                    decoded.Release();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "미리 읽기 실패: {Name}", info.Name);
+            }
+        }
     }
 
     #endregion

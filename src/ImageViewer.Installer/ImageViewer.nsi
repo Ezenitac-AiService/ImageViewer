@@ -1,15 +1,17 @@
 ﻿; ImageViewer 설치 프로그램 (NSIS 3, Unicode)
 ;
 ; 빌드: build\publish.ps1  (게시 후 자동으로 makensis 실행)
-;   또는 makensis /DVERSION=1.0.0 /DPUBLISH_DIR=..\..\artifacts\publish\win-x64 ImageViewer.nsi
+;   또는 makensis /DVERSION=1.0.1 /DPUBLISH_DIR=..\..\artifacts\publish\win-x64 ImageViewer.nsi
 ;
 ; - 현재 사용자 설치 (관리자 권한 불필요): %LOCALAPPDATA%\Programs\ImageViewer
 ; - 탐색기 우클릭 메뉴 등록은 구성 요소 페이지에서 선택 (사용자 동의)
-;   HKCU\Software\Classes 의 아래 키에 등록하며, 앱 설정 화면의 등록 기능과 같은 위치를 쓴다.
-;     Directory\shell\ImageViewer                  폴더          "%1"
-;     Directory\Background\shell\ImageViewer       폴더 빈 공간  "%V"
-;     SystemFileAssociations\.zip\shell\ImageViewer ZIP           "%1"
-;     SystemFileAssociations\.cbz\shell\ImageViewer CBZ           "%1"
+;   설치한 ImageViewer.exe --register-shell 을 실행해 HKCU\Software\Classes 아래에 등록한다.
+;   (앱 설정 화면의 등록 기능과 같은 코드 · 같은 키를 쓰므로 등록 대상이 한곳에서 관리된다)
+;     Directory\shell\ImageViewer                   폴더          "%1"
+;     Directory\Background\shell\ImageViewer        폴더 빈 공간  "%V"
+;     SystemFileAssociations\.zip | .cbz\shell\...  ZIP / CBZ     "%1"
+;     SystemFileAssociations\.jpg | .png | ...\shell\ImageViewer   지원하는 모든 이미지 확장자 "%1"
+;   여러 항목을 선택했을 때는 메뉴를 보이지 않는다 (MultiSelectModel=Single).
 ; - 제거 시 위 키와 제거 정보를 삭제한다. 사용자 설정(%LOCALAPPDATA%\ImageViewer)은 남겨 둔다.
 ; - Windows 11 에서는 클래식 메뉴("추가 옵션 표시", Shift+F10)에 나타난다.
 
@@ -17,7 +19,7 @@ Unicode true
 ManifestDPIAware true
 
 !ifndef VERSION
-  !define VERSION "1.0.0"
+  !define VERSION "1.0.1"
 !endif
 !ifndef PUBLISH_DIR
   !define PUBLISH_DIR "..\..\artifacts\publish\win-x64"
@@ -69,13 +71,6 @@ VIAddVersionKey /LANG=1042 "LegalCopyright" "GPL-3.0"
 !insertmacro MUI_LANGUAGE "Korean"
 
 ; ---------------------------------------------------------------------------
-; 탐색기 메뉴 키 하나를 등록한다. (키 경로, 명령행 인수 자리표시자)
-!macro RegisterVerb KEY ARG
-  WriteRegStr HKCU "${CLASSES}\${KEY}\shell\${APP_NAME}" "" "${MENU_TEXT}"
-  WriteRegStr HKCU "${CLASSES}\${KEY}\shell\${APP_NAME}" "Icon" '"$INSTDIR\${APP_EXE}",0'
-  WriteRegStr HKCU "${CLASSES}\${KEY}\shell\${APP_NAME}\command" "" '"$INSTDIR\${APP_EXE}" "${ARG}"'
-!macroend
-
 !macro UnregisterVerb KEY
   DeleteRegKey HKCU "${CLASSES}\${KEY}\shell\${APP_NAME}"
 !macroend
@@ -136,11 +131,11 @@ Section "${APP_NAME} (필수)" SecApp
 SectionEnd
 
 Section "탐색기 우클릭 메뉴에 '${MENU_TEXT}' 추가" SecShell
-  !insertmacro RegisterVerb "Directory" "%1"
-  !insertmacro RegisterVerb "Directory\Background" "%V"
-  !insertmacro RegisterVerb "SystemFileAssociations\.zip" "%1"
-  !insertmacro RegisterVerb "SystemFileAssociations\.cbz" "%1"
-  !insertmacro NotifyShell
+  ; 폴더 · ZIP · 이미지 파일 메뉴를 앱이 등록한다 (HKCU, 탐색기 알림 포함).
+  ExecWait '"$INSTDIR\${APP_EXE}" --register-shell' $0
+  ${If} $0 != 0
+    DetailPrint "탐색기 메뉴 등록 실패 (코드 $0)"
+  ${EndIf}
 SectionEnd
 
 Section /o "바탕 화면 바로 가기" SecDesktop
@@ -150,7 +145,7 @@ SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecApp}     "${APP_NAME} 프로그램 파일 (.NET 런타임 포함)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecShell}   "폴더와 ZIP / CBZ 파일의 우클릭 메뉴에 '${MENU_TEXT}' 를 추가합니다. (현재 사용자 레지스트리)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecShell}   "폴더, ZIP / CBZ, 이미지 파일의 우클릭 메뉴에 '${MENU_TEXT}' 를 추가합니다. (현재 사용자 레지스트리)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "바탕 화면에 바로 가기를 만듭니다."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
@@ -158,7 +153,8 @@ SectionEnd
 Section "Uninstall"
   SetShellVarContext current
 
-  ; 앱 설정 화면에서 등록한 메뉴도 함께 제거되도록 앱의 해제 기능을 먼저 실행한다.
+  ; 등록한 모든 메뉴(이미지 확장자 포함)를 앱의 해제 기능으로 제거한다.
+  ; 실행 파일이 없거나 실패한 경우를 대비해 폴더 · ZIP 키는 아래에서 한 번 더 지운다.
   IfFileExists "$INSTDIR\${APP_EXE}" 0 +2
     ExecWait '"$INSTDIR\${APP_EXE}" --unregister-shell'
 
