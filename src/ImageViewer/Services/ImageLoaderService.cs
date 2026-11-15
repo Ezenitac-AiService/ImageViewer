@@ -233,9 +233,12 @@ public sealed class ImageLoaderService : IDisposable
     private readonly SettingsService _settings;
     private readonly LruCache<string, DecodedImage> _cache;
 
-    // 전체 크기 디코딩은 메모리 사용량이 크므로 한 번에 하나만 수행한다.
+    // 화면에 바로 보일 이미지(전경)와 미리 읽기(백그라운드)는 서로 기다리지 않도록 대기열을 나눈다.
+    // 전경은 2개까지 동시에 처리해, 빠르게 넘길 때 이미 지나간 이미지의 디코딩이 새 이미지를 막지 않게 한다.
     // (ImageMagick 자체가 내부적으로 멀티스레드로 처리한다)
-    private readonly SemaphoreSlim _decodeGate = new(1, 1);
+    private readonly PriorityGate _foregroundGate = new(capacity: 2, burstCapacity: 4);
+    private readonly SemaphoreSlim _backgroundGate = new(2, 2);
+    private readonly SharedWork<string, DecodedImage> _decodes = new();
 
     public ImageLoaderService(SettingsService settings, ILogger<ImageLoaderService>? logger = null)
     {
@@ -264,51 +267,89 @@ public sealed class ImageLoaderService : IDisposable
     /// <summary>
     /// 이미지(다중 페이지면 지정한 페이지)를 디코딩해 반환한다.
     /// <paramref name="target"/> 이 있으면 화면 표시에 필요한 크기까지만 디코딩할 수 있다 (JPEG).
-    /// 캐시에 원본이 있거나 충분히 큰 결과가 있으면 그것을 돌려준다.
+    /// 캐시에 원본이 있거나 충분히 큰 결과가 있으면 그것을 돌려주고,
+    /// 같은 디코딩이 진행 중이면(미리 읽기 등) 그 결과를 함께 기다린다.
     /// 반환된 객체는 호출자가 사용 후 <see cref="DecodedImage.Release"/> 해야 한다.
     /// </summary>
+    /// <param name="background">미리 읽기 등 화면에 바로 필요하지 않은 작업.</param>
     public async Task<DecodedImage> LoadAsync(
         IImageSource source,
         ImageInfo info,
         int pageIndex,
         DecodeTarget? target,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool background = false)
     {
         var fullKey = CacheKey(info, pageIndex);
         var reducedKey = fullKey + ReducedSuffix;
-        if (TryGetSuitable(fullKey, reducedKey, target, out var cached))
-        {
-            return cached;
-        }
+        var requestKey = target is null
+            ? fullKey
+            : $"{reducedKey}|{target.Mode}|{target.ViewportPixelWidth:0}x{target.ViewportPixelHeight:0}";
 
-        await _decodeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        for (var attempt = 0; ; attempt++)
+        {
+            if (TryGetSuitable(fullKey, reducedKey, target, out var cached))
+            {
+                return cached;
+            }
+
+            var decoded = await _decodes.RunAsync(
+                requestKey,
+                () => DecodeAndCacheAsync(source, info, pageIndex, target, background, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+
+            // 결과는 캐시가 소유한다. 호출자 몫의 참조를 얻는다 (그 사이 캐시에서 밀려나 해제되었으면 다시 읽는다).
+            if (decoded.TryAcquire())
+            {
+                return decoded;
+            }
+
+            if (attempt >= 2)
+            {
+                throw new ObjectDisposedException(nameof(DecodedImage));
+            }
+        }
+    }
+
+    private async Task<DecodedImage> DecodeAndCacheAsync(
+        IImageSource source,
+        ImageInfo info,
+        int pageIndex,
+        DecodeTarget? target,
+        bool background,
+        CancellationToken cancellationToken)
+    {
+        // 전경 작업은 이미 지나간 이미지의 작업이 자리를 막고 있으면 넘어서 바로 시작한다 (PriorityGate).
+        var slot = background
+            ? await _backgroundGate.EnterAsync(cancellationToken).ConfigureAwait(false)
+            : await _foregroundGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            // 대기하는 동안 미리 읽기 작업이 같은 이미지를 디코딩했을 수 있다.
-            if (TryGetSuitable(fullKey, reducedKey, target, out cached))
+            var fullKey = CacheKey(info, pageIndex);
+            if (TryGetSuitable(fullKey, fullKey + ReducedSuffix, target, out var cached))
             {
+                cached.Release(); // 캐시가 가진 참조만 남긴다
                 return cached;
             }
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            // 시작한 디코딩은 끝까지 수행한다 (함께 기다리는 다른 요청이 결과를 쓸 수 있도록).
             var decoded = await Task.Run(async () =>
             {
-                await using var stream = await OpenSeekableAsync(source, info, cancellationToken).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
+                await using var stream = await OpenSeekableAsync(source, info, CancellationToken.None).ConfigureAwait(false);
                 var result = Decode(stream, MaxPixels, thumbnailHint: null, info.Name, pageIndex, target);
                 return new DecodedImage(info, result);
-            }, cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
-            // 캐시가 한 참조를, 호출자가 한 참조를 가진다.
+            // 새로 만든 참조는 캐시가 소유한다.
             // (범위를 벗어난 페이지를 요청했으면 실제 페이지 키로 저장된다)
-            decoded.TryAcquire();
             _cache.Add(CacheKey(info, decoded.PageIndex) + (decoded.IsReduced ? ReducedSuffix : string.Empty), decoded);
             return decoded;
         }
         finally
         {
-            _decodeGate.Release();
+            slot.Dispose();
         }
     }
 
@@ -464,11 +505,12 @@ public sealed class ImageLoaderService : IDisposable
 
             // JPEG: 화면에 필요한 크기만큼만 디코딩 (libjpeg 의 1/2 · 1/4 · 1/8 등 축소 디코딩)
             if (thumbnailHint is null && target?.RequiredSize(originalWidth, originalHeight) is { } required &&
-                format is MagickFormat.Jpeg or MagickFormat.Jpg or MagickFormat.Jpe or MagickFormat.Pjpeg)
+                format is MagickFormat.Jpeg or MagickFormat.Jpg or MagickFormat.Jpe or MagickFormat.Pjpeg &&
+                JpegScaleHint(info.Width, info.Height, swapped ? (required.Height, required.Width) : (required.Width, required.Height)) is { } sizeHint)
             {
-                var (hintW, hintH) = swapped ? (required.Height, required.Width) : (required.Width, required.Height);
-                settings.SetDefine(MagickFormat.Jpeg, "size", $"{hintW}x{hintH}");
+                settings.SetDefine(MagickFormat.Jpeg, "size", $"{sizeHint.Width}x{sizeHint.Height}");
             }
+
             var pixels = (long)info.Width * info.Height;
             if (info.Width == 0 || info.Height == 0)
             {
@@ -538,6 +580,31 @@ public sealed class ImageLoaderService : IDisposable
             image?.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// libjpeg 축소 디코딩 비율(n/8)을 필요한 크기 이상이 되도록 고르고, 그 비율이 나오게 하는 "jpeg:size" 값을 만든다.
+    /// ImageMagick 은 요청 크기 / 원본 크기 × 8 을 내림해 n 을 정하므로, 요청 크기를 그대로 넘기면
+    /// 필요한 크기보다 작게(예: 1920→1280 요청 시 5/8 = 1200) 디코딩된다. 축소 효과가 없으면(n = 8) null.
+    /// </summary>
+    internal static (uint Width, uint Height)? JpegScaleHint(uint storedWidth, uint storedHeight, (uint Width, uint Height) required)
+    {
+        if (storedWidth == 0 || storedHeight == 0)
+        {
+            return null;
+        }
+
+        var ratio = Math.Max((double)required.Width / storedWidth, (double)required.Height / storedHeight);
+        var n = (int)Math.Ceiling(ratio * 8 - 1e-9);
+        if (n >= 8)
+        {
+            return null;
+        }
+
+        n = Math.Max(1, n);
+
+        // 내림했을 때 정확히 n 이 되도록 n/8 크기보다 1px 크게 요청한다.
+        return ((uint)Math.Ceiling(storedWidth * n / 8.0) + 1, (uint)Math.Ceiling(storedHeight * n / 8.0) + 1);
     }
 
     /// <summary>Ping 으로 프레임(페이지) 수를 센다. 실패하면 1.</summary>

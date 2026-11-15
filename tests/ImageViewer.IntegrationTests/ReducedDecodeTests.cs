@@ -115,7 +115,7 @@ public class ReducedDecodeTests
     }
 
     [Fact]
-    public async Task Rendering_reduced_image_produces_exact_display_size()
+    public async Task Rendering_reduced_image_leaves_mild_downscale_to_screen()
     {
         using var temp = new TempFolder();
         File.WriteAllBytes(temp.File("big.jpg"), TestImages.Create(4000, 3000, MagickFormat.Jpeg));
@@ -127,8 +127,42 @@ public class ReducedDecodeTests
 
         var renderer = new ImageRenderService(new ImageFilterService(settings));
         var bitmap = await renderer.RenderAsync(decoded, 1264, 948, ImageFilter.None, ImageTransform.Identity, CancellationToken.None);
-        Assert.Equal(1264, bitmap.PixelWidth);
-        Assert.Equal(948, bitmap.PixelHeight);
+
+        // 축소 디코딩 결과(화면보다 조금 큼)는 CPU 로 다시 줄이지 않고 화면 표시 단계에서 줄인다.
+        Assert.Equal((int)decoded.Width, bitmap.PixelWidth);
+        Assert.True(bitmap.PixelWidth >= 1264 && bitmap.PixelHeight >= 948);
+        Assert.Equal(4.0 / 3.0, (double)bitmap.PixelWidth / bitmap.PixelHeight, 2);
         decoded.Release();
+    }
+
+    [Theory]
+    [InlineData(1920u, 1080u, 1280u, 720u)]   // 폭 맞춤 1280 창 (예전에는 5/8 = 1200 으로 부족했다)
+    [InlineData(2560u, 1707u, 1280u, 854u)]
+    [InlineData(4000u, 3000u, 1264u, 948u)]
+    [InlineData(2592u, 1728u, 1280u, 854u)]
+    [InlineData(6000u, 4000u, 700u, 467u)]
+    public async Task Reduced_decode_is_never_smaller_than_required(uint width, uint height, uint requiredW, uint requiredH)
+    {
+        using var temp = new TempFolder();
+        File.WriteAllBytes(temp.File("photo.jpg"), TestImages.Create(width, height, MagickFormat.Jpeg));
+        var (source, info) = await Open(temp);
+        using var _ = source;
+        using var loader = new ImageLoaderService(Settings(temp));
+
+        var target = new DecodeTarget(DisplayMode.FitWidth, requiredW, requiredW * 2);
+        var decoded = await loader.LoadAsync(source, info, 0, target, CancellationToken.None);
+        Assert.True(decoded.Width >= requiredW && decoded.Height >= requiredH - 1, $"{decoded.Width}x{decoded.Height} < {requiredW}x{requiredH}");
+        Assert.True(target.IsSatisfiedBy(decoded), "미리 읽어 둔 결과를 그대로 다시 쓸 수 있어야 한다");
+        decoded.Release();
+    }
+
+    [Fact]
+    public void Jpeg_scale_hint_rounds_up_to_next_eighth()
+    {
+        // 1920 → 1280 필요: 5/8(1200) 은 부족하므로 6/8(1440) 이 되도록 요청
+        Assert.Equal((1441u, 811u), ImageLoaderService.JpegScaleHint(1920, 1080, (1280, 720)));
+        Assert.Null(ImageLoaderService.JpegScaleHint(1000, 800, (950, 760)));   // 8/8 → 축소 없음
+        Assert.False(ImageRenderService.NeedsCpuResize(1440, 810, 1280, 720));   // 89% → 화면에서 축소
+        Assert.True(ImageRenderService.NeedsCpuResize(4000, 3000, 1264, 948));   // 32% → CPU 축소
     }
 }

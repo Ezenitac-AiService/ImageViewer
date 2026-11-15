@@ -28,58 +28,74 @@ public sealed class ImageRenderService(ImageFilterService filterService)
         maxCost: 512L * 1024 * 1024,
         costOf: frames => frames.Sum(f => (long)f.Bitmap.PixelWidth * f.Bitmap.PixelHeight * 4));
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    // 화면에 바로 보일 렌더링(전경)과 미리 읽기(백그라운드)는 서로 기다리지 않도록 대기열을 나눈다.
+    // 전경은 2개까지 동시에 처리해, 빠르게 넘길 때 이미 지나간 이미지의 렌더링이 새 이미지를 막지 않게 한다.
+    private readonly PriorityGate _foregroundGate = new(capacity: 2, burstCapacity: 4);
+    private readonly SemaphoreSlim _backgroundGate = new(2, 2);
+    private readonly SharedWork<RenderKey, BitmapSource> _renders = new();
+    private readonly SharedWork<AnimationKey, IReadOnlyList<RenderedFrame>> _animations = new();
 
     /// <summary>
     /// 정지 이미지를 렌더링한다. <paramref name="width"/> · <paramref name="height"/> 는 회전 후(화면 기준) 크기.
+    /// 같은 렌더링이 진행 중이면(미리 읽기 등) 그 결과를 함께 기다린다.
     /// </summary>
-    public async Task<BitmapSource> RenderAsync(
+    /// <param name="background">미리 읽기 등 화면에 바로 필요하지 않은 작업.</param>
+    public Task<BitmapSource> RenderAsync(
         DecodedImage image,
         uint width,
         uint height,
         ImageFilter filter,
         ImageTransform transform,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool background = false)
     {
         var key = new RenderKey(image.Key, width, height, filter, transform);
         if (_cache.TryGet(key, out var cached))
         {
-            return cached;
+            return Task.FromResult(cached);
         }
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return _renders.RunAsync(key, () => RenderCoreAsync(image, key, background, cancellationToken), cancellationToken);
+    }
+
+    private async Task<BitmapSource> RenderCoreAsync(DecodedImage image, RenderKey key, bool background, CancellationToken cancellationToken)
+    {
+        // 전경 작업은 이미 지나간 이미지의 작업이 자리를 막고 있으면 넘어서 바로 시작한다 (PriorityGate).
+        var slot = background
+            ? await _backgroundGate.EnterAsync(cancellationToken).ConfigureAwait(false)
+            : await _foregroundGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_cache.TryGet(key, out cached))
+            if (_cache.TryGet(key, out var cached))
             {
                 return cached;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // 시작한 렌더링은 끝까지 수행한다 (함께 기다리는 다른 요청이 결과를 쓸 수 있도록).
             var bitmap = await Task.Run(() =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 using var work = image.CloneImage() ?? throw new ObjectDisposedException(nameof(DecodedImage));
 
                 // 회전 전 기준 크기로 먼저 축소한 뒤 회전한다 (픽셀 수가 적을 때 회전하는 편이 빠르다).
-                var (targetW, targetH) = transform.SwapsDimensions ? (height, width) : (width, height);
-                if (work.Width != targetW || work.Height != targetH)
+                var (targetW, targetH) = key.Transform.SwapsDimensions ? (key.Height, key.Width) : (key.Width, key.Height);
+                if (NeedsCpuResize(work.Width, work.Height, targetW, targetH))
                 {
-                    work.Resize(new MagickGeometry(targetW, targetH) { IgnoreAspectRatio = true });
+                    work.Resize(new MagickGeometry(targetW, targetH) { IgnoreAspectRatio = true }, FilterType.Triangle);
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
-                filterService.Apply(work, filter);
-                transform.Apply(work);
-                cancellationToken.ThrowIfCancellationRequested();
+                filterService.Apply(work, key.Filter);
+                key.Transform.Apply(work);
                 return ToBitmapSource(work);
-            }, cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
             _cache.Add(key, bitmap);
             return bitmap;
         }
         finally
         {
-            _gate.Release();
+            slot.Dispose();
         }
     }
 
@@ -87,25 +103,39 @@ public sealed class ImageRenderService(ImageFilterService filterService)
     /// 애니메이션 프레임을 원본 해상도로 렌더링한다 (화면 확대 · 축소는 WPF 가 처리).
     /// 필터는 적용하지 않고 회전 · 반전만 적용한다.
     /// </summary>
-    public async Task<IReadOnlyList<RenderedFrame>> RenderAnimationAsync(
+    public Task<IReadOnlyList<RenderedFrame>> RenderAnimationAsync(
         DecodedImage image,
         ImageTransform transform,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool background = false)
     {
         var key = new AnimationKey(image.Key, transform);
         if (_animationCache.TryGet(key, out var cached))
         {
-            return cached;
+            return Task.FromResult(cached);
         }
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return _animations.RunAsync(key, () => RenderAnimationCoreAsync(image, key, background, cancellationToken), cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<RenderedFrame>> RenderAnimationCoreAsync(
+        DecodedImage image,
+        AnimationKey key,
+        bool background,
+        CancellationToken cancellationToken)
+    {
+        // 전경 작업은 이미 지나간 이미지의 작업이 자리를 막고 있으면 넘어서 바로 시작한다 (PriorityGate).
+        var slot = background
+            ? await _backgroundGate.EnterAsync(cancellationToken).ConfigureAwait(false)
+            : await _foregroundGate.EnterAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_animationCache.TryGet(key, out cached))
+            if (_animationCache.TryGet(key, out var cached))
             {
                 return cached;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             var frames = await Task.Run<IReadOnlyList<RenderedFrame>>(() =>
             {
                 var clones = image.CloneFrames() ?? throw new ObjectDisposedException(nameof(DecodedImage));
@@ -114,8 +144,7 @@ public sealed class ImageRenderService(ImageFilterService filterService)
                 {
                     foreach (var frame in clones)
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        transform.Apply(frame.Image);
+                        key.Transform.Apply(frame.Image);
                         result.Add(new RenderedFrame(ToBitmapSource(frame.Image), TimeSpan.FromMilliseconds(frame.DelayMs)));
                     }
                 }
@@ -128,15 +157,34 @@ public sealed class ImageRenderService(ImageFilterService filterService)
                 }
 
                 return result;
-            }, cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
             _animationCache.Add(key, frames);
             return frames;
         }
         finally
         {
-            _gate.Release();
+            slot.Dispose();
         }
+    }
+
+    /// <summary>화면 크기보다 이 비율 이상이면 CPU 로 줄이지 않고 화면 표시 단계(WPF 고품질 스케일링)에 맡긴다.</summary>
+    internal const double GpuScaleThreshold = 0.6;
+
+    /// <summary>
+    /// CPU(ImageMagick) 축소가 필요한지. ImageMagick 축소는 단일 스레드라 1920×1080 → 1280×720 에도 100ms 이상 걸린다.
+    /// 화면 크기로 줄여 디코딩한 JPEG 처럼 원본이 화면보다 조금만 크면 WPF 가 표시하면서 고품질로 줄이게 하고,
+    /// 크게 줄여야 할 때(60% 미만)만 CPU 로 줄인다. 확대는 항상 화면에서 처리한다.
+    /// </summary>
+    internal static bool NeedsCpuResize(uint sourceWidth, uint sourceHeight, uint targetWidth, uint targetHeight)
+    {
+        if (sourceWidth == 0 || sourceHeight == 0)
+        {
+            return false;
+        }
+
+        var ratio = Math.Max((double)targetWidth / sourceWidth, (double)targetHeight / sourceHeight);
+        return ratio < GpuScaleThreshold;
     }
 
     /// <summary>파일이 바뀌었을 때 해당 이미지의 렌더링 결과를 버린다.</summary>

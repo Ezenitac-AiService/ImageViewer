@@ -4,6 +4,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ImageViewer.Helpers;
 using ImageViewer.Models;
 using ImageViewer.Services;
 using ImageViewer.Services.ImageSources;
@@ -102,7 +103,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // 짧은 로딩에는 표시하지 않아 깜박임을 줄인다.
         _loadingIndicatorTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
         {
-            Interval = TimeSpan.FromMilliseconds(250),
+            Interval = TimeSpan.FromMilliseconds(500),
         };
         _loadingIndicatorTimer.Tick += (_, _) =>
         {
@@ -540,6 +541,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             // 정책: 슬라이드쇼 중 수동으로 이동하면 타이머를 다시 시작한다.
             _slideShow.RestartTimer();
+            NoteManualNavigation();
         }
 
         if (index == CurrentIndex && _decoded is not null)
@@ -586,16 +588,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var version = ++_loadVersion;
         _loadCts?.Cancel();
+        _renderCts?.Cancel();   // 이전 이미지의 렌더링도 더 이상 필요 없다 (작업 자리를 비켜 준다)
         _prefetchCts?.Cancel();
         _loadCts = new CancellationTokenSource();
         var ct = _loadCts.Token;
 
         _loadingIndicatorTimer.Stop();
         _loadingIndicatorTimer.Start();
+        SchedulePlaceholder(version, info, isPageChange: !resetTransform);
+        var timing = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
             var decoded = await _loader.LoadAsync(source, info, pageIndex, CurrentDecodeTarget(), ct);
+            var decodeMs = timing.ElapsedMilliseconds;
             if (version != _loadVersion)
             {
                 decoded.Release();
@@ -614,6 +620,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             UpdateImageInfo(info, decoded);
             OnPropertyChanged(nameof(PositionText));
             await RenderCurrentAsync();
+
+            // 표시가 느렸던 경우 원인을 알 수 있도록 단계별 시간을 남긴다 (파일 크기 · 해상도 포함).
+            if (timing.ElapsedMilliseconds >= 300)
+            {
+                _logger.LogInformation(
+                    "느린 표시: {Name} ({Size}, {Width}x{Height}{Reduced}) 디코딩(대기 포함) {Decode} ms, 렌더링 {Render} ms, 합계 {Total} ms",
+                    info.Name, FileSizeHelper.Format(info.Size), decoded.OriginalWidth, decoded.OriginalHeight,
+                    decoded.IsReduced ? $" → {decoded.Width}x{decoded.Height}" : string.Empty,
+                    decodeMs, timing.ElapsedMilliseconds - decodeMs, timing.ElapsedMilliseconds);
+            }
+
             if (version == _loadVersion)
             {
                 StartPrefetch();
@@ -645,6 +662,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (version == _loadVersion)
             {
                 _loadingIndicatorTimer.Stop();
+                _placeholderTimer?.Stop();
                 IsLoading = false;
             }
         }
@@ -653,6 +671,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void ShowError(ImageInfo info, string message)
     {
         StopAnimation();
+        IsShowingPlaceholder = false;
         FrameInfoText = null;
         ReplaceDecoded(null);
         UpdateImageInfo(info, null);
@@ -678,6 +697,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // 새 이미지를 읽는 동안(썸네일 임시 표시 중 등) 창 크기가 바뀌어도 이전 이미지를 다시 그리지 않는다.
+        if (CurrentImage is null || decoded.Info.Key != CurrentImage.Key)
+        {
+            return;
+        }
+
         var loadVersion = _loadVersion;
         var version = ++_renderVersion;
         _renderCts?.Cancel();
@@ -698,6 +723,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 }
 
                 StartAnimation(frames);
+                IsShowingPlaceholder = false;
                 _bitmapImageKey = decoded.Key;
                 ErrorMessage = null;
                 ApplyLayout(ComputeLayout(decoded));
@@ -717,6 +743,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             var latest = ComputeLayout(decoded);
             StopAnimation();
             CurrentBitmap = bitmap;
+            IsShowingPlaceholder = false;
             FrameInfoText = BuildStaticFrameInfo(decoded);
             _bitmapImageKey = decoded.Key;
             ErrorMessage = null;
@@ -840,6 +867,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void CancelPending()
     {
         StopAnimation();
+        _placeholderTimer?.Stop();
+        IsShowingPlaceholder = false;
         _loadVersion++;
         _renderVersion++;
         _loadCts?.Cancel();

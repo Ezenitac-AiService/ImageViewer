@@ -88,7 +88,23 @@
                        Width="{Binding DisplayWidth}"
                        Height="{Binding DisplayHeight}"
                        Stretch="Fill"
-                       RenderOptions.BitmapScalingMode="HighQuality" />
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Style.Triggers>
+                                <!-- 느린 로딩 중 썸네일을 늘려 임시로 보여 줄 때: 깨진 이미지가 아니라 미리보기로 보이도록 흐리게 -->
+                                <DataTrigger Binding="{Binding IsShowingPlaceholder}" Value="True">
+                                    <Setter Property="Effect">
+                                        <Setter.Value>
+                                            <BlurEffect Radius="24" KernelType="Gaussian" RenderingBias="Performance" />
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Setter Property="Opacity" Value="0.85" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
             </Canvas>
 
             <TextBlock Text="{Binding PlaceholderMessage}"
@@ -165,7 +181,7 @@
             </Border>
 
             <!-- 로딩 게이지: 화면 가운데 회전하는 원호. 디코딩 진행률은 알 수 없으므로 진행 중 표시만 한다.
-                 (짧은 로딩에는 나타나지 않도록 ViewModel 에서 250ms 뒤에 IsLoading 을 켠다) -->
+                 (짧은 로딩에는 나타나지 않도록 ViewModel 에서 0.5초 뒤에 IsLoading 을 켠다) -->
             <Border x:Name="LoadingIndicator"
                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"
                     Width="76" Height="76" CornerRadius="38"

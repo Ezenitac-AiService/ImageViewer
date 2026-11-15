@@ -316,6 +316,16 @@ public sealed partial class MainViewModel
     #region 빠른 표시: 화면 크기 디코딩 · 원본 업그레이드 · 미리 읽기
 
     private string? _upgradingKey;
+    private DateTime _lastManualNavigationAt = DateTime.MinValue;
+    private bool _rapidNavigation;
+
+    /// <summary>키 · 휠 · 썸네일 등으로 직접 이동한 시각을 기록한다 (빠른 연속 이동 감지).</summary>
+    private void NoteManualNavigation()
+    {
+        var now = DateTime.UtcNow;
+        _rapidNavigation = now - _lastManualNavigationAt < TimeSpan.FromMilliseconds(600);
+        _lastManualNavigationAt = now;
+    }
 
     /// <summary>현재 표시 영역 · 모드에서 필요한 디코딩 크기 정보. 표시 영역을 아직 모르면 null (원본 디코딩).</summary>
     private DecodeTarget? CurrentDecodeTarget() =>
@@ -355,7 +365,7 @@ public sealed partial class MainViewModel
         var loadVersion = _loadVersion;
         try
         {
-            var full = await _loader.LoadAsync(source, reduced.Info, reduced.PageIndex, target: null, CancellationToken.None);
+            var full = await _loader.LoadAsync(source, reduced.Info, reduced.PageIndex, target: null, CancellationToken.None, background: true);
             if (loadVersion != _loadVersion || !ReferenceEquals(reduced, _decoded))
             {
                 full.Release();
@@ -434,22 +444,35 @@ public sealed partial class MainViewModel
             AddIndex(index);
         }
 
-        if (IsSlideShowPlaying)
-        {
-            // 랜덤 재생이면 이 호출에서 섞은 순서가 만들어지고, 다음 타이머가 같은 이미지를 꺼낸다.
-            if (_slideShow.PeekNextIndex(CurrentIndex, count) is { } next)
-            {
-                AddIndex(next);
-            }
+        var forward = _lastDirection >= 0 ? 1 : -1;
+        var manualRecently = (DateTime.UtcNow - _lastManualNavigationAt) < TimeSpan.FromSeconds(2);
 
+        // 슬라이드쇼만 보고 있을 때: 다음 슬라이드를 가장 먼저 (랜덤이면 이 호출에서 섞은 순서가 만들어지고,
+        // 다음 타이머가 같은 이미지를 꺼낸다).
+        int? slideShowNext = IsSlideShowPlaying ? _slideShow.PeekNextIndex(CurrentIndex, count) : null;
+        if (slideShowNext is { } first && !manualRecently)
+        {
+            AddIndex(first);
             AddOffset(+1);
             AddOffset(-1);
             return candidates;
         }
 
-        var forward = _lastDirection >= 0 ? 1 : -1;
+        // 키 · 휠로 넘기고 있을 때: 진행 방향을 우선 (빠르게 연속으로 넘기면 더 멀리),
+        // 슬라이드쇼 다음 이미지는 타이머(최소 5초)까지 여유가 있으므로 그 뒤에.
         AddOffset(forward);
         AddOffset(forward * 2);
+        if (_rapidNavigation)
+        {
+            AddOffset(forward * 3);
+            AddOffset(forward * 4);
+        }
+
+        if (slideShowNext is { } next)
+        {
+            AddIndex(next);
+        }
+
         AddOffset(-forward);
         return candidates;
     }
@@ -461,26 +484,40 @@ public sealed partial class MainViewModel
         ImageFilter filter,
         CancellationToken ct)
     {
-        foreach (var info in images)
+        // 우선순위 순서대로 두 장씩 동시에 준비한다 (JPEG 디코딩은 코어 하나만 쓰므로 병렬로 처리량을 높인다).
+        foreach (var pair in images.Chunk(2))
         {
             if (ct.IsCancellationRequested || !ReferenceEquals(source, _source))
             {
                 return;
             }
 
-            if (!info.IsSupported)
-            {
-                continue;
-            }
+            await Task.WhenAll(pair.Select(info => PrefetchOneAsync(source, info, target, filter, ct)));
+        }
+    }
+
+    private async Task PrefetchOneAsync(
+        IImageSource source,
+        ImageInfo info,
+        DecodeTarget target,
+        ImageFilter filter,
+        CancellationToken ct)
+    {
+        if (!info.IsSupported)
+        {
+            return;
+        }
+
+        {
 
             try
             {
-                var decoded = await _loader.LoadAsync(source, info, 0, target, ct);
+                var decoded = await _loader.LoadAsync(source, info, 0, target, ct, background: true);
                 try
                 {
                     if (decoded.IsAnimated && PlayAnimations)
                     {
-                        await _renderer.RenderAnimationAsync(decoded, ImageTransform.Identity, ct);
+                        await _renderer.RenderAnimationAsync(decoded, ImageTransform.Identity, ct, background: true);
                     }
                     else
                     {
@@ -489,7 +526,7 @@ public sealed partial class MainViewModel
                         var layout = ImageResizeService.Calculate(
                             DisplayMode, 1.0, width, height,
                             _viewportWidth * _dpiScale, _viewportHeight * _dpiScale);
-                        await _renderer.RenderAsync(decoded, layout.RenderPixelWidth, layout.RenderPixelHeight, filter, ImageTransform.Identity, ct);
+                        await _renderer.RenderAsync(decoded, layout.RenderPixelWidth, layout.RenderPixelHeight, filter, ImageTransform.Identity, ct, background: true);
                     }
                 }
                 finally
@@ -506,6 +543,107 @@ public sealed partial class MainViewModel
                 _logger.LogDebug(ex, "미리 읽기 실패: {Name}", info.Name);
             }
         }
+    }
+
+    #endregion
+
+    #region 느린 로딩: 썸네일 임시 표시
+
+    /// <summary>고화질 로딩이 이 시간보다 오래 걸리면 썸네일을 먼저 보여 준다.</summary>
+    internal static readonly TimeSpan PlaceholderDelay = TimeSpan.FromMilliseconds(250);
+
+    private DispatcherTimer? _placeholderTimer;
+    private int _placeholderVersion;
+    private ImageInfo? _placeholderInfo;
+
+    /// <summary>
+    /// 썸네일을 흐리게 늘려 임시로 보여 주는 중인지. 고화질 렌더링 결과가 나오면 바로 바뀐다.
+    /// (View 는 이때 이미지에 블러 효과를 준다)
+    /// </summary>
+    [ObservableProperty]
+    private bool _isShowingPlaceholder;
+
+    /// <summary>
+    /// 다른 이미지로 이동했을 때, 고화질이 <see cref="PlaceholderDelay"/> 안에 준비되지 않으면 썸네일을 대신 보여 주도록 예약한다.
+    /// 미리 읽어 둔 이미지는 그 전에 표시되므로 평소 이동에서는 나타나지 않는다.
+    /// </summary>
+    private void SchedulePlaceholder(int loadVersion, ImageInfo info, bool isPageChange)
+    {
+        _placeholderTimer?.Stop();
+
+        // 같은 이미지 안의 페이지 이동, 원본 크기 보기(실제 크기를 아직 모름)에는 쓰지 않는다.
+        if (isPageChange || DisplayMode == DisplayMode.Original)
+        {
+            return;
+        }
+
+        if (_placeholderTimer is null)
+        {
+            _placeholderTimer = new DispatcherTimer(DispatcherPriority.Render, _dispatcher) { Interval = PlaceholderDelay };
+            _placeholderTimer.Tick += (_, _) =>
+            {
+                _placeholderTimer.Stop();
+                ShowPlaceholderIfStillLoading();
+            };
+        }
+
+        _placeholderVersion = loadVersion;
+        _placeholderInfo = info;
+        _placeholderTimer.Start();
+    }
+
+    private void ShowPlaceholderIfStillLoading()
+    {
+        // 그 사이 다른 이미지로 이동했거나 이미 고화질이 표시되었으면 아무것도 하지 않는다.
+        if (_placeholderVersion != _loadVersion ||
+            _placeholderInfo is not { } info ||
+            CurrentImage?.Key != info.Key ||
+            _bitmapImageKey is { } shown && _decoded is { } d && d.Info.Key == info.Key && shown == d.Key)
+        {
+            return;
+        }
+
+        // 이미 만들어 둔 썸네일만 쓴다 (느린 이미지는 썸네일을 새로 만드는 것도 느리다).
+        var index = CurrentIndex;
+        if (index < 0 || index >= ThumbnailItems.Count || ThumbnailItems[index].Info.Key != info.Key ||
+            ThumbnailItems[index].CachedThumbnail is not { } thumbnail ||
+            thumbnail.PixelWidth <= 0 || thumbnail.PixelHeight <= 0)
+        {
+            return;
+        }
+
+        var (width, height) = PlaceholderDisplaySize(
+            DisplayMode, (uint)thumbnail.PixelWidth, (uint)thumbnail.PixelHeight,
+            _viewportWidth * _dpiScale, _viewportHeight * _dpiScale);
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        StopAnimation();
+        FrameInfoText = null;
+        ErrorMessage = null;
+        CurrentBitmap = thumbnail;
+        IsShowingPlaceholder = true;
+        _bitmapImageKey = null;
+
+        // 고화질과 같은 위치 · 크기에 배치해 교체할 때 움직이지 않게 한다 (맞춤 모드는 비율만으로 크기가 정해진다).
+        DisplayWidth = width / _dpiScale;
+        DisplayHeight = height / _dpiScale;
+        _pendingNewImage = true;
+        LayoutChanged?.Invoke(this, new LayoutChangedEventArgs(isNewImage: true));
+    }
+
+    /// <summary>썸네일 비율로 계산한 화면 표시 크기 (장치 픽셀). 맞춤 모드에서는 원본으로 계산한 크기와 같다.</summary>
+    internal static (double Width, double Height) PlaceholderDisplaySize(
+        DisplayMode mode,
+        uint thumbnailWidth,
+        uint thumbnailHeight,
+        double viewportPixelWidth,
+        double viewportPixelHeight)
+    {
+        var layout = ImageResizeService.Calculate(mode, 1.0, thumbnailWidth, thumbnailHeight, viewportPixelWidth, viewportPixelHeight);
+        return (layout.DisplayPixelWidth, layout.DisplayPixelHeight);
     }
 
     #endregion

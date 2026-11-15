@@ -50,6 +50,9 @@ public sealed partial class ThumbnailItemViewModel : ObservableObject
 
     internal bool HasThumbnail => _thumbnail is not null;
 
+    /// <summary>이미 만들어 둔 썸네일 (없으면 null). <see cref="Thumbnail"/> 과 달리 생성을 요청하지 않는다.</summary>
+    internal BitmapSource? CachedThumbnail => _thumbnail;
+
     /// <summary>폴더 변경으로 목록이 다시 만들어질 때 위치 · 정보만 갱신한다 (썸네일은 유지).</summary>
     internal void Update(int index, ImageInfo info)
     {

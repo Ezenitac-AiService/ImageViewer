@@ -4,7 +4,9 @@
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File build\publish.ps1
-    powershell -ExecutionPolicy Bypass -File build\publish.ps1 -Runtime win-arm64 -SkipInstaller
+    powershell -ExecutionPolicy Bypass -File build\publish.ps1 -SkipTests -SkipInstaller
+
+    Magick.NET 멀티코어(OpenMP) 빌드를 쓰므로 win-x64 만 지원한다.
 #>
 param(
     [string]$Runtime = "win-x64",
@@ -14,6 +16,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($Runtime -ne "win-x64") { throw "win-x64 만 지원합니다 (Magick.NET OpenMP x64 빌드 사용)." }
 $root = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $root "src\ImageViewer\ImageViewer.csproj"
 $output = Join-Path $root "artifacts\publish\$Runtime"
@@ -56,6 +59,6 @@ if (-not $version) { $version = "1.0.0" }
 
 Write-Host "== 설치 프로그램 생성 (NSIS, v$version)" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force (Join-Path $root "artifacts\installer") | Out-Null
-& $makensis /V2 "/DVERSION=$version" "/DPUBLISH_DIR=$output" (Join-Path $root "src\ImageViewer.Installer\ImageViewer.nsi")
+& $makensis /V2 /INPUTCHARSET UTF8 "/DVERSION=$version" "/DPUBLISH_DIR=$output" (Join-Path $root "src\ImageViewer.Installer\ImageViewer.nsi")
 if ($LASTEXITCODE -ne 0) { throw "설치 프로그램 생성 실패" }
 Get-Item (Join-Path $root "artifacts\installer\ImageViewer-$version-setup.exe")
