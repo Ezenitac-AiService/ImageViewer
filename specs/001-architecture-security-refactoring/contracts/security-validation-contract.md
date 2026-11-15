@@ -43,8 +43,8 @@
 ## 4. Configuration Validation (`SettingsService` & `ViewerSettings`)
 
 - `SettingsService.Load()` checks immediate path safety and `new FileInfo(SettingsPath).Length <= 65_536` (`64 KB`) before reading; oversized, reparse-point, or malformed files fall back cleanly to `new ViewerSettings().Normalize()`.
-- `ViewerSettings.Normalize()` validates every `double` via `double.IsFinite(...)` before range clamping (replacing `NaN`/`Infinity` with safe defaults, and resetting non-finite `Window.Left`/`Window.Top` to `null`).
-- `SettingsService.Save()` writes to a randomized temp file (`Path.GetRandomFileName()`) before replacing `settings.json`, catching storage exceptions and deleting orphaned temp files in `finally`.
+- `ViewerSettings.Normalize()` validates every `double` via `double.IsFinite(...)` before range clamping (replacing `NaN`/`Infinity` with safe defaults, and resetting non-finite `Window.Left`/`Window.Top` to `null`), and sanitizes `UpdateSettings.SkippedVersion` (`null` if `> 32` chars, containing whitespace/control characters, or invalid version string).
+- `SettingsService.Save()` synchronizes writes safely, writes to a randomized temp file (`Path.GetRandomFileName()`) before replacing `settings.json`, catches storage exceptions, and deletes orphaned temp files in `finally`.
 
 ---
 
@@ -52,4 +52,13 @@
 
 - `PathRedactor` strips **quoted and space-containing** Windows drive paths (`[A-Za-z]:\\...`), UNC paths (`\\\\...`), and Unix directory paths (`/(?:[^/\s]+/)+` and quoted spans) down to filename-only (`<redacted>\filename` or `filename`) in both log messages and `Exception.Message`, and strips `\r` / `\n` / control characters against CWE-117 log injection.
 - `FileLoggerProvider` formats entries via `FormatSanitizedEntry`, queues materialized `SanitizedLogRecord` items into a bounded `Channel` (`BoundedChannelFullMode.DropOldest`, non-blocking `TryWrite`), runs consumer I/O with `.ConfigureAwait(false)`, and implements **both** `IDisposable` and `IAsyncDisposable` (draining synchronously in `Dispose()` via `writer.TryComplete()` + a bounded `2s` timeout wait so WPF shutdown never deadlocks or throws).
-- `App.OnDispatcherUnhandledException` displays a localized generic error dialog without raw `e.Exception.Message` host paths.
+- `App.OnDispatcherUnhandledException`, `UpdateViewModel.InstallAsync`, `UpdateInstaller.PortableDownloadPath`, and `SettingsViewModel.OpenDefaultApps` display localized generic error messages without leaking raw host directory paths or raw `ex.Message` paths.
+
+---
+
+## 6. Auto-Update Transport, Download Bounds & Launch Hardening (`v1.0.6`)
+
+- **HTTPS Without Conditional Bypasses (Constitution Principle IV & VII)**: `UpdateService` MUST reject non-`https://` `FeedBase`, `ReleaseInfo.PageUrl`, `SHA256SUMS.txt` URIs, and asset `DownloadUrl` URIs identically in Debug and Release builds (removing `#if DEBUG` / `#if !DEBUG` environment overrides; automated tests inject mock `HttpMessageHandler` over `https://` `feedBase`). `UpdateViewModel.OpenReleasePage` MUST enforce `Uri.UriSchemeHttps` prior to `Process.Start`.
+- **Bounded HTTP Streams**: `GetLatestReleaseAsync` (`<= 1_048_576` bytes), `SHA256SUMS.txt` fetch (`<= 65_536` bytes), and `DownloadAsync` (`<= 268_435_456` bytes / `256 MB`) MUST abort reading if response stream bytes exceed limits regardless of missing/forged `Content-Length`, then verify exact lowercase 64-hex SHA-256 before moving `.part` files.
+- **Safe Temp & Relaunch Paths**: `UpdateInstaller.InstallerDownloadPath` MUST verify `%TEMP%\ImageViewer-update` via `PathSecurity` (immediate `ReparsePoint` check + root containment on `Path.GetFileName(asset.Name)`, rejecting empty/reserved/`..` names). `UpdateInstaller.InstallerStartInfo` MUST reject `/RELAUNCH=` values containing `"`, `" /"`, or control characters (`\r`, `\n`, `\0`).
+- **Redacted Logging & Shutdown Flush Order**: `UpdateService.DownloadAsync` and `AppLifetime.RunPending` MUST pass paths/args through `PathRedactor` (omitting full host paths from logs), and `App.OnExit` MUST execute `_lifetime.RunPending(_logger)` **before** `_services?.Dispose()`.

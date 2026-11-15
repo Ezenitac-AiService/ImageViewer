@@ -61,9 +61,11 @@
   - `Thumbnail`: `Visible`, `Size` (`[48, 256]`, default `96`), `ShowScrollBar`
   - `Filter`: `SmoothSigma` (`[0.1, 3.0]`, default `0.5`), `SharpenSigma` (`[0.1, 5.0]`), `SharpenAmount` (`[0.1, 5.0]`)
   - `Limits`: `MaxImageMegapixels` (`[10, 1000]`, default `150`), `MaxZipEntryMegabytes` (`[10, 4096]`, default `512`)
+  - `Update`: `AutoCheck` (`bool`, default `true`), `LastCheckUtc` (`DateTimeOffset?`), `SkippedVersion` (`string?`, sanitized version string)
 - **Validation & Recovery Rules**:
   - File size MUST be `<= 65,536` bytes (`64 KB`) and non-reparse-point before deserialization.
   - Every `double` property MUST pass `double.IsFinite(value)` prior to clamping; non-finite `Width`, `Height`, or filter sigmas fall back to defaults, and non-finite `Left`/`Top` reset to `null` (center-screen startup).
+  - `Update.SkippedVersion` MUST be normalized to `null` if longer than 32 characters, containing whitespace/control characters, or failing `Version.TryParse` after optional `v`/`V` prefix; `SettingsService` writes MUST serialize safely against concurrent background `AutoCheckAsync` and UI `SaveSettings()`/`SkipVersion()` updates.
   - Atomic save writes to a randomized temp file in the validated directory and replaces `settings.json` only on success.
 
 ---
@@ -94,4 +96,17 @@
 - **Lifecycle State Transitions**:
   - `Idle` -> `Opening(openVersion)` -> `Loaded(index, loadVersion)` -> `Rendering(renderVersion)` -> `Disposed`.
   - Any newer `openVersion` / `loadVersion` / `renderVersion` immediately cancels superseded `CancellationTokenSource` instances (including linked tokens passed to `OpenSeekableAsync` so in-flight stream reads abort promptly) and discards stale async continuations before mutating displayed state.
-  - `Dispose()` deterministically stops all 6 `ITimer` instances (`TimeProvider`: render debounce, OSD, loading indicator, placeholder delay, animation frame, folder-watch debounce), detaches `FolderImageSource.Changed`, cancels in-flight CTS tokens, disposes `SlideShowService`, `ImageLoaderService`, `ImageRenderService`, `IImageSource` (safely guarding concurrent `_gate.Release()` callers on `ZipImageSource`), and disposes/drains `FileLoggerProvider`.
+  - `Dispose()` deterministically stops all 6 `ITimer` instances (`TimeProvider`: render debounce, OSD, loading indicator, placeholder delay, animation frame, folder-watch debounce), detaches `FolderImageSource.Changed`, cancels in-flight CTS tokens, disposes `SlideShowService`, `ImageLoaderService`, `ImageRenderService`, `IImageSource` (safely guarding concurrent `_gate.Release()` callers on `ZipImageSource`), and executes pending `AppLifetime.RunPending(_logger)` **before** disposing/draining `FileLoggerProvider`.
+
+---
+
+## 7. UpdatePackage & UpdateSessionState (`v1.0.6` Auto-Update Model)
+
+- **Entities**:
+  - `ReleaseInfo` (`Version`, `Tag`, `PageUrl: Uri`, `Notes`, `Assets`) — `PageUrl` and `FeedBase` MUST use `Uri.UriSchemeHttps` without `#if DEBUG` bypasses; release JSON payloads capped (`<= 1 MB`).
+  - `ReleaseAsset` (`Name`, `DownloadUrl: Uri`, `Size`, `Sha256`) — `DownloadUrl` MUST use `Uri.UriSchemeHttps`; `SHA256SUMS.txt` capped (`<= 64 KB`); installer/portable asset streams capped (`<= 256 MB`) during chunked streaming verification.
+  - `UpdatePackage` (`Release`, `Asset`, `Sha256`) — 64-char hex SHA-256 checksum required prior to writing/activating installer or portable swaps.
+  - `UpdateInstaller` paths — `%TEMP%\ImageViewer-update` verified via `PathSecurity` (non-reparse-point, strict canonical child containment, safe sanitized asset filename, non-leaking error text); `/RELAUNCH=` rejects embedded `"`, `" /"`, and control characters (`\r`, `\n`, `\0`).
+- **Lifecycle Transitions (`UpdateViewModel`)**:
+  - `Idle` -> `Checking` -> (`UpToDate` | `Available` | `Failed`) -> `Downloading` -> `Installing` -> `IAppLifetime.ExitAndRun`.
+  - Background `AutoCheckAsync` and `UpdateInstaller.CleanupLeftoversAsync` MUST observe/suppress unexpected failures cleanly and log via `PathRedactor` without exposing full local paths in logs or UI alerts.

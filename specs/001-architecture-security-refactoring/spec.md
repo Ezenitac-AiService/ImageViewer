@@ -17,15 +17,16 @@
 - Q: How should symbolic links or filesystem junctions (reparse points) be handled during local folder enumeration? → A: Reject links/junctions in archives and app-managed config/log paths, and skip symbolic-link/junction file entries during local folder enumeration, while allowing explicitly user-opened top-level paths.
 - Q: What maximum file size should be enforced before reading the persisted settings file? → A: Reject persisted configuration files larger than 64 KB (65,536 bytes) and fall back to safe default settings.
 - Q: How should full host paths and raw runtime exception messages be handled in user-facing UI error dialogs compared to diagnostic logs? → A: Omit all full host paths from diagnostic log files, while permitting full path display only in explicit user-supplied command-line path-not-found error prompts.
+- Q: Should the `v1.0.6` auto-update (`UpdateService`, `UpdateInstaller`, `UpdateViewModel`, `AppLifetime`) and Windows default-app registration (`DefaultAppRegistration`) features be brought under the same Zero Trust, deterministic lifecycle, and headless architecture invariants? → A: Yes; preserve update and default-app user workflows while enforcing HTTPS-only transport (without `#if DEBUG` security bypasses), bounded HTTP payload caps, safe temp/relaunch sanitization, exact-match registry checks, redacted update logging/dialogs, and logger-safe shutdown ordering.
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Zero Trust Input, Archive, and Privacy Hardening (Priority: P1)
 
 As a user opening arbitrary folders, compressed archives, image files, drag-and-drop items,
-or persisted settings from untrusted sources, I want the viewer to reject disguised,
-malformed, oversized, or path-escaping inputs safely and protect my host paths and system
-integrity without crashing or executing unintended content.
+persisted settings, or remote release update feeds from untrusted sources, I want the viewer
+to reject disguised, malformed, oversized, insecure-scheme, or path-escaping inputs safely
+and protect my host paths and system integrity without crashing or executing unintended content.
 
 **Why this priority**: The application directly parses untrusted local and downloaded binary
 images, archives, command-line arguments, Windows shell verbs, and configuration files. Any
@@ -58,13 +59,20 @@ verifying fail-closed rejection, safe recovery, and sanitized logs with zero cra
    non-finite floating-point values (`NaN` or infinity), or excessive file size, **When**
    the application loads configuration on startup, **Then** all invalid fields MUST fall
    back to safe finite defaults without crashing or corrupting window placement.
-5. **Given** shell context-menu registration verification, diagnostic logging, or a runtime
-   error whose underlying system message includes full directory paths, **When** status is
-   checked, logged, or surfaced in UI dialogs, **Then** shell registration validation MUST
-   verify exact quoted command alignment, diagnostic logs MUST redact or omit all full host
-   paths, and runtime UI error dialogs MUST avoid leaking internal system paths (full path
-   display is permitted only when echoing an explicit user-entered command-line path that
-   could not be found).
+5. **Given** shell or Windows default-app context registration verification, diagnostic logging,
+   update execution/download failures, or a runtime error whose underlying system message
+   includes full directory paths, **When** status is checked, logged, or surfaced in UI
+   dialogs, **Then** shell and default-app registration validation MUST verify exact quoted
+   command alignment, diagnostic logs MUST redact or omit all full host paths, and runtime UI
+   error dialogs MUST avoid leaking internal system paths (full path display is permitted only
+   when echoing an explicit user-entered command-line path that could not be found).
+6. **Given** an auto-update release response or download asset whose release page or package
+   URL uses a non-HTTPS scheme, whose HTTP response exceeds configured payload bounds, whose
+   relaunch argument contains unsafe characters/switches, or whose temp destination encounters
+   a reparse point, **When** the viewer checks, downloads, or prepares to install an update,
+   **Then** the viewer MUST fail closed without launching non-HTTPS URLs, reading unbounded HTTP
+   payloads, writing unsafe temp/relaunch paths, or weakening validation via conditional debug
+   bypasses.
 
 ---
 
@@ -95,10 +103,12 @@ cancellation, zero leaked handles/timers, and zero unhandled async exceptions.
    generation under heavy workloads, **When** parallel workers decode and transform images,
    **Then** total concurrent native/CPU worker saturation MUST remain bounded so UI input
    and frame presentation stay responsive.
-3. **Given** a user triggers drag-and-drop, opens a new folder/archive, or closes the
-   application while decoding, playback, or timers are active, **When** the transition or
-   shutdown completes, **Then** all active timers, watchers, concurrency gates, streams, and
-   unmanaged pixel buffers MUST stop and dispose cleanly without unhandled exceptions.
+3. **Given** a user triggers drag-and-drop, opens a new folder/archive, runs background
+   update checks/cleanup, or closes the application while decoding, playback, update pending
+   launch, or timers are active, **When** the transition or shutdown completes, **Then** all
+   active timers, watchers, concurrency gates, streams, and unmanaged pixel buffers MUST stop
+   and dispose cleanly without unhandled exceptions, and shutdown logging MUST record pending
+   update-launch events before disposing the log provider.
 4. **Given** high-frequency diagnostic logging during slow renders or transient errors,
    **When** log records are emitted, **Then** file logging MUST NOT block interactive display
    threads and MUST fail silently without crashing if the log directory is read-only or
@@ -175,32 +185,46 @@ verifying all existing user shortcuts, display modes, and visual behaviors remai
   filesystem-junction file entries during local folder enumeration (while permitting
   explicitly user-opened top-level paths).
 - **FR-004**: System MUST validate persisted configuration files against a 64 KB
-  (65,536-byte) maximum file-size cap, schema deserialization failures, and non-finite
-  (`NaN`, `Infinity`) or out-of-bounds values, clamping or restoring safe defaults while
-  preserving valid user preferences across existing schema versions.
-- **FR-005**: System MUST sanitize command-line inputs and Windows shell context-menu
-  registry entries by accepting at most one target path or a single valid shell switch,
-  failing closed with an explicit error on extra positional paths, unknown flags, or
-  conflicting switches, enforcing strict quoted-command matching during status checks, and
-  reporting shell command failures cleanly.
+  (65,536-byte) maximum file-size cap, schema deserialization failures, non-finite (`NaN`,
+  `Infinity`) or out-of-bounds numeric values, and `UpdateSettings` fields (`SkippedVersion`
+  sanitization and valid `AutoCheck`/`LastCheckUtc` defaults), clamping or restoring safe
+  defaults while preserving valid user preferences across existing schema versions.
+- **FR-005**: System MUST sanitize command-line inputs, Windows shell context-menu entries,
+  Windows default-app HKCU registrations (`DefaultAppRegistration`), and installer
+  relaunch arguments (`/RELAUNCH=`) by accepting at most one target path or a single valid
+  shell switch, failing closed with an explicit error on extra positional paths, unknown
+  flags, or conflicting switches, rejecting quotes or control characters in executable and
+  relaunch arguments, enforcing exact quoted-command matching during status checks (never
+  loose substring containment), and reporting shell/default-app failures cleanly.
 - **FR-006**: System MUST redact or omit all full directory paths from persisted diagnostic
-  log entries—including paths embedded within underlying runtime exception messages—while
-  retaining actionable error types and filenames; UI error dialogs MUST likewise omit raw
-  internal runtime paths, except when echoing an explicit user-supplied command-line target
-  in a path-not-found prompt.
+  log entries—including paths embedded within update download/launch messages (`UpdateService`,
+  `AppLifetime`) and underlying runtime exception messages—while retaining actionable error
+  types and filenames; UI error dialogs (including update/default-app prompts) MUST likewise
+  omit raw internal runtime paths and raw exception strings, except when echoing an explicit
+  user-supplied command-line target in a path-not-found prompt.
 - **FR-007**: System MUST coordinate concurrency limits across foreground decoding,
   prefetching, rendering, and thumbnail generation so parallel CPU/native operations do not
   oversubscribe system cores or starve interactive UI operations.
 - **FR-008**: System MUST release all unmanaged pixel buffers, active streams, timers,
-  concurrency gates, filesystem watchers, and event subscriptions deterministically upon
-  source changes, invalidation, or application exit, and MUST guard async entry points
-  (including drag-and-drop and background timers) against unhandled exceptions.
+  concurrency gates, filesystem watchers, update background tasks, and event subscriptions
+  deterministically upon source changes, invalidation, or application exit, execute pending
+  update launches (`AppLifetime.RunPending`) prior to disposing `FileLoggerProvider`, and
+  guard async entry points (including drag-and-drop, startup update cleanup/checks, and
+  background timers) against unhandled exceptions and uncoordinated settings writes.
 - **FR-009**: System MUST decouple view-independent application orchestration, viewport/zoom
-  geometry, and playback/navigation state machines from desktop window presentation so
-  core behavior is testable headlessly while keeping desktop window rendering thin.
+  geometry, and playback/navigation state machines from desktop window presentation while
+  preserving `MainViewModel` (`Update`, `RelaunchPath`) and `UpdateViewModel` (`UpdateNotice`,
+  `AboutWindow`, `IAppLifetime`) integration surfaces so core behavior is testable headlessly.
 - **FR-010**: System MUST preserve all existing documented user workflows, keyboard/mouse
   controls, display modes, filters, slideshow behaviors, EXIF inspection, multi-page/animated
-  playback, and Windows shell integration flags without breaking existing user settings.
+  playback, auto-update UI workflows, Windows default-app registration, and shell integration
+  flags without breaking existing user settings.
+- **FR-011**: System MUST enforce Zero Trust transport and download guards for auto-update
+  operations: require `https://` schemes across release API feeds, `html_url` release page
+  navigation, `SHA256SUMS.txt` fetches, and asset downloads (without `#if DEBUG` bypasses),
+  enforce explicit byte ceilings on release JSON (`1 MB`), `SHA256SUMS.txt` (`64 KB`), and
+  update binary streams (`256 MB`), verify SHA-256 checksums before activation, and guard
+  update temporary directories/files against `ReparsePoint` or filename traversal escapes.
 
 ### Key Entities
 
@@ -237,9 +261,9 @@ verifying all existing user shortcuts, display modes, and visual behaviors remai
 - **SC-005**: Diagnostic log files contain zero full user directory paths across normal
   operations and simulated I/O permission or not-found failure scenarios.
 - **SC-006**: All existing user-facing workflows (navigation, display modes, filters,
-  rotation/flip, slideshow, EXIF panel, animations, multi-page TIFF, settings, and shell
-  menu registration) operate identically from the user's perspective before and after
-  refactoring.
+  rotation/flip, slideshow, EXIF panel, animations, multi-page TIFF, settings, auto-update
+  checks/notifications/install, Windows default-app registration, and shell menu registration)
+  operate identically from the user's perspective before and after refactoring.
 
 ## Assumptions
 

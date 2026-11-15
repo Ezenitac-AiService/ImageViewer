@@ -7,9 +7,9 @@
 ## Summary
 
 Incremental, TDD-driven refactoring of `ImageViewer` executed in strict priority order:
-1. **P1 — Zero Trust Security & Privacy Hardening**: Multi-encoding streaming signature validation (`ImageFormatHelper`, UTF-32-before-UTF-16 BOM order, <=8,192-byte whitespace scan), CWE-190 checked dimension/stride arithmetic + dynamic `maxPixels` enforcement across static (`ImageRenderService`, multi-frame `.ico`/TIFF) and animated (`AnimationPlayback`) paths, CWE-409 bounded/cancelable `OpenSeekableAsync` and `TryReadAnimation`, CWE-22 root-boundary canonicalization + `FolderImageSource` reparse skip + `ZipImageSource` POSIX `0xA000`/DOS `0x0400` symlink flags (`PathSecurity`), CWE-88 fail-closed CLI parsing (`CommandLineOptions` backward-compatible `IsPathNotFoundError = false`) and exact quoted shell-verb verification (`ShellIntegrationService` + scoped `RunShellCommand` logging), finite + `64 KB`-capped configuration loading with temp cleanup (`ViewerSettings`, `SettingsService`), and space/quoted-path + CRLF-sanitized logging (`PathRedactor`, `FileLoggerProvider`, `App`).
-2. **P2 — Deterministic Lifecycle, Concurrency & Responsiveness Stability**: Pre-DI `OMP_NUM_THREADS`/`MAGICK_THREAD_LIMIT` initialization + `MagickNET.Initialize()` + explicit `ResourceLimits.Thread` and `ResourceLimits.Memory` (`1024 MB`), elimination of sync-over-async blocking (`ThumbnailService`, `ZipImageSource`), safe non-throwing `ZipImageSource` `_gate` disposal alongside `IDisposable`/`IAsyncDisposable`, non-blocking bounded-`Channel` logging implementing both `IDisposable` (bounded timeout + `.ConfigureAwait(false)`) and `IAsyncDisposable`, non-double-disposed `SKManagedStream` ownership transfer (`AnimationPlayback`), and guarded drag-and-drop / window teardown (`MainWindow`, `MainViewModel`).
-3. **P3 — Modular Decomposition & Headless Testability**: Extract pure calculation, state, and orchestration coordinators (`ViewportLayoutCalculator`, `WindowChromeState`, `ImageSessionCoordinator`, `PrefetchCoordinator`, `PathSecurity`, `PathRedactor`, cohesive format/animation helpers) paired with `IUiDispatcher` and `System.TimeProvider` across all 6 `MainViewModel` timers and `SlideShowService` so core navigation, layout, placeholder timing, slideshow, and security boundaries execute headlessly in `xUnit` while keeping `MainWindow.xaml` bindings and `MainWindow.xaml.cs` / `PlaceholderTests.cs` members 100% compatible.
+1. **P1 — Zero Trust Security & Privacy Hardening**: Multi-encoding streaming signature validation (`ImageFormatHelper`, UTF-32-before-UTF-16 BOM order, <=8,192-byte whitespace scan), CWE-190 checked dimension/stride arithmetic + dynamic `maxPixels` enforcement across static (`ImageRenderService`, multi-frame `.ico`/TIFF) and animated (`AnimationPlayback`) paths, CWE-409 bounded/cancelable `OpenSeekableAsync` and `TryReadAnimation`, CWE-22 root-boundary canonicalization + `FolderImageSource` reparse skip + `ZipImageSource` POSIX `0xA000`/DOS `0x0400` symlink flags (`PathSecurity`), CWE-88 fail-closed CLI parsing (`CommandLineOptions` backward-compatible `IsPathNotFoundError = false`), exact quoted shell-verb & default-app HKCU verification (`ShellIntegrationService`, `DefaultAppRegistration` `Rebase` + exact-match fix, `/RELAUNCH=` sanitization, scoped `RunShellCommand` logging), HTTPS-only auto-update feeds/links & bounded HTTP streams without `#if DEBUG` bypasses + safe temp-dir guards (`UpdateService`, `UpdateInstaller`, `UpdateViewModel`), finite + `64 KB`-capped configuration loading with `UpdateSettings` normalization and temp cleanup (`ViewerSettings`, `SettingsService`), and space/quoted-path + CRLF-sanitized logging across core and update/default-app paths (`PathRedactor`, `FileLoggerProvider`, `App`, `AppLifetime`, `SettingsViewModel`).
+2. **P2 — Deterministic Lifecycle, Concurrency & Responsiveness Stability**: Pre-DI `OMP_NUM_THREADS`/`MAGICK_THREAD_LIMIT` initialization + `MagickNET.Initialize()` + explicit `ResourceLimits.Thread` and `ResourceLimits.Memory` (`1024 MB`), elimination of sync-over-async blocking (`ThumbnailService`, `ZipImageSource`), safe non-throwing `ZipImageSource` `_gate` disposal alongside `IDisposable`/`IAsyncDisposable`, non-blocking bounded-`Channel` logging implementing both `IDisposable` (bounded timeout + `.ConfigureAwait(false)`) and `IAsyncDisposable`, non-double-disposed `SKManagedStream` ownership transfer (`AnimationPlayback`), `App.OnExit` calling `_lifetime.RunPending(_logger)` before `_services?.Dispose()`, synchronized settings persistence, and guarded drag-and-drop / startup background tasks / window teardown (`App`, `MainWindow`, `MainViewModel`, `UpdateViewModel`).
+3. **P3 — Modular Decomposition & Headless Testability**: Extract pure calculation, state, and orchestration coordinators (`ViewportLayoutCalculator`, `WindowChromeState`, `ImageSessionCoordinator`, `PrefetchCoordinator`, `PathSecurity`, `PathRedactor`, cohesive format/animation helpers) paired with `IUiDispatcher` and `System.TimeProvider` across all 6 `MainViewModel` timers and `SlideShowService` so core navigation, layout, placeholder timing, slideshow, and security boundaries execute headlessly in `xUnit` while keeping `MainWindow.xaml` (including `UpdateNotice`), `AboutWindow`, `MainViewModel(UpdateViewModel? update = null)` (`Update`, `RelaunchPath`), and `MainWindow.xaml.cs` / `PlaceholderTests.cs` members 100% compatible.
 
 ## Technical Context
 
@@ -29,7 +29,7 @@ Incremental, TDD-driven refactoring of `ImageViewer` executed in strict priority
 
 **Constraints**: Zero breaking changes to `MainWindow.xaml` bindings, keyboard shortcuts, `settings.json` v1–v3 migration, `ko;en` localization, or `--register-shell`/`--unregister-shell` flags; pre-decode `150 MP` pixel cap, `512 MB` stream/animation cap, `64 KB` settings cap; no mocking frameworks or production test bypasses
 
-**Scale/Scope**: Refactoring across `src/ImageViewer/` (~40 source files) and expansion of `tests/ImageViewer.Tests/` + `tests/ImageViewer.IntegrationTests/`, decomposing monolithic presentation/orchestration concerns out of `MainViewModel` (2,106 lines across two partial files) and `MainWindow.xaml.cs` (849 lines) while hardening and factoring `ImageLoaderService.cs` (709 lines) and `AnimationPlayback.cs` (409 lines) into cohesive validators and session coordinators
+**Scale/Scope**: Refactoring across `src/ImageViewer/` (~46 source files including `v1.0.6` update & default-app components) and expansion of `tests/ImageViewer.Tests/` + `tests/ImageViewer.IntegrationTests/`, decomposing monolithic presentation/orchestration concerns out of `MainViewModel` (over 2,100 lines across two partial files) and `MainWindow.xaml.cs` (over 850 lines) while hardening and factoring `ImageLoaderService.cs`, `AnimationPlayback.cs`, `DefaultAppRegistration.cs`, and `Services/Updates/` into cohesive validators and session coordinators
 
 ## Constitution Check
 
@@ -68,19 +68,25 @@ specs/001-architecture-security-refactoring/
 
 ```text
 src/ImageViewer/
-├── App.xaml / App.xaml.cs                  # Pre-DI OMP_NUM_THREADS/MagickNET.Initialize/ResourceLimits, scoped RunShellCommand logging, DI, sanitized unhandled error dialog
-├── MainWindow.xaml / MainWindow.xaml.cs    # Thin WPF view: event detach on close, guarded OnDrop, delegates math/chrome to extracted state
+├── App.xaml / App.xaml.cs                  # Pre-DI OMP_NUM_THREADS/MagickNET.Initialize/ResourceLimits, scoped RunShellCommand logging (+ UnregisterDefaultApp), guarded startup cleanup/auto-check, OnExit RunPending before Dispose, sanitized unhandled error dialog
+├── AppLifetime.cs                          # Path-redacted RunPending launch execution prior to logger teardown
+├── MainWindow.xaml / MainWindow.xaml.cs    # Thin WPF view: event detach on close, guarded OnDrop, delegates math/chrome to extracted state, preserves UpdateNotice + AboutWindow update wiring
 ├── Helpers/
 │   ├── CommandLineHelper.cs                # Fail-closed single-path/single-shell-switch parsing (IsPathNotFoundError = false default)
 │   ├── ImageFormatHelper.cs                # <=8 KB whitespace-safe multi-BOM (UTF-32 first) & MVG/SVG script rejection + extension allowlist
 │   └── PathSecurity.cs                     # (new) Canonical root-delimiter checks, immediate ReparsePoint & ZIP Attrib guards, space/CRLF-safe PathRedactor
 ├── Models/
-│   └── ViewerSettings.cs                   # Finite-value (double.IsFinite) validation + range clamping
+│   └── ViewerSettings.cs                   # Finite-value (double.IsFinite) validation, UpdateSettings sanitization, and range clamping
 ├── Services/
 │   ├── IUiDispatcher.cs                    # (new) UI-thread marshaling abstraction (WpfUiDispatcher in Views/)
+│   ├── IAppLifetime.cs                     # Existing exit-and-run abstraction for UpdateViewModel
+│   ├── DefaultAppRegistration.cs           # Exact quoted OpenCommand verification, exePath validation, Rebase CapabilitiesPath fix
 │   ├── FileLoggerProvider.cs               # Non-blocking bounded Channel<T> logger (IDisposable + IAsyncDisposable bounded drain, ConfigureAwait(false), PathRedactor)
-│   ├── SettingsService.cs                  # 64 KB cap, immediate ReparsePoint guard, randomized temp file atomic save + cleanup
+│   ├── SettingsService.cs                  # 64 KB cap, synchronized saves, immediate ReparsePoint guard, randomized temp file atomic save + cleanup
 │   ├── ShellIntegrationService.cs          # Exact quoted-command IsRegistered check & path quote sanitization
+│   ├── Updates/
+│   │   ├── UpdateService.cs                # Unconditional HTTPS enforcement (no #if DEBUG bypass), bounded HTTP reads (JSON/sums/binary), redacted download logs
+│   │   └── UpdateInstaller.cs              # Safe ReparsePoint-checked temp dir, fail-closed /RELAUNCH= sanitization, non-leaking portable error text
 │   ├── ImageLoaderService.cs               # Streaming byte caps + CT propagation in OpenSeekableAsync/TryReadAnimation, header-before-hint validation, secondary-frame maxPixels, IDisposable gate cleanup
 │   ├── ImageRenderService.cs               # Checked CWE-190 stride/dimension arithmetic + maxPixels guard, IDisposable implementation
 │   ├── AnimationPlayback.cs                # Ownership-safe SKManagedStream (caller MemoryStream without double-using) + checked SKBitmap/BitmapSource pixel bounds
@@ -94,20 +100,24 @@ src/ImageViewer/
 │       └── ZipImageSource.cs               # Traversal/POSIX-Attrib symlink validation, bounded entry reads, race-free Dispose/IAsyncDisposable
 ├── ViewModels/
 │   ├── WindowChromeState.cs                # (new) Pin/hover/fullscreen state decoupled from Window visual tree
-│   ├── MainViewModel.cs                    # Thin MVVM facade (all 6 timers on TimeProvider, full XAML + PlaceholderTests compatibility)
+│   ├── UpdateViewModel.cs                  # Https-enforced release page launch, sanitized download error messages, safe background AutoCheckAsync
+│   ├── SettingsViewModel.cs                # Sanitized OpenDefaultApps UI error prompts without raw exception path exposure
+│   ├── MainViewModel.cs                    # Thin MVVM facade (all 6 timers on TimeProvider, Update/RelaunchPath, full XAML + PlaceholderTests compatibility)
 │   └── MainViewModel.Features.cs           # Slimmed/reallocated to extracted coordinators
 └── Views/
     └── WpfUiDispatcher.cs                  # (new) WPF Dispatcher implementation of IUiDispatcher
 
 tests/ImageViewer.Tests/
 ├── HelperTests.cs                          # Expanded CLI fail-closed, BOM/UTF-16 signature, PathSecurity, PathRedactor tests
-├── ServiceTests.cs                         # Settings 64 KB + NaN/Infinity, CWE-190 overflow, non-blocking logger, SlideShow TimeProvider tests
+├── ServiceTests.cs                         # Settings 64 KB + NaN/Infinity + UpdateSettings, CWE-190 overflow, non-blocking logger, SlideShow TimeProvider tests
 ├── ShellIntegrationTests.cs                # Exact quoted-command match & embedded-quote rejection tests
+├── UpdateTests.cs                          # Expanded HTTPS enforcement, HTTP byte-cap rejection, /RELAUNCH= & temp-path guards, redacted logging tests
 ├── ViewportLayoutCalculatorTests.cs        # (new) Pure zoom/pan/anchor/placeholder geometry unit tests
 ├── WindowChromeStateTests.cs               # (new) Pin/hover/fullscreen restore state tests
 └── ImageSessionCoordinatorTests.cs         # (new) Headless cancellation-race, disposal, and placeholder timing tests
 
 tests/ImageViewer.IntegrationTests/
+├── DefaultAppRegistrationTests.cs          # Expanded exact OpenCommand matching, exePath quote rejection & Rebase Capabilities tests
 ├── ImageSourceTests.cs                     # Expanded Zip Slip, ReparsePoint skip/reject, and non-seekable cap tests
 ├── ImageProcessingTests.cs                 # Expanded UTF-16 spoofed header and oversized-animation payload rejection tests
 └── ConcurrencyLifecycleTests.cs            # (new) Rapid 50+ image navigation & mid-load disposal stress tests

@@ -33,4 +33,14 @@
 - **Safety Invariants**:
   - `ExecutablePath` MUST be validated to contain no embedded `"` or control characters before writing registry keys (`ArgumentException` / fail closed).
   - `IsRegistered()` MUST verify exact normalized command match (`string.Equals(actualCommand?.Trim(), BuildCommand(exe, background), StringComparison.OrdinalIgnoreCase)`) and exact menu label (`ImageViewer에서 보기(&3)`), never loose substring `Contains(...)`.
-  - `App.RunShellCommand` (which runs prior to `ConfigureServices()`) MUST initialize and flush/dispose a scoped `PathRedactor`-enabled `FileLoggerProvider` on failure before returning exit code `1`.
+  - `App.RunShellCommand` (which runs prior to `ConfigureServices()`) MUST execute `shell.UnregisterDefaultApp()` alongside `shell.Unregister()` on `--unregister-shell`, and MUST initialize and flush/dispose a scoped `PathRedactor`-enabled `FileLoggerProvider` on failure before returning exit code `1`.
+
+---
+
+## 3. DefaultAppRegistration Contract (`v1.0.6` Windows Default Apps)
+
+- **Scope**: HKCU per-user registry (`Software\Classes\ImageViewer.Image`, `Software\Classes\ImageViewer.Archive`, `Software\Classes\<ext>\OpenWithProgids`, `Software\ImageViewer\Capabilities`, `Software\RegisteredApplications`).
+- **Safety Invariants**:
+  - `DefaultAppRegistration.Register` MUST validate `exePath` contains no embedded `"` or control characters (`ArgumentException` / fail closed) before writing `DefaultIcon`, `ApplicationIcon`, or `shell\open\command` (`"<exePath>" "%1"`), and MUST write `Rebase(softwarePath, CapabilitiesPath)` under `RegisteredApplications` rather than hardcoding `"Software\ImageViewer\Capabilities"` when scoped to a test `softwarePath`.
+  - `DefaultAppRegistration.IsRegistered` MUST verify exact trimmed command equality (`string.Equals(value.Trim(), OpenCommand(exePath), StringComparison.OrdinalIgnoreCase)`) and exact registered `Capabilities` path rather than loose `value.Contains(exePath, ...)`.
+  - `SettingsViewModel.OpenDefaultApps` MUST NOT surface raw system `ex.Message` directory paths inside UI error dialogs (log sanitized details cleanly instead).
