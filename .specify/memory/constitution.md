@@ -1,16 +1,3 @@
-<!--
-Sync Impact Report:
-- Version change: 2.1.0 -> 2.2.0 (MINOR: expanded Principles I, II, and VIII to codify the GitHub Bilingual Documentation Policy: Korean default landing pages (*.md) paired with synchronized English counterparts (*.en.md) and bidirectional language links, while excluding .agents/, .specify/, and specs/)
-- Modified principles:
-  - I. Korean Communication & Commit Policy -> I. Korean Communication, Commit & GitHub Documentation Policy
-  - II. English-First Reasoning & Code Implementation -> II. English-First Reasoning, Specs & Code Implementation
-  - VIII. License Compliance, Attribution & Independent Stewardship (NON-NEGOTIABLE) (updated notice pairs to include *.en.md)
-- Added principles: None
-- Modified sections:
-  - Development Workflow & Quality Gates (updated Language Gate and License & Attribution Gate for *.md / *.en.md parity)
-- Removed sections: None
-- Follow-up TODOs: None
--->
 # ImageViewer Constitution
 
 The key words `MUST`, `MUST NOT`, `REQUIRED`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`,
@@ -132,7 +119,8 @@ fallible hypothesis subject to adversarial scrutiny and defense-in-depth safegua
   enforce fail-safe defaults and independent guards instead of assuming upstream callers or
   external libraries behave safely.
 - **No False Confidence from Green Runs**: Passing tests on a single developer host OS MUST
-  NOT be cited as proof that Windows, macOS, and Linux targets are all verified; unverified
+  NOT be cited as proof that Windows, macOS, and Linux targets are all verified, and passing
+  library tests MUST NOT be cited as proof that a packaged artifact launches; unverified
   OS targets, hardware rendering paths, and residual risks MUST be disclosed explicitly.
 - **Compliance Check**: Specifications, plans, and reviews document explicit failure-mode
   analyses, negative/boundary test coverage, and residual cross-OS risks.
@@ -191,27 +179,71 @@ third-party attribution, and courteous upstream boundaries at all times.
 
 ## Technical Stack & Architectural Constraints
 
-- **Target Platforms**: Cross-platform desktop support across **Windows 10 / 11 (x64)**,
-  **macOS (Apple Silicon `aarch64` & Intel `x86_64`)**, and **Linux (`x86_64`, X11 &
-  Wayland)** with OS-idiomatic packaging, file associations, and update delivery.
+- **Target Platforms (Tiered)**: Desktop targets are classified into two tiers with
+  OS-idiomatic packaging, file associations, and update delivery:
+  - **Supported**: **Windows 10 / 11 (x64)** and **macOS (Apple Silicon `aarch64` & Intel
+    `x86_64`)**. Every release artifact for a supported target MUST pass launch verification on
+    that target (the packaged artifact is started, shows its window, displays a reference image,
+    and exits cleanly) before publication; any failure MUST block the release.
+  - **Experimental**: **Linux (`x86_64`, X11 & Wayland)**. Experimental targets MUST keep building
+    and passing the full automated check suite, and their release artifacts MAY be published only
+    when labelled experimental and unverified in release notes and documentation. A launch
+    verification failure on an experimental target MUST be reported but MUST NOT block publication.
+  - **Promotion**: An experimental target is promoted to supported only after it passes the same
+    launch verification required of supported targets, recorded as evidence, and only through an
+    amendment of this section.
+  - **Rationale**: `v1.1.0-alpha.1` shipped to all three OS families without launching on any of
+    them (`specs/004-launch-reliability-refactor/`). Concentrating release-blocking verification
+    on the platforms users reported failing keeps that gate enforceable, while the tier labels keep
+    the Linux status honest per Principle VI.
 - **Language & Workspace Architecture**: Stable **Rust** Cargo workspace separating
   UI-independent core logic (domain models, path/format/stream security guards, layout/zoom
   math, session/prefetch/slideshow orchestration, decoder pipeline, settings/logging) from
   cross-platform GPU-accelerated UI presentation (`wgpu` / native-feeling UI framework) and
   narrow OS adapter modules (`windows` / Cocoa / XDG).
-- **Media Decoding Strategy**: Built-in memory-safe pure-Rust/SIMD core decoders for standard
-  raster, animated, layered, multi-page, and HDR formats (JPEG with fast viewport-scaled
-  decoding, PNG/APNG, GIF, BMP, TIFF, WebP, ICO/CUR, JXL, TGA, PSD, DDS, PCX, QOI, PNM,
-  HDR, EXR) plus read-only `.zip`/`.cbz` streaming; host OS platform imaging codecs (`WIC`
-  on Windows, `ImageIO` on macOS, optional system codecs on Linux with graceful missing-codec
-  messages) for camera RAW (8 extensions), `.heic`/`.heif`, `.avif`, and `.jp2`.
-- **Safety & Performance Parity Baseline**: Must match or exceed measured `v1.0.6` reference
-  performance (`<= 36 ms` avg single-frame decode+display windowed, `<= 49 ms` avg fullscreen
-  `2560x1440`, `<= 22 ms` rapid navigation, `<= 16 ms` slideshow transition, `<= 470 MB` RAM
-  and `<= 5%` CPU on high-frame `1080x1920` animated WebP) while preserving `150 MP` default
-  pre-decode pixel cap (`10-1000 MP` clamp), `512 MB` stream/animation cap (`128 MB` forward
-  ring buffer), `<= 8` decoded LRU cache, `300`-thumbnail cap, `64 KB` settings cap, and
-  `ko`/`en` bilingual localization.
+- **Media Decoding Strategy (Target, Delivered by Capability Tier)**: The **end-state target** is
+  built-in memory-safe pure-Rust/SIMD core decoders for standard raster, animated, layered,
+  multi-page, and HDR formats (JPEG with fast viewport-scaled decoding, PNG/APNG, GIF, BMP, TIFF,
+  WebP, ICO/CUR, JXL, TGA, PSD, DDS, PCX, QOI, PNM, HDR, EXR) plus read-only `.zip`/`.cbz`
+  streaming, and host OS platform imaging codecs (`WIC` on Windows, `ImageIO` on macOS, optional
+  system codecs on Linux with graceful missing-codec messages) for camera RAW (8 extensions),
+  `.heic`/`.heif`, `.avif`, and `.jp2`. Delivery is governed by capability tiers:
+  - **Tiers**: Every user-facing capability, including each format family and the OS-codec
+    bridge, is classified **Core** (verified on all supported targets), **Extended** (verified
+    individually), or **Unavailable**, in a published bilingual capability register.
+  - **Shipped artifact**: A release MUST ship only Core and verified Extended capabilities.
+    Unavailable decoders MUST remain in the workspace behind default-off build features, MUST
+    compile and pass the full test suite in CI with all features enabled, and MUST NOT be
+    reachable or advertised in the shipped product.
+  - **Promotion to Extended**: A capability is promoted only with (a) automated tests on real
+    sample fixtures, (b) automated hostile/malformed-input tests meeting Principle VII, (c) a
+    passing launch-verification record on every supported target, and (d) user documentation in
+    Korean and English. Demotion is immediate when any of that evidence is invalidated.
+  - **Principle IV boundary**: Capability-tier build features are product-scope controls, not
+    test bypasses. They MUST NOT weaken, skip, or alter any security check in any configuration,
+    and the shipped (default) configuration MUST itself be fully tested.
+  - **Rationale**: `v1.1.0-alpha.1` advertised the full format set with no format verified end to
+    end on a packaged artifact (`specs/004-launch-reliability-refactor/feasibility-review.md`).
+    Tiers keep the target while ensuring that everything shipped has evidence behind it.
+- **Safety Caps (Mandatory) & Performance Parity Baseline (Target, Gated by Measurement)**:
+  - **Safety caps, mandatory now**: Every release MUST enforce the `150 MP` default pre-decode
+    pixel cap (`10-1000 MP` clamp), `512 MB` stream/animation cap (`128 MB` forward ring buffer),
+    `<= 8` decoded LRU cache, `300`-thumbnail cap (when thumbnails ship), `64 KB` settings cap,
+    and `ko`/`en` bilingual localization. These caps admit no tier or deferral.
+  - **Performance targets**: The measured `v1.0.6` reference figures remain the target
+    (`<= 36 ms` avg single-frame decode+display windowed, `<= 49 ms` avg fullscreen `2560x1440`,
+    `<= 22 ms` rapid navigation, `<= 16 ms` slideshow transition, `<= 470 MB` RAM and `<= 5%` CPU
+    on high-frame `1080x1920` animated WebP).
+  - **Not release-blocking until measurable**: Until an automated end-to-end measurement harness
+    runs these scenarios against a packaged artifact on a supported target, the figures MUST NOT
+    block a release. They also MUST NOT be claimed as met in documentation or release notes;
+    claims require harness output (Principle V).
+  - **Becomes a regression gate**: Once the harness exists and has recorded a baseline on a
+    supported target, a release MUST NOT regress any figure beyond that recorded baseline (or
+    beyond the `v1.0.6` target, whichever is stricter) without a recorded, reviewed justification.
+  - **Interim responsiveness floor**: Until then, releases MUST meet the responsiveness criteria
+    of the active feature specification (for `specs/004`: on-screen controls respond within
+    `100 ms`; first image of a 10,000-file folder within `1 s`).
 - **Legacy Reference Boundary**: Prior C#/.NET 10 WPF `v1.0.6` source is preserved under the
   immutable `legacy-v1.0.6` archive tag and `specs/001-*` (archived baseline) once cut over to
   the pure-Rust workspace on `main`.
@@ -239,6 +271,18 @@ third-party attribution, and courteous upstream boundaries at all times.
   the active host after the final edit; any OS target (`Windows`, `macOS`, `Linux`) not
   executed natively on the local machine MUST be reported explicitly until verified on that
   OS or multi-OS CI runner.
+- **Launch Verification Gate (Release)**: Before any release is published, each artifact for a
+  supported target MUST pass launch verification as defined under Target Platforms; a failure
+  blocks publication. Experimental-target results MUST be recorded and disclosed in the release
+  notes without blocking. Release notes MUST list verified, unverified, and experimental targets.
+- **Capability Tier Gate (`/speckit-plan`, `/speckit-analyze`, Release)**: Every capability that is
+  reachable in the shipped product or claimed in documentation MUST appear in the capability
+  register as Core or verified Extended, with links to its evidence. CI MUST build and test both
+  the shipped (default) configuration and the all-features configuration.
+- **Performance Regression Gate (activates with the measurement harness)**: Once an end-to-end
+  performance harness exists, release CI MUST run it on at least one supported target and fail on
+  regressions as defined under Safety Caps & Performance Parity Baseline. Until then, plans and
+  release notes MUST state that performance parity is unmeasured.
 - **Language & GitHub Documentation Gate**: User-facing Q&A and Git commit messages MUST be
   Korean, and root GitHub documents (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`,
   `THIRD_PARTY_NOTICES.md`, `NOTICE`) MUST maintain Korean default (`*.md`) and synchronized
@@ -268,4 +312,4 @@ third-party attribution, and courteous upstream boundaries at all times.
   `/speckit-tasks`, `/speckit-analyze`, `/speckit-implement`) and code review MUST verify
   adherence to Principles I–VIII and record verification evidence explicitly.
 
-**Version**: 2.2.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16
+**Version**: 2.4.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16

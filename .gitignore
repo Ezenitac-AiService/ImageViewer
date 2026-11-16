@@ -486,3 +486,6 @@ target/
 *.rs.bk
 *.rlib
 *.prof*
+
+# Packaging outputs
+dist/
