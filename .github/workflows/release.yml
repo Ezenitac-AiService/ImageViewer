@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '릴리스 태그 (예: v1.0.7, 비워두면 빌드 아티팩트만 생성)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release (Portable / EXE / MSI)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine release version
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag }}"
+          if (-not $tag -and "${{ github.ref_type }}" -eq "tag") {
+            $tag = "${{ github.ref_name }}"
+          }
+
+          if ($tag) {
+            $version = $tag -replace '^[vV]', ''
+            Write-Host "Using version from tag: $version ($tag)"
+
+            # 태그 버전과 프로젝트/매니페스트/NSIS 버전 동기화
+            $csprojPath = "src/ImageViewer/ImageViewer.csproj"
+            $csproj = [IO.File]::ReadAllText($csprojPath, [Text.Encoding]::UTF8)
+            $csproj = $csproj -replace '<Version>[^<]+</Version>', "<Version>$version</Version>"
+            [IO.File]::WriteAllText($csprojPath, $csproj, (New-Object Text.UTF8Encoding $false))
+
+            $manifestPath = "src/ImageViewer/app.manifest"
+            $manifest = [IO.File]::ReadAllText($manifestPath, [Text.Encoding]::UTF8)
+            $manifest = $manifest -replace 'assemblyIdentity version="[^"]+"', "assemblyIdentity version=`"$version.0`""
+            [IO.File]::WriteAllText($manifestPath, $manifest, (New-Object Text.UTF8Encoding $false))
+
+            $nsiPath = "src/ImageViewer.Installer/ImageViewer.nsi"
+            $nsi = [IO.File]::ReadAllText($nsiPath, [Text.Encoding]::UTF8)
+            $nsi = $nsi -replace '!define VERSION "[^"]+"', "!define VERSION `"$version`""
+            [IO.File]::WriteAllText($nsiPath, $nsi, (New-Object Text.UTF8Encoding $true))
+          } else {
+            [xml]$csprojXml = Get-Content "src/ImageViewer/ImageViewer.csproj" -Encoding UTF8
+            $version = ($csprojXml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+            Write-Host "Using version from csproj: $version (artifact-only run)"
+          }
+
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Ensure NSIS & WiX Toolset
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and -not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) {
+            choco install nsis -y --no-progress
+          }
+          dotnet tool update --global wix --version 5.0.2
+
+      - name: Build Portable EXE, NSIS Setup EXE, and MSI
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\publish.ps1
+
+      - name: Upload workflow build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImageViewer-${{ steps.meta.outputs.version }}-installers
+          path: |
+            artifacts/installer/ImageViewer-${{ steps.meta.outputs.version }}-portable.exe
+            artifacts/installer/ImageViewer-${{ steps.meta.outputs.version }}-setup.exe
+            artifacts/installer/ImageViewer-${{ steps.meta.outputs.version }}.msi
+            artifacts/installer/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: steps.meta.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ImageViewer v${{ steps.meta.outputs.version }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/installer/ImageViewer-${{ steps.meta.outputs.version }}-setup.exe
+            artifacts/installer/ImageViewer-${{ steps.meta.outputs.version }}.msi
+            artifacts/installer/ImageViewer-${{ steps.meta.outputs.version }}-portable.exe
+            artifacts/installer/SHA256SUMS.txt
