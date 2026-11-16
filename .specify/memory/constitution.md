@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report:
-- Version change: 2.0.0 -> 2.1.0 (MINOR: added Principle VIII for GPL-3.0-only compliance, third-party attribution, and independent fork stewardship of Ezenitac-AiService/ImageViewer)
-- Modified principles: None (Principles I–VII preserved intact)
-- Added principles:
-  - VIII. License Compliance, Attribution & Independent Stewardship (NON-NEGOTIABLE)
+- Version change: 2.1.0 -> 2.2.0 (MINOR: expanded Principles I, II, and VIII to codify the GitHub Bilingual Documentation Policy: Korean default landing pages (*.md) paired with synchronized English counterparts (*.en.md) and bidirectional language links, while excluding .agents/, .specify/, and specs/)
+- Modified principles:
+  - I. Korean Communication & Commit Policy -> I. Korean Communication, Commit & GitHub Documentation Policy
+  - II. English-First Reasoning & Code Implementation -> II. English-First Reasoning, Specs & Code Implementation
+  - VIII. License Compliance, Attribution & Independent Stewardship (NON-NEGOTIABLE) (updated notice pairs to include *.en.md)
+- Added principles: None
 - Modified sections:
-  - Technical Stack & Architectural Constraints (clarified legacy-v1.0.6 archive tag boundary & Ezenitac-AiService/ImageViewer identity)
-  - Development Workflow & Quality Gates (added License & Attribution Gate via deny.toml / cargo-deny)
-  - Governance (updated compliance check scope to Principles I–VIII)
+  - Development Workflow & Quality Gates (updated Language Gate and License & Attribution Gate for *.md / *.en.md parity)
 - Removed sections: None
 - Follow-up TODOs: None
 -->
@@ -19,28 +19,42 @@ RFC 2119 and RFC 8174 when written in ALL CAPS.
 
 ## Core Principles
 
-### I. Korean Communication & Commit Policy
+### I. Korean Communication, Commit & GitHub Documentation Policy
 
 All user-facing questions, clarification prompts, answers, status summaries, review reports,
-and Git commit messages MUST be written in Korean. Consistent Korean communication ensures
-unambiguous alignment with the maintainer and preserves readability across the repository's
-Korean commit history.
+and Git commit messages MUST be written in Korean. In addition, all public-facing GitHub
+repository documents (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`,
+`THIRD_PARTY_NOTICES.md`, and `NOTICE`) MUST be authored in **Korean as the default landing
+page (`*.md`)**, paired with a synchronized **English counterpart (`*.en.md`)** (`README.en.md`,
+`CONTRIBUTING.en.md`, `SECURITY.en.md`, `CHANGELOG.en.md`, `THIRD_PARTY_NOTICES.en.md`, and
+`NOTICE.en.md`).
 
-- **Compliance Check**: Every user-facing message and proposed or executed Git commit
-  message is verified to be written in Korean before delivery.
+- **Bidirectional Language Switching & Issue Templates**: Every root GitHub document (`*.md`)
+  and its English counterpart (`*.en.md`) MUST include a top-level bidirectional language
+  switcher link (`**언어 / Language**: **[한국어](...)** | [English](*.en.md)`), and
+  `.github/ISSUE_TEMPLATE/` forms MUST provide bilingual (`한국어 / English`) labels and prompts.
+- **Exclusion of Internal Agent & Spec Directories**: Internal agent, governance, and
+  specification directories (`.agents/`, `.specify/`, and `specs/`) are explicitly excluded
+  from Korean document pairing and remain governed by Principle II (English).
+- **Compliance Check**: Every user-facing message and Git commit message is written in Korean,
+  and any update to a root GitHub document updates both the Korean default (`*.md`) and English
+  counterpart (`*.en.md`) in lockstep with working cross-links.
 
-### II. English-First Reasoning & Code Implementation
+### II. English-First Reasoning, Specs & Code Implementation
 
-Internal reasoning, technical analysis, architectural design thought, and new or modified
-code implementation MUST default to English. All Rust crate names, modules, structs, enums,
-traits, functions, parameters, locals, test names, rustdoc comments (`///`), and inline
-implementation comments MUST be written in English.
+Internal reasoning, technical analysis, architectural design thought, Spec-Kit artifacts under
+`.agents/`, `.specify/`, and `specs/`, and all new or modified code implementation MUST default
+to English. All Rust crate names, modules, structs, enums, traits, functions, parameters,
+locals, test names, rustdoc comments (`///`), and inline implementation comments MUST be
+written in English.
 
-- **Localization Boundary**: Existing untouched legacy comments MAY remain in legacy source
-  until deprecated or removed; user-facing UI strings, localized error messages, and resource
-  tables MUST preserve complete Korean (`ko`) and English (`en`) localization.
-- **Compliance Check**: Diffs across workspace crates (`src/`, `crates/`, `tests/`) contain
-  English identifiers, tests, rustdoc, and comments across all added or modified lines.
+- **Localization & Documentation Boundary**: Root GitHub-facing documents follow Principle I's
+  Korean-default (`*.md`) + English-counterpart (`*.en.md`) policy; user-facing UI strings,
+  localized error messages, and resource tables MUST preserve complete Korean (`ko`) and
+  English (`en`) localization.
+- **Compliance Check**: Diffs across workspace crates (`crates/`, `packaging/`) and Spec-Kit
+  directories (`.agents/`, `.specify/`, `specs/`) contain English identifiers, specs, tests,
+  rustdoc, and comments across all added or modified lines.
 
 ### III. Test-Driven Development (NON-NEGOTIABLE)
 
@@ -162,11 +176,11 @@ third-party attribution, and courteous upstream boundaries at all times.
 - **GPLv3 Continuity & §5 Notices**: The repository root `LICENSE` (`GNU GPLv3`) and all workspace
   package manifests (`Cargo.toml` `license = "GPL-3.0-only"`) MUST remain consistent. Original
   `edith2580` copyright notices MUST be preserved intact alongside `Ezenitac-AiService` notices
-  and prominent GPLv3 §5(a)/(d) modification and date notices (`NOTICE`, `CHANGELOG.md`, `README.md`,
-  and the in-app `About` dialog).
+  and prominent GPLv3 §5(a)/(d) modification and date notices (`NOTICE` / `NOTICE.en.md`,
+  `CHANGELOG.md` / `CHANGELOG.en.md`, `README.md` / `README.en.md`, and the in-app `About` dialog).
 - **Third-Party Dependency & Compatibility Gate**: All bundled and transitive dependencies MUST be
   compatible with `GPL-3.0-only` (verified via `deny.toml` / `cargo-deny`), with framework and
-  library notices published in `THIRD_PARTY_NOTICES.md`.
+  library notices published in both `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_NOTICES.en.md`.
 - **Detached Identity & Courteous Boundaries**: Runtime update feeds, releases, and OS bundle
   identifiers (`com.ezenitac.imageviewer`) MUST target exclusively `Ezenitac-AiService/ImageViewer`.
   Direct `git merge upstream` synchronization is prohibited; desired upstream ideas MUST be
@@ -225,12 +239,14 @@ third-party attribution, and courteous upstream boundaries at all times.
   the active host after the final edit; any OS target (`Windows`, `macOS`, `Linux`) not
   executed natively on the local machine MUST be reported explicitly until verified on that
   OS or multi-OS CI runner.
-- **Language Gate**: User-facing Q&A and Git commit messages MUST be Korean (Principle I),
-  while reasoning, Rust code, tests, rustdoc, and inline comments MUST default to English
-  (Principle II).
+- **Language & GitHub Documentation Gate**: User-facing Q&A and Git commit messages MUST be
+  Korean, and root GitHub documents (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`,
+  `THIRD_PARTY_NOTICES.md`, `NOTICE`) MUST maintain Korean default (`*.md`) and synchronized
+  English (`*.en.md`) pages with bidirectional links (Principle I), while `.agents/`, `.specify/`,
+  `specs/`, and Rust code/tests/rustdoc/comments MUST default to English (Principle II).
 - **License & Attribution Gate**: `cargo deny check licenses` (`deny.toml`) and manifest/URL audits
-  MUST confirm `GPL-3.0-only` compliance, `THIRD_PARTY_NOTICES.md` currency, and zero upstream
-  update-feed coupling (Principle VIII).
+  MUST confirm `GPL-3.0-only` compliance, `THIRD_PARTY_NOTICES.md` / `THIRD_PARTY_NOTICES.en.md`
+  currency, and zero upstream update-feed coupling (Principle VIII).
 
 ## Governance
 
@@ -252,4 +268,4 @@ third-party attribution, and courteous upstream boundaries at all times.
   `/speckit-tasks`, `/speckit-analyze`, `/speckit-implement`) and code review MUST verify
   adherence to Principles I–VIII and record verification evidence explicitly.
 
-**Version**: 2.1.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16
+**Version**: 2.2.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16
