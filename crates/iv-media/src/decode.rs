@@ -452,9 +452,9 @@ fn decode_psd(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError>
     let w = meta.width;
     let h = meta.height;
     MediaDecoder::check_pixel_cap(w, h, max_mp)?;
-    let layers = rawpsd::parse_layer_records(bytes)
-        .map_err(DecodeError::UnsupportedOrCorrupt)?;
+    let layers = rawpsd::parse_layer_records(bytes).unwrap_or_default();
     let mut canvas = vec![0u8; (w as usize) * (h as usize) * 4];
+    let mut drew_layer = false;
     for layer in layers {
         if !layer.image_data_rgba.is_empty() {
             let lw = layer.w;
@@ -470,13 +470,89 @@ fn decode_psd(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError>
                         .copy_from_slice(&layer.image_data_rgba[src_start..src_end]);
                 }
             }
+            drew_layer = true;
             break;
         }
+    }
+    if !drew_layer {
+        decode_psd_composite_fallback(bytes, w, h, &mut canvas)?;
     }
     let img = image::RgbaImage::from_raw(w, h, canvas)
         .map(DynamicImage::ImageRgba8)
         .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("invalid psd rgba".to_string()))?;
     Ok((img, None, None, 1, 0, "PSD".to_string()))
+}
+
+fn decode_psd_composite_fallback(
+    bytes: &[u8],
+    w: u32,
+    h: u32,
+    canvas: &mut [u8],
+) -> Result<(), DecodeError> {
+    if bytes.len() < 34 || &bytes[0..4] != b"8BPS" {
+        return Err(DecodeError::UnsupportedOrCorrupt("invalid psd header".to_string()));
+    }
+    let channels = u16::from_be_bytes([bytes[12], bytes[13]]) as usize;
+    let mut pos = 26usize;
+    for _ in 0..3 {
+        if pos + 4 > bytes.len() {
+            return Err(DecodeError::UnsupportedOrCorrupt("truncated psd section".to_string()));
+        }
+        let sec_len = u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]) as usize;
+        pos = pos
+            .checked_add(4 + sec_len)
+            .ok_or(DecodeError::DimensionOverflow)?;
+    }
+    if pos + 2 > bytes.len() {
+        return Err(DecodeError::UnsupportedOrCorrupt("missing psd image data".to_string()));
+    }
+    let compression = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]);
+    pos += 2;
+    let plane_len = (w as usize) * (h as usize);
+    let mut planes = Vec::with_capacity(channels);
+    if compression == 0 {
+        for _ in 0..channels.min(4) {
+            let end = pos + plane_len;
+            if end > bytes.len() {
+                break;
+            }
+            planes.push(bytes[pos..end].to_vec());
+            pos = end;
+        }
+    } else if compression == 1 {
+        let byte_count_table = channels * (h as usize) * 2;
+        pos = pos.saturating_add(byte_count_table);
+        for _ in 0..channels.min(4) {
+            let mut plane = Vec::with_capacity(plane_len);
+            while plane.len() < plane_len && pos < bytes.len() {
+                let n = bytes[pos] as i8;
+                pos += 1;
+                if n >= 0 {
+                    let count = (n as usize) + 1;
+                    let end = (pos + count).min(bytes.len());
+                    plane.extend_from_slice(&bytes[pos..end]);
+                    pos = end;
+                } else if n != -128 && pos < bytes.len() {
+                    let count = (1 - i16::from(n)) as usize;
+                    let val = bytes[pos];
+                    pos += 1;
+                    plane.resize((plane.len() + count).min(plane_len), val);
+                }
+            }
+            planes.push(plane);
+        }
+    }
+    if planes.is_empty() {
+        return Err(DecodeError::UnsupportedOrCorrupt("empty psd composite".to_string()));
+    }
+    for i in 0..plane_len {
+        let r = planes[0].get(i).copied().unwrap_or(0);
+        let g = planes.get(1).and_then(|p| p.get(i).copied()).unwrap_or(r);
+        let b = planes.get(2).and_then(|p| p.get(i).copied()).unwrap_or(r);
+        let a = planes.get(3).and_then(|p| p.get(i).copied()).unwrap_or(255);
+        canvas[i * 4..i * 4 + 4].copy_from_slice(&[r, g, b, a]);
+    }
+    Ok(())
 }
 
 fn decode_jxl(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {

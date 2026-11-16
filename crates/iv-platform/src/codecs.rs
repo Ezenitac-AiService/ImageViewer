@@ -37,24 +37,69 @@ impl OsCodecProvider for HostOsCodecProvider {
 
 #[cfg(target_os = "macos")]
 fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer, OsCodecError> {
-    use objc2_core_foundation::CFData;
+    use objc2_core_foundation::{kCFBooleanFalse, CFData, CFDictionary, CFNumber, CFString};
     use objc2_core_graphics::{
         kCGColorSpaceSRGB, CGBitmapContextCreate, CGColorSpace, CGContext, CGImage,
         CGImageAlphaInfo,
     };
-    use objc2_image_io::CGImageSource;
+    use objc2_image_io::{
+        kCGImagePropertyPixelHeight, kCGImagePropertyPixelWidth, kCGImageSourceShouldCache,
+        CGImageSource,
+    };
+    use std::ffi::c_void;
 
     // SAFETY: CFData / CGImageSource wrap valid immutable Rust slice `bytes` cleanly.
     let cf_data = CFData::from_bytes(bytes);
     let source = unsafe { CGImageSource::with_data(&cf_data, None) }
         .ok_or(OsCodecError::UnverifiedDimensions)?;
 
-    // Check image count & query dimensions BEFORE pixel allocation
     let count = unsafe { source.count() };
     if count == 0 {
         return Err(OsCodecError::UnverifiedDimensions);
     }
-    let cg_image = unsafe { source.image_at_index(0, None) }
+
+    // Pre-decode dimension query BEFORE pixel allocation (`kCGImageSourceShouldCache = false`)
+    let cache_key: &CFString = unsafe { kCGImageSourceShouldCache };
+    let cache_val = unsafe { kCFBooleanFalse }.ok_or(OsCodecError::UnverifiedDimensions)?;
+    let keys = [cache_key as *const CFString as *const c_void];
+    let vals = [cache_val as *const _ as *const c_void];
+    let opts = unsafe {
+        CFDictionary::new(
+            None,
+            keys.as_ptr().cast_mut(),
+            vals.as_ptr().cast_mut(),
+            1,
+            std::ptr::null(),
+            std::ptr::null(),
+        )
+    };
+    let props = unsafe { source.properties_at_index(0, opts.as_deref()) }
+        .ok_or(OsCodecError::UnverifiedDimensions)?;
+
+    let pw_key: &CFString = unsafe { kCGImagePropertyPixelWidth };
+    let ph_key: &CFString = unsafe { kCGImagePropertyPixelHeight };
+    let w_ptr = unsafe { props.value(pw_key as *const CFString as *const c_void) };
+    let h_ptr = unsafe { props.value(ph_key as *const CFString as *const c_void) };
+    if w_ptr.is_null() || h_ptr.is_null() {
+        return Err(OsCodecError::UnverifiedDimensions);
+    }
+    let w_num: &CFNumber = unsafe { &*w_ptr.cast::<CFNumber>() };
+    let h_num: &CFNumber = unsafe { &*h_ptr.cast::<CFNumber>() };
+    let pre_w = w_num.as_i64().unwrap_or(0).max(0) as u32;
+    let pre_h = h_num.as_i64().unwrap_or(0).max(0) as u32;
+    if pre_w == 0 || pre_h == 0 {
+        return Err(OsCodecError::UnverifiedDimensions);
+    }
+    let pre_pixels = u64::from(pre_w)
+        .checked_mul(u64::from(pre_h))
+        .ok_or(OsCodecError::ExceedsPixelLimit)?;
+    let cap = u64::from(max_megapixels.clamp(10, 1000)) * 1_000_000;
+    if pre_pixels > cap {
+        return Err(OsCodecError::ExceedsPixelLimit);
+    }
+
+    // Only allocate and decode pixels AFTER verifying pre-decode dimensions
+    let cg_image = unsafe { source.image_at_index(0, opts.as_deref()) }
         .ok_or_else(|| OsCodecError::DecodeFailed("ImageIO failed to decode".to_string()))?;
 
     let w = CGImage::width(Some(&cg_image)) as u32;
@@ -65,7 +110,6 @@ fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer,
     let pixels = u64::from(w)
         .checked_mul(u64::from(h))
         .ok_or(OsCodecError::ExceedsPixelLimit)?;
-    let cap = u64::from(max_megapixels.clamp(10, 1000)) * 1_000_000;
     if pixels > cap {
         return Err(OsCodecError::ExceedsPixelLimit);
     }
@@ -106,9 +150,79 @@ fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer,
 }
 
 #[cfg(target_os = "windows")]
-fn decode_platform(_bytes: &[u8], _max_megapixels: u32) -> Result<OsDecodedBuffer, OsCodecError> {
-    // Windows WIC (`IWICImagingFactory` -> `CreateDecoderFromStream` + `GetSize` gate BEFORE `CopyPixels`).
-    Err(OsCodecError::MissingCodec)
+fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer, OsCodecError> {
+    use windows::Win32::Graphics::Imaging::{
+        CLSID_WICImagingFactory, GUID_WICPixelFormat32bppRGBA, IWICImagingFactory,
+        WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
+    };
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+    };
+
+    // SAFETY: Initialize COM on current thread and query WIC decoder dimensions strictly BEFORE CopyPixels.
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let factory: IWICImagingFactory =
+            CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)
+                .map_err(|_| OsCodecError::MissingCodec)?;
+        let stream = factory
+            .CreateStream()
+            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
+        stream
+            .InitializeFromMemory(bytes)
+            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
+        let decoder = factory
+            .CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnDemand)
+            .map_err(|_| OsCodecError::MissingCodec)?;
+        let frame = decoder
+            .GetFrame(0)
+            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
+
+        let mut w = 0u32;
+        let mut h = 0u32;
+        frame
+            .GetSize(&mut w, &mut h)
+            .map_err(|_| OsCodecError::UnverifiedDimensions)?;
+        if w == 0 || h == 0 {
+            return Err(OsCodecError::UnverifiedDimensions);
+        }
+        let pixels = u64::from(w)
+            .checked_mul(u64::from(h))
+            .ok_or(OsCodecError::ExceedsPixelLimit)?;
+        let cap = u64::from(max_megapixels.clamp(10, 1000)) * 1_000_000;
+        if pixels > cap {
+            return Err(OsCodecError::ExceedsPixelLimit);
+        }
+
+        let converter = factory
+            .CreateFormatConverter()
+            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
+        converter
+            .Initialize(
+                &frame,
+                &GUID_WICPixelFormat32bppRGBA,
+                WICBitmapDitherTypeNone,
+                None,
+                0.0,
+                WICBitmapPaletteTypeCustom,
+            )
+            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
+
+        let stride = w.checked_mul(4).ok_or(OsCodecError::ExceedsPixelLimit)?;
+        let mut rgba = vec![0u8; (pixels as usize) * 4];
+        converter
+            .CopyPixels(std::ptr::null(), stride, &mut rgba)
+            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
+
+        Ok(OsDecodedBuffer {
+            width: w,
+            height: h,
+            rgba8: rgba,
+            orientation_applied: false,
+            srgb_converted: false,
+            exif_bytes: None,
+        })
+    }
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]

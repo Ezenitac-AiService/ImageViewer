@@ -10,6 +10,7 @@ pub enum AppUserEvent {
     PickedOpenFile(Option<PathBuf>),
     PickedOpenFolder(Option<PathBuf>),
     OpenUrlPaths(Vec<PathBuf>),
+    DecodeWakeup,
     UpdateChecked,
 }
 

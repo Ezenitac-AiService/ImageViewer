@@ -1,9 +1,11 @@
 //! `AnimationPlayer` (`<= 512 MB` pre-decode vs `<= 128 MB` ring buffer, GIF/WebP/APNG compositing & delay rules).
 
 use crate::cache::DecodedFrame;
+use crate::decode::MediaDecoder;
 use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
 use image::AnimationDecoder;
+use iv_core::format_guard::FormatGuard;
 use std::io::Cursor;
 use std::path::Path;
 use std::sync::Arc;
@@ -44,6 +46,14 @@ pub struct AnimationPlayer {
 }
 
 impl AnimationPlayer {
+    /// Returns true if estimated uncompressed frame memory exceeds `512 MB` (`<= 128 MB` ring buffer mode).
+    pub fn should_stream_ring_buffer(width: u32, height: u32, frame_count: usize) -> bool {
+        let frame_bytes = (width as usize)
+            .saturating_mul(height as usize)
+            .saturating_mul(4);
+        frame_bytes.saturating_mul(frame_count) > PREDECODE_RAM_BUDGET_BYTES
+    }
+
     /// GIF frames with delay `<= 10 ms` normalize to `100 ms`.
     pub fn normalize_gif_delay(delay: Duration) -> Duration {
         if delay <= Duration::from_millis(10) {
@@ -153,6 +163,61 @@ impl AnimationPlayer {
         }
     }
 
+    /// Guarded animation decoder enforcing `FormatGuard` + `MaxImageMegapixels` before pixel allocation.
+    pub fn from_bytes_guarded(
+        bytes: &[u8],
+        filename: &str,
+        max_megapixels: u32,
+    ) -> Result<Self, AnimationError> {
+        FormatGuard::validate_header(bytes)
+            .map_err(|e| AnimationError::Decode(e.to_string()))?;
+        let ext = Path::new(filename)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_ascii_lowercase())
+            .unwrap_or_default();
+
+        // Pre-check container dimensions prior to full frame buffer allocation
+        match ext.as_str() {
+            "gif" => {
+                let dec = GifDecoder::new(Cursor::new(bytes))
+                    .map_err(|e| AnimationError::Decode(e.to_string()))?;
+                let (w, h) = image::ImageDecoder::dimensions(&dec);
+                MediaDecoder::check_pixel_cap(w, h, max_megapixels)
+                    .map_err(|e| AnimationError::Decode(e.to_string()))?;
+            }
+            "png" | "apng" => {
+                let dec = PngDecoder::new(Cursor::new(bytes))
+                    .map_err(|e| AnimationError::Decode(e.to_string()))?;
+                let (w, h) = image::ImageDecoder::dimensions(&dec);
+                MediaDecoder::check_pixel_cap(w, h, max_megapixels)
+                    .map_err(|e| AnimationError::Decode(e.to_string()))?;
+            }
+            "webp" => {
+                let webp = image_webp::WebPDecoder::new(Cursor::new(bytes))
+                    .map_err(|e| AnimationError::Decode(e.to_string()))?;
+                let (w, h) = webp.dimensions();
+                MediaDecoder::check_pixel_cap(w, h, max_megapixels)
+                    .map_err(|e| AnimationError::Decode(e.to_string()))?;
+            }
+            _ => {}
+        }
+
+        Self::from_bytes(bytes, filename)
+    }
+
+    /// Returns true if `bytes` is an animated GIF, animated WebP, or APNG (`acTL` chunk).
+    pub fn is_animated_container(bytes: &[u8], ext_lower: &str) -> bool {
+        match ext_lower {
+            "gif" | "apng" => true,
+            "png" => bytes.windows(4).any(|w| w == b"acTL"),
+            "webp" => image_webp::WebPDecoder::new(Cursor::new(bytes))
+                .map(|w| w.is_animated())
+                .unwrap_or(false),
+            _ => false,
+        }
+    }
+
     /// Decodes animated GIF/APNG/WebP frames cleanly.
     pub fn from_bytes(bytes: &[u8], filename: &str) -> Result<Self, AnimationError> {
         let ext = Path::new(filename)
@@ -198,9 +263,13 @@ impl AnimationPlayer {
                     return Err(AnimationError::Decode("empty gif".to_string()));
                 }
                 Ok(Self {
+                    is_streaming_mode: Self::should_stream_ring_buffer(
+                        frames[0].frame.source_width,
+                        frames[0].frame.source_height,
+                        frames.len(),
+                    ),
                     frames,
                     cursor: 0,
-                    is_streaming_mode: false,
                 })
             }
             "png" | "apng" => {
@@ -242,35 +311,68 @@ impl AnimationPlayer {
                     return Err(AnimationError::Decode("empty apng".to_string()));
                 }
                 Ok(Self {
+                    is_streaming_mode: Self::should_stream_ring_buffer(
+                        frames[0].frame.source_width,
+                        frames[0].frame.source_height,
+                        frames.len(),
+                    ),
                     frames,
                     cursor: 0,
-                    is_streaming_mode: false,
                 })
             }
             _ => {
                 let mut webp = image_webp::WebPDecoder::new(Cursor::new(bytes))
                     .map_err(|e| AnimationError::Decode(e.to_string()))?;
                 let (w, h) = webp.dimensions();
-                let mut rgba = vec![0u8; (w as usize) * (h as usize) * 4];
-                if webp.read_image(&mut rgba).is_err() {
-                    let mut rgb = vec![0u8; (w as usize) * (h as usize) * 3];
-                    webp.read_image(&mut rgb)
-                        .map_err(|e| AnimationError::Decode(e.to_string()))?;
-                    for (px, dst) in rgb.chunks_exact(3).zip(rgba.chunks_exact_mut(4)) {
-                        dst[0] = px[0];
-                        dst[1] = px[1];
-                        dst[2] = px[2];
-                        dst[3] = 255;
+                let has_alpha = webp.has_alpha();
+                let frame_count = if webp.is_animated() {
+                    webp.num_frames().max(1) as usize
+                } else {
+                    1
+                };
+                let streaming = Self::should_stream_ring_buffer(w, h, frame_count);
+                let channels = if has_alpha { 4usize } else { 3usize };
+                let raw_len = (w as usize) * (h as usize) * channels;
+                let mut raw_buf = vec![0u8; raw_len];
+
+                let mut raw_frames = Vec::with_capacity(frame_count);
+                let mut raw_delays = Vec::with_capacity(frame_count);
+
+                if webp.is_animated() {
+                    let budget_frames = if streaming {
+                        (STREAM_RING_BUDGET_BYTES / ((w as usize) * (h as usize) * 4).max(1)).max(1)
+                    } else {
+                        frame_count
+                    };
+                    for _ in 0..budget_frames {
+                        match webp.read_frame(&mut raw_buf) {
+                            Ok(delay_ms) => {
+                                let rgba = to_rgba8(&raw_buf, has_alpha, w, h);
+                                raw_frames.push(rgba);
+                                raw_delays.push(Duration::from_millis(u64::from(delay_ms)));
+                            }
+                            Err(_) => break,
+                        }
                     }
                 }
-                Ok(Self {
-                    frames: vec![AnimationFrame {
+                if raw_frames.is_empty() {
+                    webp.read_image(&mut raw_buf)
+                        .map_err(|e| AnimationError::Decode(e.to_string()))?;
+                    raw_frames.push(to_rgba8(&raw_buf, has_alpha, w, h));
+                    raw_delays.push(Duration::from_millis(100));
+                }
+
+                let norm_delays = Self::normalize_webp_delays(&raw_delays);
+                let frames = raw_frames
+                    .into_iter()
+                    .zip(norm_delays)
+                    .map(|(rgba8, delay)| AnimationFrame {
                         frame: Arc::new(DecodedFrame {
                             source_width: w,
                             source_height: h,
                             buffer_width: w,
                             buffer_height: h,
-                            rgba8: rgba,
+                            rgba8,
                             is_downscaled: false,
                             page_count: 1,
                             page_index: 0,
@@ -279,10 +381,14 @@ impl AnimationPlayer {
                             format_label: "WEBP".to_string(),
                             exif_items: Vec::new(),
                         }),
-                        delay: Duration::from_millis(100),
-                    }],
+                        delay,
+                    })
+                    .collect();
+
+                Ok(Self {
+                    frames,
                     cursor: 0,
-                    is_streaming_mode: false,
+                    is_streaming_mode: streaming,
                 })
             }
         }
@@ -292,8 +398,27 @@ impl AnimationPlayer {
         self.frames.len()
     }
 
+    pub fn current_index(&self) -> usize {
+        self.cursor
+    }
+
+    pub fn current_delay(&self) -> Duration {
+        self.frames
+            .get(self.cursor)
+            .map(|f| f.delay)
+            .unwrap_or(Duration::from_millis(100))
+    }
+
+    pub fn total_duration(&self) -> Duration {
+        self.frames.iter().map(|f| f.delay).sum()
+    }
+
     pub fn current_frame(&self) -> &DecodedFrame {
         &self.frames[self.cursor].frame
+    }
+
+    pub fn current_frame_arc(&self) -> Arc<DecodedFrame> {
+        Arc::clone(&self.frames[self.cursor].frame)
     }
 
     pub fn advance(&mut self) {
@@ -301,4 +426,15 @@ impl AnimationPlayer {
             self.cursor = (self.cursor + 1) % self.frames.len();
         }
     }
+}
+
+fn to_rgba8(raw: &[u8], has_alpha: bool, w: u32, h: u32) -> Vec<u8> {
+    if has_alpha {
+        return raw.to_vec();
+    }
+    let mut rgba = Vec::with_capacity((w as usize) * (h as usize) * 4);
+    for px in raw.chunks_exact(3) {
+        rgba.extend_from_slice(&[px[0], px[1], px[2], 255]);
+    }
+    rgba
 }

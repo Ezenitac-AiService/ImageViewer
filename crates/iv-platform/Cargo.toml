@@ -34,9 +34,9 @@ winreg = "0.55"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSURL", "NSString"] }
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder"] }
-objc2-image-io = { version = "0.3", features = ["CGImageSource"] }
-objc2-core-graphics = { version = "0.3", features = ["CGImage", "CGColorSpace", "CGDataProvider"] }
-objc2-core-foundation = { version = "0.3", features = ["CFData", "CFDictionary", "CFString"] }
+objc2-image-io = { version = "0.3", features = ["CGImageSource", "CGImageProperties"] }
+objc2-core-graphics = { version = "0.3", features = ["CGImage", "CGColorSpace", "CGDataProvider", "CGBitmapContext", "CGContext"] }
+objc2-core-foundation = { version = "0.3", features = ["CFData", "CFDictionary", "CFString", "CFNumber", "CFBase"] }
 
 [dev-dependencies]
 rcgen.workspace = true

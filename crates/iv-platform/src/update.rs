@@ -37,6 +37,7 @@ pub struct ReleaseInfo {
     pub notes: String,
     pub asset_name: String,
     pub asset_download_url: String,
+    pub sha256: Option<String>,
 }
 
 pub trait HttpFeedTransport: Send + Sync {
@@ -51,6 +52,18 @@ impl ReqwestTlsTransport {
     pub fn new() -> Result<Self, UpdateError> {
         let client = Client::builder()
             .use_rustls_tls()
+            .build()
+            .map_err(|e| UpdateError::Transport(e.to_string()))?;
+        Ok(Self { client })
+    }
+
+    /// Creates a TLS transport pinned to a caller-supplied `rustls::RootCertStore` (for offline `rcgen` loopback tests).
+    pub fn with_root_certs(roots: rustls::RootCertStore) -> Result<Self, UpdateError> {
+        let tls_config = rustls::ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let client = Client::builder()
+            .use_preconfigured_tls(tls_config)
             .build()
             .map_err(|e| UpdateError::Transport(e.to_string()))?;
         Ok(Self { client })
@@ -96,6 +109,7 @@ struct GitHubReleaseDto {
 struct GitHubAssetDto {
     name: String,
     browser_download_url: String,
+    digest: Option<String>,
 }
 
 pub struct UpdateClient;
@@ -117,9 +131,47 @@ impl UpdateClient {
         }
         let asset = dto
             .assets
-            .into_iter()
-            .find(|a| a.browser_download_url.starts_with("https://"))
+            .iter()
+            .find(|a| a.browser_download_url.starts_with("https://") && a.name != "SHA256SUMS.txt")
             .ok_or_else(|| UpdateError::Transport("no https asset".to_string()))?;
+
+        let mut sha256 = asset
+            .digest
+            .as_deref()
+            .and_then(|d| d.strip_prefix("sha256:").or(Some(d)))
+            .map(|h| h.trim().to_ascii_lowercase())
+            .filter(|h| h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()));
+
+        if sha256.is_none()
+            && let Some(sums_url) = dto
+                .assets
+                .iter()
+                .find(|a| a.name == "SHA256SUMS.txt" && a.browser_download_url.starts_with("https://"))
+                .map(|a| a.browser_download_url.as_str())
+                .or_else(|| {
+                    asset
+                        .browser_download_url
+                        .rsplit_once('/')
+                        .map(|(base, _)| base)
+                        .map(|_| "")
+                })
+        {
+            let target_sums_url = if sums_url.is_empty() {
+                asset
+                    .browser_download_url
+                    .rsplit_once('/')
+                    .map(|(base, _)| format!("{base}/SHA256SUMS.txt"))
+                    .unwrap_or_default()
+            } else {
+                sums_url.to_string()
+            };
+            if target_sums_url.starts_with("https://")
+                && let Ok(sum_bytes) = transport.get_bounded(&target_sums_url, MAX_SUMS_BYTES)
+                && let Ok(text) = std::str::from_utf8(&sum_bytes)
+            {
+                sha256 = parse_sha256_sums(text, &asset.name);
+            }
+        }
 
         let version = dto.tag_name.trim_start_matches('v').to_string();
         Ok(ReleaseInfo {
@@ -127,8 +179,9 @@ impl UpdateClient {
             tag: dto.tag_name,
             page_url: dto.html_url,
             notes: dto.body.unwrap_or_default(),
-            asset_name: asset.name,
-            asset_download_url: asset.browser_download_url,
+            asset_name: asset.name.clone(),
+            asset_download_url: asset.browser_download_url.clone(),
+            sha256,
         })
     }
 
@@ -187,4 +240,50 @@ impl UpdateClient {
         }
         Ok(())
     }
+
+    /// Cleans up leftover `.old` portable binary backups on startup.
+    pub fn cleanup_old_exe_on_startup(current_exe: &Path) {
+        let old_path = current_exe.with_extension("old");
+        if PathSecurity::ensure_not_symlink(&old_path).is_ok() && old_path.exists() {
+            let _ = std::fs::remove_file(old_path);
+        }
+    }
+
+    /// Opens a verified HTTPS release page or downloaded OS package cleanly.
+    pub fn open_https_release_page(url: &str) -> Result<(), UpdateError> {
+        if !url.starts_with("https://") {
+            return Err(UpdateError::InsecureScheme);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open").arg(url).spawn();
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("cmd")
+                .args(["/C", "start", "", url])
+                .spawn();
+        }
+        Ok(())
+    }
+}
+
+fn parse_sha256_sums(text: &str, asset_name: &str) -> Option<String> {
+    for line in text.lines() {
+        let mut parts = line.split_whitespace();
+        let Some(hash) = parts.next() else { continue };
+        let Some(file) = parts.next() else { continue };
+        let clean_file = file.trim_start_matches('*');
+        if clean_file == asset_name
+            && hash.len() == 64
+            && hash.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Some(hash.to_ascii_lowercase());
+        }
+    }
+    None
 }

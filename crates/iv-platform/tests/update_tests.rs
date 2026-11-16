@@ -71,6 +71,7 @@ fn update_client_enforces_https_stream_caps_and_sha256_verification() {
     )
     .expect("valid release");
     assert_eq!(rel.version, "1.2.0");
+    assert_eq!(rel.sha256.as_deref(), Some(digest.as_str()));
 
     // Verify valid SHA-256 download succeeds
     let out_file = UpdateClient::download_and_verify(
@@ -103,4 +104,54 @@ fn update_client_enforces_https_stream_caps_and_sha256_verification() {
     assert_eq!(MAX_JSON_BYTES, 1024 * 1024);
     assert_eq!(MAX_SUMS_BYTES, 64 * 1024);
     assert_eq!(MAX_BINARY_BYTES, 256 * 1024 * 1024);
+}
+
+#[test]
+fn reqwest_tls_transport_accepts_custom_root_store_over_rcgen_loopback_https() {
+    use iv_platform::update::ReqwestTlsTransport;
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::Arc;
+
+    let (cert_der, key_der) = fixtures::generate_loopback_cert();
+    let mut roots = rustls::RootCertStore::empty();
+    roots
+        .add(CertificateDer::from(cert_der.clone()))
+        .expect("add loopback cert");
+
+    let server_cfg = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![CertificateDer::from(cert_der)],
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_der)),
+        )
+        .expect("server config");
+    let server_cfg = Arc::new(server_cfg);
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+    let port = listener.local_addr().expect("addr").port();
+
+    let handle = std::thread::spawn(move || {
+        if let Ok((mut tcp, _)) = listener.accept() {
+            let conn = rustls::ServerConnection::new(server_cfg).expect("server conn");
+            let mut tls = rustls::StreamOwned::new(conn, &mut tcp);
+            let mut req_buf = [0u8; 1024];
+            let _ = tls.read(&mut req_buf);
+            let body = br#"{"ok":true}"#;
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = tls.write_all(resp.as_bytes());
+            let _ = tls.write_all(body);
+            let _ = tls.flush();
+        }
+    });
+
+    let transport = ReqwestTlsTransport::with_root_certs(roots).expect("tls transport");
+    let url = format!("https://localhost:{port}/latest.json");
+    let body = transport.get_bounded(&url, 1024).expect("loopback https get");
+    assert_eq!(body, br#"{"ok":true}"#);
+    let _ = handle.join();
 }

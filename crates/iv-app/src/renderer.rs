@@ -1,6 +1,7 @@
 //! `wgpu` opaque swapchain presenter with 16K device limit request, tiled sub-textures, and GPU blur/unsharp shaders.
 
 use bytemuck::{Pod, Zeroable};
+use iv_core::layout::{ViewportLayoutCalculator, ViewportState};
 use iv_core::settings::ViewerBackground;
 use iv_media::resize_filter::FilterUniforms;
 use std::sync::Arc;
@@ -18,11 +19,17 @@ struct Vertex {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct ShaderParams {
     tex_size: [f32; 2],
+    viewport_size: [f32; 2],
+    scale: [f32; 2],
+    offset: [f32; 2],
     blur_sigma: f32,
     sharpen_sigma: f32,
     sharpen_amount: f32,
     checker_mode: f32,
-    _pad: [f32; 2],
+    rot_turns: f32,
+    flip_h: f32,
+    flip_v: f32,
+    _pad: f32,
 }
 
 pub struct GpuTile {
@@ -59,11 +66,17 @@ struct VertexOut {
 
 struct Params {
     tex_size: vec2<f32>,
+    viewport_size: vec2<f32>,
+    scale: vec2<f32>,
+    offset: vec2<f32>,
     blur_sigma: f32,
     sharpen_sigma: f32,
     sharpen_amount: f32,
     checker_mode: f32,
-    _pad: vec2<f32>,
+    rot_turns: f32,
+    flip_h: f32,
+    flip_v: f32,
+    _pad: f32,
 };
 
 @group(0) @binding(0) var img_tex: texture_2d<f32>;
@@ -73,29 +86,56 @@ struct Params {
 @vertex
 fn vs_main(@location(0) pos: vec2<f32>, @location(1) uv: vec2<f32>) -> VertexOut {
     var out: VertexOut;
-    out.pos = vec4<f32>(pos, 0.0, 1.0);
+    var p = pos;
+    if params.flip_h > 0.5 {
+        p.x = -p.x;
+    }
+    if params.flip_v > 0.5 {
+        p.y = -p.y;
+    }
+    let turns = i32(round(params.rot_turns)) % 4;
+    if turns == 1 {
+        p = vec2<f32>(p.y, -p.x);
+    } else if turns == 2 {
+        p = vec2<f32>(-p.x, -p.y);
+    } else if turns == 3 {
+        p = vec2<f32>(-p.y, p.x);
+    }
+    out.pos = vec4<f32>(p * params.scale + params.offset, 0.0, 1.0);
     out.uv = uv;
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    let base = textureSample(img_tex, img_samp, in.uv);
-    if params.blur_sigma <= 0.05 && params.sharpen_sigma <= 0.05 {
-        return base;
+    var sample_col = textureSample(img_tex, img_samp, in.uv);
+    if params.blur_sigma >= 0.05 || params.sharpen_sigma >= 0.05 {
+        let texel = 1.0 / max(params.tex_size, vec2<f32>(1.0, 1.0));
+        let r = clamp(max(params.blur_sigma, params.sharpen_sigma), 0.05, 3.0);
+        var acc = sample_col * 0.25;
+        acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(texel.x * r, 0.0)) * 0.125;
+        acc += textureSample(img_tex, img_samp, in.uv - vec2<f32>(texel.x * r, 0.0)) * 0.125;
+        acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(0.0, texel.y * r)) * 0.125;
+        acc += textureSample(img_tex, img_samp, in.uv - vec2<f32>(0.0, texel.y * r)) * 0.125;
+        acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(texel.x * r, texel.y * r)) * 0.0625;
+        acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(-texel.x * r, texel.y * r)) * 0.0625;
+        acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(texel.x * r, -texel.y * r)) * 0.0625;
+        acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(-texel.x * r, -texel.y * r)) * 0.0625;
+        if params.sharpen_amount > 0.01 && params.sharpen_sigma >= 0.05 {
+            let detail = sample_col.rgb - acc.rgb;
+            sample_col = vec4<f32>(clamp(sample_col.rgb + detail * params.sharpen_amount, vec3<f32>(0.0), vec3<f32>(1.0)), sample_col.a);
+        } else {
+            sample_col = acc;
+        }
     }
-    let texel = 1.0 / max(params.tex_size, vec2<f32>(1.0, 1.0));
-    let radius = clamp(params.blur_sigma, 0.0, 3.0);
-    var acc = base * 0.4;
-    acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(texel.x * radius, 0.0)) * 0.15;
-    acc += textureSample(img_tex, img_samp, in.uv - vec2<f32>(texel.x * radius, 0.0)) * 0.15;
-    acc += textureSample(img_tex, img_samp, in.uv + vec2<f32>(0.0, texel.y * radius)) * 0.15;
-    acc += textureSample(img_tex, img_samp, in.uv - vec2<f32>(0.0, texel.y * radius)) * 0.15;
-    if params.sharpen_amount > 0.01 && params.sharpen_sigma >= 0.05 {
-        let detail = base.rgb - acc.rgb;
-        return vec4<f32>(clamp(base.rgb + detail * params.sharpen_amount, vec3<f32>(0.0), vec3<f32>(1.0)), base.a);
+    if params.checker_mode > 0.5 && sample_col.a < 0.999 {
+        let cell = vec2<i32>(floor(in.pos.xy / 12.0));
+        let is_light = ((cell.x + cell.y) & 1) == 0;
+        let bg = select(vec3<f32>(0.22, 0.22, 0.22), vec3<f32>(0.34, 0.34, 0.34), is_light);
+        let blended = mix(bg, sample_col.rgb, sample_col.a);
+        return vec4<f32>(blended, 1.0);
     }
-    return acc;
+    return sample_col;
 }
 "#;
 
@@ -177,7 +217,7 @@ impl GpuRenderer {
             label: Some("iv-params-bgl"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -237,11 +277,17 @@ impl GpuRenderer {
 
         let params = ShaderParams {
             tex_size: [1.0, 1.0],
+            viewport_size: [1280.0, 800.0],
+            scale: [1.0, 1.0],
+            offset: [0.0, 0.0],
             blur_sigma: 0.0,
             sharpen_sigma: 0.0,
             sharpen_amount: 0.0,
             checker_mode: 0.0,
-            _pad: [0.0; 2],
+            rot_turns: 0.0,
+            flip_h: 0.0,
+            flip_v: 0.0,
+            _pad: 0.0,
         };
         let params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("iv-params-buf"),
@@ -419,8 +465,9 @@ impl GpuRenderer {
         &self,
         win_surface: &mut WindowGpuSurface,
         tiles: &[GpuTile],
-        tex_w: u32,
-        tex_h: u32,
+        src_w: u32,
+        src_h: u32,
+        viewport: &ViewportState,
         bg: ViewerBackground,
         filters: FilterUniforms,
         egui_paint: Option<(&egui::Context, Vec<egui::ClippedPrimitive>, egui::TexturesDelta, f32)>,
@@ -433,13 +480,38 @@ impl GpuRenderer {
             win_surface.needs_reconfigure = false;
         }
 
+        let fit = ViewportLayoutCalculator::compute_fit_scale(
+            src_w.max(1),
+            src_h.max(1),
+            viewport,
+            viewport.display_mode,
+        );
+        let eff_scale = fit * viewport.zoom_scale;
+        let (eff_w, eff_h) = if viewport.rotation_quarter_turns % 2 == 1 {
+            (f64::from(src_h.max(1)), f64::from(src_w.max(1)))
+        } else {
+            (f64::from(src_w.max(1)), f64::from(src_h.max(1)))
+        };
+        let pw = f64::from(win_surface.config.width.max(1));
+        let ph = f64::from(win_surface.config.height.max(1));
+        let sx = ((eff_w * eff_scale) / pw) as f32;
+        let sy = ((eff_h * eff_scale) / ph) as f32;
+        let ox = ((viewport.pan_x * 2.0) / viewport.logical_width.max(1.0)) as f32;
+        let oy = (-(viewport.pan_y * 2.0) / viewport.logical_height.max(1.0)) as f32;
+
         let params = ShaderParams {
-            tex_size: [tex_w.max(1) as f32, tex_h.max(1) as f32],
+            tex_size: [src_w.max(1) as f32, src_h.max(1) as f32],
+            viewport_size: [pw as f32, ph as f32],
+            scale: [sx, sy],
+            offset: [ox, oy],
             blur_sigma: filters.blur_sigma,
             sharpen_sigma: filters.sharpen_sigma,
             sharpen_amount: filters.sharpen_amount,
             checker_mode: if bg == ViewerBackground::Checkerboard { 1.0 } else { 0.0 },
-            _pad: [0.0; 2],
+            rot_turns: f32::from(viewport.rotation_quarter_turns),
+            flip_h: if viewport.flip_h { 1.0 } else { 0.0 },
+            flip_v: if viewport.flip_v { 1.0 } else { 0.0 },
+            _pad: 0.0,
         };
         self.queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
 

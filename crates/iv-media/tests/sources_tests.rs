@@ -47,4 +47,27 @@ fn zip_source_enforces_preflight_eocd_caps_traversal_and_symlinks() {
     let src = ZipSource::open(&zip_path, 512).expect("open valid zip");
     let names: Vec<_> = src.entries().iter().map(|e| e.name.as_str()).collect();
     assert_eq!(names, vec!["01.png"]);
+    assert!(!src.read_entry_bytes(0).expect("read reused handle").is_empty());
+
+    // 3. Rejects ZIP64 EOCD claiming > 50,000 entries
+    let mut zip64 = Vec::new();
+    // ZIP64 EOCD record (56 bytes) at offset 0
+    zip64.extend_from_slice(&0x0606_4b50u32.to_le_bytes());
+    zip64.extend_from_slice(&44u64.to_le_bytes());
+    zip64.extend_from_slice(&45u16.to_le_bytes());
+    zip64.extend_from_slice(&45u16.to_le_bytes());
+    zip64.extend_from_slice(&0u32.to_le_bytes());
+    zip64.extend_from_slice(&0u32.to_le_bytes());
+    zip64.extend_from_slice(&60_000u64.to_le_bytes());
+    zip64.extend_from_slice(&60_000u64.to_le_bytes());
+    zip64.extend_from_slice(&1024u64.to_le_bytes());
+    zip64.extend_from_slice(&0u64.to_le_bytes());
+    // ZIP64 EOCD locator (20 bytes)
+    zip64.extend_from_slice(&0x0706_4b50u32.to_le_bytes());
+    zip64.extend_from_slice(&0u32.to_le_bytes());
+    zip64.extend_from_slice(&0u64.to_le_bytes());
+    zip64.extend_from_slice(&1u32.to_le_bytes());
+    // Standard EOCD with 0xFFFF sentinel
+    zip64.extend_from_slice(&fixtures::build_forged_eocd_zip(0xFFFF, 1024));
+    assert!(ZipSource::preflight_eocd_check(&zip64).is_err());
 }

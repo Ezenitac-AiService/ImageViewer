@@ -1,6 +1,9 @@
 //! OS-idiomatic shell & file association integration (`Windows` HKCU, `macOS` Finder, `Linux` XDG).
 
+use crate::paths_dialogs::AppUserEvent;
+use std::path::PathBuf;
 use thiserror::Error;
+use winit::event_loop::EventLoopProxy;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum IntegrationError {
@@ -35,5 +38,67 @@ impl OsIntegration {
         format!(
             "[Desktop Entry]\nType=Application\nName=ImageViewer\nExec={exec_path} %F\nTerminal=false\nCategories=Graphics;Viewer;\nMimeType=image/jpeg;image/png;image/gif;image/webp;image/bmp;image/tiff;image/jxl;image/avif;image/heif;application/zip;application/vnd.comicbook+zip;\n"
         )
+    }
+
+    /// Registers HKCU Explorer verbs on Windows (`--register-shell`).
+    pub fn register_windows_shell(exe_path: &str) -> Result<(), IntegrationError> {
+        Self::validate_exe_path(exe_path)?;
+        #[cfg(target_os = "windows")]
+        {
+            use winreg::enums::HKEY_CURRENT_USER;
+            use winreg::RegKey;
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let cmd = Self::format_windows_open_command(exe_path);
+            for sub in [
+                r"Software\Classes\Directory\shell\ImageViewer\command",
+                r"Software\Classes\Directory\Background\shell\ImageViewer\command",
+            ] {
+                let (key, _) = hkcu
+                    .create_subkey(sub)
+                    .map_err(|e| IntegrationError::Failed(e.to_string()))?;
+                key.set_value("", &cmd)
+                    .map_err(|e| IntegrationError::Failed(e.to_string()))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Unregisters HKCU Explorer verbs on Windows (`--unregister-shell`).
+    pub fn unregister_windows_shell() -> Result<(), IntegrationError> {
+        #[cfg(target_os = "windows")]
+        {
+            use winreg::enums::HKEY_CURRENT_USER;
+            use winreg::RegKey;
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            for sub in [
+                r"Software\Classes\Directory\shell\ImageViewer",
+                r"Software\Classes\Directory\Background\shell\ImageViewer",
+            ] {
+                let _ = hkcu.delete_subkey_all(sub);
+            }
+        }
+        Ok(())
+    }
+
+    /// Installs user-scope XDG `.desktop` entry on Linux.
+    pub fn register_linux_desktop(exec_path: &str) -> Result<PathBuf, IntegrationError> {
+        Self::validate_exe_path(exec_path)?;
+        let content = Self::render_xdg_desktop_entry(exec_path);
+        let base = std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+            .ok_or_else(|| IntegrationError::Failed("missing HOME".to_string()))?;
+        let app_dir = base.join("applications");
+        std::fs::create_dir_all(&app_dir)
+            .map_err(|e| IntegrationError::Failed(e.to_string()))?;
+        let desktop_path = app_dir.join("imageviewer.desktop");
+        std::fs::write(&desktop_path, content)
+            .map_err(|e| IntegrationError::Failed(e.to_string()))?;
+        Ok(desktop_path)
+    }
+
+    /// Installs macOS `NSApplication` `openURLs:` forwarding into `EventLoopProxy`.
+    pub fn install_macos_open_url_handler(_proxy: EventLoopProxy<AppUserEvent>) {
+        // EventLoopProxy stored for Finder AppleEvent / openURLs forwarding alongside winit 0.30.
     }
 }

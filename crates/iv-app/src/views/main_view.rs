@@ -4,7 +4,9 @@ use egui::{Align2, Color32, RichText};
 use iv_core::chrome_state::ChromeState;
 use iv_core::i18n::{I18n, Language};
 use iv_core::layout::ViewportState;
+use iv_core::settings::ThumbnailSettings;
 use iv_media::cache::DecodedFrame;
+use iv_media::sources::MediaEntry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MainUiAction {
@@ -16,6 +18,7 @@ pub enum MainUiAction {
     OpenFolder,
     PrevImage,
     NextImage,
+    SelectIndex(usize),
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -34,7 +37,11 @@ pub fn draw_main_overlays(
     lang: Language,
     chrome: &ChromeState,
     viewport: &ViewportState,
+    thumb_cfg: &ThumbnailSettings,
+    entries: &[MediaEntry],
     frame: Option<&DecodedFrame>,
+    anim_status: Option<(usize, usize, u128, bool)>,
+    loading_spinner: Option<bool>,
     current_name: &str,
     pos_index: usize,
     total_count: usize,
@@ -159,20 +166,62 @@ pub fn draw_main_overlays(
             .anchor(Align2::LEFT_BOTTOM, [12.0, -16.0])
             .show(ctx, |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
-                    let page_str = if f.page_count > 1 {
+                    let prefix = if let Some((a_idx, a_total, delay_ms, playing)) = anim_status {
+                        let st = if playing { "playing" } else { "paused" };
+                        format!("frame {}/{a_total} · {st} · {delay_ms}ms · ", a_idx + 1)
+                    } else if f.page_count > 1 {
                         format!("page {}/{} · ", f.page_index + 1, f.page_count)
                     } else {
                         String::new()
                     };
                     ui.label(format!(
-                        "{page_str}{}×{} · {}",
+                        "{prefix}{}×{} · {}",
                         f.source_width, f.source_height, f.format_label
                     ));
                 });
             });
     }
 
-    // 5. EXIF Panel (`Tab`)
+    if let Some(show_spinner) = loading_spinner {
+        egui::Area::new(egui::Id::new("iv_loading_indicator"))
+            .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    if show_spinner {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label("Loading...");
+                        });
+                    } else {
+                        ui.label("Preview...");
+                    }
+                });
+            });
+    }
+
+    // 5. Thumbnail Strip (48–256 px + optional scrollbar)
+    if thumb_cfg.visible && !entries.is_empty() && !chrome.is_fullscreen {
+        let strip_h = thumb_cfg.size.clamp(48, 256) as f32 * 0.45 + 24.0;
+        egui::TopBottomPanel::bottom("iv_thumb_strip")
+            .exact_height(strip_h)
+            .show(ctx, |ui| {
+                let mut scroll = egui::ScrollArea::horizontal();
+                if !thumb_cfg.show_scroll_bar {
+                    scroll = scroll.scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+                }
+                scroll.show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        for (idx, entry) in entries.iter().enumerate() {
+                            if ui.selectable_label(idx == pos_index, &entry.name).clicked() {
+                                action = MainUiAction::SelectIndex(idx);
+                            }
+                        }
+                    });
+                });
+            });
+    }
+
+    // 6. EXIF Panel (`Tab`)
     if chrome.info_panel_visible
         && let Some(f) = frame
     {

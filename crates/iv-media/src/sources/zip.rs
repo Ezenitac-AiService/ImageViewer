@@ -1,11 +1,12 @@
-//! Zero-disk-extraction ZIP/CBZ source with zero-allocation pre-flight EOCD checks.
+//! Zero-disk-extraction ZIP/CBZ source with zero-allocation pre-flight EOCD/ZIP64 checks and reused handle.
 
 use super::{is_supported_image_extension, ImageSourceType, MediaEntry, MediaSource, SourceError};
 use iv_core::natural_sort::NaturalSort;
 use iv_core::path_security::PathSecurity;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::sync::Mutex;
 use zip::result::ZipError;
 use zip::ZipArchive;
 
@@ -14,7 +15,7 @@ pub const MAX_ZIP_CD_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_ZIP_CONTAINER_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 pub struct ZipSource {
-    archive_path: PathBuf,
+    archive: Mutex<ZipArchive<File>>,
     entries: Vec<MediaEntry>,
     max_entry_bytes: u64,
 }
@@ -22,7 +23,6 @@ pub struct ZipSource {
 impl ZipSource {
     /// Zero-allocation pre-flight EOCD/ZIP64 EOCD validation on an in-memory tail slice.
     pub fn preflight_eocd_check(tail: &[u8]) -> Result<(), SourceError> {
-        // Search backwards for 22-byte EOCD signature 0x06054b50
         if tail.len() < 22 {
             return Err(SourceError::Archive("truncated archive".to_string()));
         }
@@ -41,6 +41,40 @@ impl ZipSource {
         let total_entries = u16::from_le_bytes([eocd[10], eocd[11]]) as u64;
         let cd_size = u32::from_le_bytes([eocd[12], eocd[13], eocd[14], eocd[15]]) as u64;
 
+        // Check for ZIP64 EOCD locator (0x07064b50) 20 bytes before EOCD when sentinels are set
+        if pos >= 20 {
+            let loc = &search_slice[pos - 20..pos];
+            if loc[0..4] == 0x0706_4b50u32.to_le_bytes()
+                && (total_entries == 0xFFFF || cd_size == 0xFFFF_FFFF)
+            {
+                // Verify ZIP64 EOCD record (0x06064b50) if present in tail slice
+                if let Some(z64_pos) = search_slice
+                    .windows(4)
+                    .rposition(|w| w == 0x0606_4b50u32.to_le_bytes())
+                    && search_slice.len() >= z64_pos + 56
+                {
+                    let z64 = &search_slice[z64_pos..];
+                    let z64_entries = u64::from_le_bytes([
+                        z64[32], z64[33], z64[34], z64[35], z64[36], z64[37], z64[38], z64[39],
+                    ]);
+                    let z64_cd_size = u64::from_le_bytes([
+                        z64[40], z64[41], z64[42], z64[43], z64[44], z64[45], z64[46], z64[47],
+                    ]);
+                    if z64_entries > MAX_ZIP_ENTRIES {
+                        return Err(SourceError::ArchiveLimitExceeded(format!(
+                            "zip64 entries exceed 50,000: {z64_entries}"
+                        )));
+                    }
+                    if z64_cd_size > MAX_ZIP_CD_BYTES {
+                        return Err(SourceError::ArchiveLimitExceeded(format!(
+                            "zip64 central directory exceeds 64 MB: {z64_cd_size}"
+                        )));
+                    }
+                }
+                return Ok(());
+            }
+        }
+
         if total_entries > MAX_ZIP_ENTRIES {
             return Err(SourceError::ArchiveLimitExceeded(format!(
                 "too many archive entries: {total_entries}"
@@ -50,18 +84,6 @@ impl ZipSource {
             return Err(SourceError::ArchiveLimitExceeded(format!(
                 "central directory exceeds 64 MB: {cd_size}"
             )));
-        }
-
-        // Check for ZIP64 EOCD locator (0x07064b50) 20 bytes before EOCD if present
-        if pos >= 20 {
-            let loc = &search_slice[pos - 20..pos];
-            if loc[0..4] == 0x0706_4b50u32.to_le_bytes() {
-                // Reject oversized ZIP64 locator indicators when standard EOCD fields are 0xFFFF/0xFFFFFFFF
-                if total_entries == 0xFFFF || cd_size == 0xFFFF_FFFF {
-                    // Require ZIP64 EOCD verification in full stream
-                    return Ok(());
-                }
-            }
         }
 
         Ok(())
@@ -141,7 +163,7 @@ impl ZipSource {
         entries.sort_by(|a, b| NaturalSort::cmp(&a.name, &b.name));
 
         Ok(Self {
-            archive_path: archive_path.to_path_buf(),
+            archive: Mutex::new(archive),
             entries,
             max_entry_bytes,
         })
@@ -162,10 +184,10 @@ impl MediaSource for ZipSource {
             .entries
             .get(index)
             .ok_or_else(|| SourceError::Archive("index out of bounds".to_string()))?;
-        let mut file = File::open(&self.archive_path)?;
-        Self::preflight_file(&mut file)?;
-        let mut archive =
-            ZipArchive::new(file).map_err(|e| SourceError::Archive(e.to_string()))?;
+        let mut archive = self
+            .archive
+            .lock()
+            .map_err(|_| SourceError::Archive("archive lock poisoned".to_string()))?;
 
         let zf = match archive.by_name(&entry.source_key) {
             Ok(f) => f,

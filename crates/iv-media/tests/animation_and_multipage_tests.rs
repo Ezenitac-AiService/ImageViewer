@@ -50,7 +50,14 @@ fn decodes_animated_gif_with_immediate_first_frame() {
         let f2 = image::Frame::new(image::RgbaImage::from_pixel(4, 4, image::Rgba([0, 255, 0, 255])));
         enc.encode_frames([f1, f2]).expect("encode gif");
     }
-    let player = AnimationPlayer::from_bytes(&gif_bytes, "anim.gif").expect("load anim");
+    let player = AnimationPlayer::from_bytes_guarded(&gif_bytes, "anim.gif", 150).expect("load anim");
     assert_eq!(player.frame_count(), 2);
-    assert_eq!(player.current_frame().source_width, 4);
+    assert_eq!(player.current_index(), 0);
+    assert!(player.current_delay() >= Duration::from_millis(10));
+    assert!(player.total_duration() >= Duration::from_millis(20));
+    assert_eq!(player.current_frame_arc().source_width, 4);
+    assert!(!player.is_streaming_mode);
+    assert!(AnimationPlayer::should_stream_ring_buffer(4000, 4000, 20));
+    assert!(!AnimationPlayer::should_stream_ring_buffer(100, 100, 20));
+    assert!(AnimationPlayer::from_bytes_guarded(b"  <svg onload=1>", "evil.gif", 150).is_err());
 }
