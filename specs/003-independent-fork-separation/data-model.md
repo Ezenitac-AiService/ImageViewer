@@ -13,7 +13,7 @@
   - Upstream preserved: `Copyright (C) edith2580` (original `ImageViewer` `v1.0.6` author).
   - Fork appended: `Copyright (C) 2026 Ezenitac-AiService`.
 - **GPLv3 §5(a) Modification Notice**: Explicit notice in `NOTICE`, `CHANGELOG.md`, and `README.md` stating that `Ezenitac-AiService` forked and substantially rewrote the viewer into a cross-platform Rust implementation on `2026-11-16`.
-- **Third-Party Notices**: `THIRD_PARTY_NOTICES.md` + `deny.toml` (`cargo-deny`) license policy (`MIT`, `Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `Zlib`, `MPL-2.0`, `Unicode-3.0`, `GPL-3.0-only`).
+- **Third-Party Notices**: `THIRD_PARTY_NOTICES.md` + `deny.toml` (`cargo-deny`) license policy (`MIT`, `Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `Zlib`, `MPL-2.0`, `Unicode-3.0`, `CC0-1.0`, `BSL-1.0`, `CDLA-Permissive-2.0`, `GPL-3.0-only`, `Unlicense`, `OFL-1.1`, `Ubuntu-font-1.0`).
 
 ---
 

@@ -114,6 +114,13 @@ description: "Actionable, dependency-ordered task list for Independent Project S
 
 ---
 
+## Phase 8: Convergence
+
+- [X] T025 Add `"OFL-1.1"` and `"Ubuntu-font-1.0"` (required by `epaint_default_fonts v0.31.1` via `egui`) to `[licenses].allow` in `deny.toml`, document `epaint_default_fonts` in `THIRD_PARTY_NOTICES.md`, and remove unmatched `"OpenSSL"` / `"Unicode-DFS-2016"` allowances so `cargo deny check licenses` passes cleanly in CI per `FR-009` (`contradicts`)
+- [X] T026 Configure `image_dds = { version = "0.7", default-features = false, features = ["ddsfile", "image"] }` in `Cargo.toml` to drop the unused `encode` (`intel_tex_2` C++/ISPC) feature that causes `rust-lld: error: undefined symbol: __gxx_personality_v0` on `ubuntu-latest` CI per `FR-010` (`partial`)
+
+---
+
 ## Dependencies & Execution Order
 
 - **Phase 1 (Setup)** -> **Phase 2 (Foundational)** -> **US1 (`T005`–`T009`)**, **US2 (`T010`–`T012`)**, **US3 (`T013`–`T020`)** -> **Phase 6 (`T021`–`T022`)**.

@@ -16,11 +16,11 @@ allow = [
     "Zlib",
     "MPL-2.0",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
     "CC0-1.0",
     "BSL-1.0",
-    "OpenSSL",
     "CDLA-Permissive-2.0",
     "GPL-3.0-only",
     "Unlicense",
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
 ]

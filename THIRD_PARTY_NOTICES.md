@@ -7,6 +7,7 @@
 | `winit` | Cross-platform windowing and event loop | `Apache-2.0` | https://github.com/rust-windowing/winit |
 | `wgpu` | Cross-platform GPU rendering (Metal / DX12 / Vulkan) | `MIT OR Apache-2.0` | https://github.com/gfx-rs/wgpu |
 | `egui` | Immediate-mode UI overlay & About/Settings dialogs | `MIT OR Apache-2.0` | https://github.com/emilk/egui |
+| `epaint_default_fonts` | Embedded default UI fonts (*Ubuntu Light*, *Hack*, *Noto Emoji*) | `(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0` | https://github.com/emilk/egui |
 | `zune-jpeg` | High-speed JPEG decoding | `MIT OR Apache-2.0 OR Zlib` | https://github.com/etemesi254/zune-image |
 | `image` | Multi-format image decoding & encoding | `MIT OR Apache-2.0` | https://github.com/image-rs/image |
 | `fast_image_resize` | SIMD-accelerated image resampling | `MIT OR Apache-2.0` | https://github.com/Cykooz/fast_image_resize |
