@@ -16,8 +16,7 @@ rfd.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 sha2.workspace = true
-tokio.workspace = true
-winit.workspace = true
+pollster.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

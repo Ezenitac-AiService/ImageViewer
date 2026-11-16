@@ -38,6 +38,20 @@ pub enum SourceError {
     SecurityViolation,
 }
 
+impl SourceError {
+    /// Localized message for the user (FR-018), free of paths and internal detail.
+    pub fn user_message(&self, lang: Language) -> String {
+        let key = match self {
+            Self::Io(_) => "error.read_failed",
+            Self::Archive(_) => "error.archive_failed",
+            Self::EncryptedArchive => "error.encrypted_archive",
+            Self::ArchiveLimitExceeded(_) => "error.archive_limit",
+            Self::SecurityViolation => "error.unsafe_image_or_archive",
+        };
+        I18n::tr(lang, key).to_string()
+    }
+}
+
 pub trait MediaSource: Send + Sync {
     fn entries(&self) -> &[MediaEntry];
     fn initial_index(&self) -> usize;

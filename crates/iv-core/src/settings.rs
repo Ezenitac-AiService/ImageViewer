@@ -298,6 +298,24 @@ impl ViewerSettings {
         parsed
     }
 
+    /// Like [`Self::from_json_str`], but returns `None` when the JSON cannot be parsed and
+    /// reports whether normalization had to change any stored value.
+    pub fn from_json_str_checked(raw: &str) -> Option<(Self, bool)> {
+        let stripped = strip_json_comments_and_trailing_commas(raw);
+        let mut parsed: Self = serde_json::from_str(&stripped).ok()?;
+        if parsed.version < 2 {
+            parsed.display.mouse_wheel = MouseWheelAction::Navigate;
+        }
+        if parsed.version < 3 && (parsed.filter.smooth_sigma - 0.8).abs() < 1e-6 {
+            parsed.filter.smooth_sigma = 0.5;
+        }
+        parsed.version = CURRENT_SETTINGS_VERSION;
+        let before = parsed.clone();
+        parsed.normalize();
+        let changed = before != parsed;
+        Some((parsed, changed))
+    }
+
     /// Clamps numeric bounds, clears non-finite floats, and sanitizes `skipped_version`.
     pub fn normalize(&mut self) {
         self.window.width = finite_clamp(self.window.width, 320.0, 20_000.0, 1280.0);
@@ -331,10 +349,84 @@ impl ViewerSettings {
     }
 }
 
+/// How the settings file was obtained at startup (`specs/004 data-model.md` §6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoadOutcome {
+    /// A valid file was read.
+    Loaded,
+    /// No file existed (first launch); defaults are used.
+    CreatedDefaults,
+    /// The file was oversized, unparseable, or held out-of-range values; it was reset.
+    RecoveredFromDamage,
+    /// The file or its directory cannot be read or written (I/O error, permissions, symlink).
+    Unreadable,
+}
+
 /// Multi-instance safe `fs4`-locked settings persistence.
 pub struct SettingsStore;
 
 impl SettingsStore {
+    /// Loads settings and reports what happened, so the UI can tell the user (FR-019).
+    pub fn load_with_outcome(path: &Path) -> (ViewerSettings, LoadOutcome) {
+        let defaults = || ViewerSettings::default();
+        if let Some(parent) = path.parent()
+            && PathSecurity::ensure_not_symlink(parent).is_err()
+        {
+            return (defaults(), LoadOutcome::Unreadable);
+        }
+        if PathSecurity::ensure_not_symlink(path).is_err() {
+            return (defaults(), LoadOutcome::Unreadable);
+        }
+        let meta = match std::fs::metadata(path) {
+            Ok(m) => m,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let outcome = if Self::directory_writable(path) {
+                    LoadOutcome::CreatedDefaults
+                } else {
+                    LoadOutcome::Unreadable
+                };
+                return (defaults(), outcome);
+            }
+            Err(_) => return (defaults(), LoadOutcome::Unreadable),
+        };
+        if meta.len() > MAX_SETTINGS_BYTES {
+            return (defaults(), LoadOutcome::RecoveredFromDamage);
+        }
+        let raw = match std::fs::read_to_string(path) {
+            Ok(raw) => raw,
+            Err(_) => return (defaults(), LoadOutcome::Unreadable),
+        };
+        match ViewerSettings::from_json_str_checked(&raw) {
+            Some((settings, false)) => (settings, LoadOutcome::Loaded),
+            Some((settings, true)) => (settings, LoadOutcome::RecoveredFromDamage),
+            None => (defaults(), LoadOutcome::RecoveredFromDamage),
+        }
+    }
+
+    /// Returns whether a settings file could be created next to `path` (creating the directory
+    /// if needed). Probes with a uniquely named temp file that is removed immediately.
+    fn directory_writable(path: &Path) -> bool {
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        if std::fs::create_dir_all(parent).is_err() {
+            return false;
+        }
+        let rand_suffix: u64 = rand::rng().random();
+        let probe = parent.join(format!("settings.{rand_suffix:016x}.tmp"));
+        match OpenOptions::new().write(true).create_new(true).open(&probe) {
+            Ok(file) => {
+                drop(file);
+                // Creation proved the directory is writable. If removal fails (for example
+                // another instance's locked cleanup already removed it), any leftover probe
+                // matches the orphan pattern and is cleaned up by the next save.
+                let _ = std::fs::remove_file(&probe);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
     /// Loads settings safely (rejecting symlinks and files `> 64 KB`).
     pub fn load(path: &Path) -> ViewerSettings {
         if let Some(parent) = path.parent()
@@ -382,7 +474,6 @@ impl SettingsStore {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
             PathSecurity::ensure_not_symlink(parent).map_err(|_| SettingsError::SymlinkRejected)?;
-            cleanup_orphan_tmps(parent);
         }
         PathSecurity::ensure_not_symlink(path).map_err(|_| SettingsError::SymlinkRejected)?;
 
@@ -395,6 +486,11 @@ impl SettingsStore {
             .truncate(false)
             .open(&lock_path)?;
         lock_file.lock_exclusive()?;
+        // Orphaned temp files are removed only while holding the lock: doing it before locking
+        // could delete another instance's in-flight temp file and fail its rename.
+        if let Some(parent) = path.parent() {
+            cleanup_orphan_tmps(parent);
+        }
 
         let mut latest = Self::load(path);
         mutate(&mut latest);

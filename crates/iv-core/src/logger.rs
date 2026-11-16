@@ -85,6 +85,15 @@ impl AsyncFileLogger {
         }
     }
 
+    /// Writes one line and waits (up to 2 s) until it has reached disk.
+    ///
+    /// Used for launch records that must survive an immediate process exit
+    /// (`contracts/launch-and-diagnostics-contract.md` §1).
+    pub fn write_sync(&self, level: &str, raw_message: &str) {
+        self.push_line(level, raw_message);
+        self.flush_bounded(Duration::from_secs(2));
+    }
+
     fn push_line(&self, level: &str, raw_message: &str) {
         let ts = Local::now().format("%Y-%m-%dT%H:%M:%S%.3f");
         let redacted = PathRedactor::redact(raw_message);

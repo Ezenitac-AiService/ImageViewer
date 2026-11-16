@@ -319,3 +319,43 @@ Every decision below follows Constitution Principle V. Evidence is tagged:
 | S1 | Does the adapter selector get a CPU adapter (WARP) in a GPU-less VM and over RDP? | R4 |
 | S2 | Does a custom `NSApplicationDelegate` coexist with eframe and receive cold- and warm-launch files? | R7 |
 | S3 | Does a `quit` Apple Event exit cleanly? Do hosted Windows runners give a usable desktop for `Responding` checks? | R12 |
+
+## Spike Results & Implementation Evidence
+
+Recorded during `/speckit-implement` on the review host (macOS 27.2.1, Apple M5, `rustc 1.100.0`).
+
+### S0 / S1 (Windows) — not run
+
+No Windows host is available to this session. T007 and T008 stay open and must be run on clean
+Windows 10/11 VMs before release (the clean-machine check covers the same ground).
+
+### eframe shell (T019–T022)
+
+- `target/debug/iv-app packaging/verify/reference.png` → one on-screen 1280×800 window
+  (`CGWindowList`), idle CPU **0.0 %** (custom shell: 0.4–1.2 %), RSS **171 MB** (custom shell:
+  203 MB) `[OBSERVED]`.
+- First run found a real panic: `epaint::Mesh::colored_vertex` asserts that the mesh has no
+  texture. The panic aborted the process with no diagnostic record, which is the US2 failure mode.
+  The canvas now pushes textured vertices directly, and the panic hook (T041) records any future
+  panic.
+- Synthetic keyboard input via `osascript` System Events is refused on this host ("not allowed to
+  send keystrokes", error 1002) `[OBSERVED]`. The first-click toolbar check in T022 therefore
+  stays a manual step.
+
+### US2 evidence (T048)
+
+Diagnostic record per scenario `[OBSERVED]`:
+
+| Scenario | Record |
+|----------|--------|
+| Normal launch with `reference.png` | `start` → `settings outcome=loaded` → `probe renderer=wgpu adapter="Apple M5" type=integrated backend=metal` → `window` → `first_frame source=reference.png w=96 h=96` |
+| `settings.json` replaced by 70 KB of `x` | `settings outcome=recovered_from_damage`; window shown; `first_frame source=none` |
+| CLI path that does not exist | window shown; `first_frame source=none` (status message shown in-window) |
+| Settings directory `chmod 555` | `settings outcome=unreadable`; window shown |
+
+### Defect found by T035: settings save race (pre-existing since v1.1.0-alpha.1)
+
+`SettingsStore::locked_merge_write` deleted orphaned `settings.*.tmp` files **before** taking the
+`fs4` lock, so one instance could delete another instance's in-flight temp file and fail its
+rename. Running the concurrent-save test binary 48 times in parallel failed **15/48** before the
+fix and **0/48** after moving the cleanup inside the lock `[OBSERVED]`.

@@ -34,11 +34,11 @@ are the shippable fix for the reported defect.
 **Purpose**: Branch, toolchain floor, dependencies, fixtures.
 
 - [X] T001 Create branch `004-launch-reliability-refactor` from `main` at the repository root, and commit the spec artifacts and constitution v2.4.0 (remove the Sync Impact Report comment from `.specify/memory/constitution.md` before committing)
-- [ ] T002 Raise `rust-version` to `"1.95"` and add workspace dependencies in `Cargo.toml`: `eframe = { version = "0.37", default-features = false, features = ["wgpu", "glow", "default_fonts", "clipboard", "x11", "wayland"] }`, `pollster = "0.4"`, `sys-locale = "0.3"`, `winresource = "0.1"`. Leave the other entries until their own tasks remove them
-- [ ] T003 [P] Create `.cargo/config.toml` with `[target.x86_64-pc-windows-msvc] rustflags = ["-C", "target-feature=+crt-static"]` (research R2)
-- [ ] T004 [P] Set the git executable bit on `packaging/macos/package-dmg.sh` and `packaging/linux/package-appimage.sh` with `git update-index --chmod=+x` (finding B8)
-- [ ] T005 [P] Add launch fixtures: `packaging/verify/reference.png` (≤ 64 KB PNG), and `packaging/verify/fixtures/two-images/a.png` and `b.png` (distinct, ≤ 16 KB each)
-- [ ] T006 [P] Add `packaging/verify/component-count.sh`. It prints the shipped-component count from `cargo tree -p iv-app -e normal --target all --prefix none | sed 's/ (\*)//' | sort -u | wc -l`, exits 1 if the count is greater than `${BUDGET:-411}`, and exits 1 if any of `reqwest`, `hyper`, `rustls`, `tokio` appears in that tree (FR-025, research R13)
+- [X] T002 Raise `rust-version` to `"1.95"` and add workspace dependencies in `Cargo.toml`: `eframe = { version = "0.37", default-features = false, features = ["wgpu", "glow", "default_fonts", "clipboard", "x11", "wayland"] }`, `pollster = "0.4"`, `sys-locale = "0.3"`, `winresource = "0.1"`. Leave the other entries until their own tasks remove them
+- [X] T003 [P] Create `.cargo/config.toml` with `[target.x86_64-pc-windows-msvc] rustflags = ["-C", "target-feature=+crt-static"]` (research R2)
+- [X] T004 [P] Set the git executable bit on `packaging/macos/package-dmg.sh` and `packaging/linux/package-appimage.sh` with `git update-index --chmod=+x` (finding B8)
+- [X] T005 [P] Add launch fixtures: `packaging/verify/reference.png` (≤ 64 KB PNG), and `packaging/verify/fixtures/two-images/a.png` and `b.png` (distinct, ≤ 16 KB each)
+- [X] T006 [P] Add `packaging/verify/component-count.sh`. It prints the shipped-component count from `cargo tree -p iv-app -e normal --target all --prefix none | sed 's/ (\*)//' | sort -u | wc -l`, exits 1 if the count is greater than `${BUDGET:-411}`, and exits 1 if any of `reqwest`, `hyper`, `rustls`, `tokio` appears in that tree (FR-025, research R13)
 
 ---
 
@@ -58,18 +58,18 @@ depend on this phase.
 
 ### Diagnostics core (used by US2 and US4)
 
-- [ ] T011 [P] Write failing tests in `crates/iv-core/tests/diagnostics_tests.rs` for the line grammar in `contracts/launch-and-diagnostics-contract.md` §3:
+- [X] T011 [P] Write failing tests in `crates/iv-core/tests/diagnostics_tests.rs` for the line grammar in `contracts/launch-and-diagnostics-contract.md` §3:
   - `launch_id` is exactly 8 hex characters;
   - the `phase=start` line includes `version=`, `os=`, `os_version=`, `arch=`;
   - `phase ∈ start/settings/probe/window/first_frame/navigate`;
   - `source=` keeps the file name only when given a full path;
   - CR/LF is stripped and home paths are redacted via `PathRedactor`;
   - `fatal category ∈ no_renderer/window_failed/settings_unwritable/panic`.
-- [ ] T012 Implement `crates/iv-core/src/diagnostics.rs` (`LaunchId`, `Phase`, `FatalCategory`, `LaunchRecord` formatter, `ExitCode {Clean=0, FatalStartup=2, Panic=3}`), export it from `crates/iv-core/src/lib.rs`, and add `AsyncFileLogger::write_sync(&str)` plus a flush-before-return path in `crates/iv-core/src/logger.rs` so launch lines reach disk before exit
+- [X] T012 Implement `crates/iv-core/src/diagnostics.rs` (`LaunchId`, `Phase`, `FatalCategory`, `LaunchRecord` formatter, `ExitCode {Clean=0, FatalStartup=2, Panic=3}`), export it from `crates/iv-core/src/lib.rs`, and add `AsyncFileLogger::write_sync(&str)` plus a flush-before-return path in `crates/iv-core/src/logger.rs` so launch lines reach disk before exit
 
 ### Platform decoupling (finding C9)
 
-- [ ] T013 Remove the `winit` and `tokio` dependencies from `crates/iv-platform/Cargo.toml`:
+- [X] T013 Remove the `winit` and `tokio` dependencies from `crates/iv-platform/Cargo.toml`:
   - In `crates/iv-platform/src/paths_dialogs.rs`, replace `AppUserEvent` / `EventLoopProxy` with `pick_image_or_archive_async(on_done: Box<dyn FnOnce(Option<PathBuf>) + Send>)` and `pick_folder_async(...)`.
   - Block on the `rfd` future with `pollster::block_on`.
   - Delete `pollster_block` and `futures_noop_block` (removing their `unsafe`).
@@ -77,21 +77,21 @@ depend on this phase.
 
 ### eframe shell (research R1, R3)
 
-- [ ] T014 [P] Write failing tests in `crates/iv-core/tests/viewport_and_chrome_tests.rs` for a new pure function `ViewportLayoutCalculator::image_quad(src_w, src_h, &ViewportState) -> ImageQuad` (screen rect in logical px, plus 4 UV corners). Cover: rotation 0/1/2/3 quarter turns × flip H/V give the expected UV permutation; `Fill`/`FitWidth`/`FitHeight`/`Original` sizes; zoom about the cursor keeps the anchor point fixed; pan offsets
-- [ ] T015 Implement `ImageQuad` and `image_quad` in `crates/iv-core/src/layout.rs` until T014 passes
-- [ ] T016 [P] Write failing tests in `crates/iv-core/tests/viewport_and_chrome_tests.rs` for `tile_grid(width, height, max_side) -> Vec<TileRect>`: a single tile when both dimensions ≤ `max_side`; full coverage with no overlap for 20000×9000 at 8192; zero-size input yields an empty grid
-- [ ] T017 Implement `tile_grid` in `crates/iv-core/src/layout.rs` until T016 passes
-- [ ] T018 Replace the dependencies in `crates/iv-app/Cargo.toml`: remove `winit`, `wgpu`, `egui`, `egui-winit`, `egui-wgpu`, `arboard`, `tokio`, `bytemuck`; add `eframe.workspace = true` and `pollster.workspace = true`. Delete `crates/iv-app/src/renderer.rs`
-- [ ] T019 Create `crates/iv-app/src/canvas.rs`:
+- [X] T014 [P] Write failing tests in `crates/iv-core/tests/viewport_and_chrome_tests.rs` for a new pure function `ViewportLayoutCalculator::image_quad(src_w, src_h, &ViewportState) -> ImageQuad` (screen rect in logical px, plus 4 UV corners). Cover: rotation 0/1/2/3 quarter turns × flip H/V give the expected UV permutation; `Fill`/`FitWidth`/`FitHeight`/`Original` sizes; zoom about the cursor keeps the anchor point fixed; pan offsets
+- [X] T015 Implement `ImageQuad` and `image_quad` in `crates/iv-core/src/layout.rs` until T014 passes
+- [X] T016 [P] Write failing tests in `crates/iv-core/tests/viewport_and_chrome_tests.rs` for `tile_grid(width, height, max_side) -> Vec<TileRect>`: a single tile when both dimensions ≤ `max_side`; full coverage with no overlap for 20000×9000 at 8192; zero-size input yields an empty grid
+- [X] T017 Implement `tile_grid` in `crates/iv-core/src/layout.rs` until T016 passes
+- [X] T018 Replace the dependencies in `crates/iv-app/Cargo.toml`: remove `winit`, `wgpu`, `egui`, `egui-winit`, `egui-wgpu`, `arboard`, `tokio`, `bytemuck`; add `eframe.workspace = true` and `pollster.workspace = true`. Delete `crates/iv-app/src/renderer.rs`
+- [X] T019 Create `crates/iv-app/src/canvas.rs`:
   - upload a `DecodedFrame` as one or more `egui::TextureHandle`s using `tile_grid` with `ctx.input(|i| i.max_texture_side)`;
   - reuse handles via `TextureHandle::set` when dimensions are unchanged;
   - paint each tile as an `egui::Mesh` using `image_quad`;
   - map `FilterMode::None` → `TextureOptions::NEAREST` and `FilterMode::Smooth` → `TextureOptions::LINEAR`.
-- [ ] T020 Create `crates/iv-app/src/loader.rs`, porting `dispatch_async_load`, prefetch, and `drain_async_decodes` from the old `crates/iv-app/src/main.rs`:
+- [X] T020 Create `crates/iv-app/src/loader.rs`, porting `dispatch_async_load`, prefetch, and `drain_async_decodes` from the old `crates/iv-app/src/main.rs`:
   - keep the generation tags and the `DecodedFrameCache` of 8;
   - each worker holds an `egui::Context` clone and calls `request_repaint()` after sending its result;
   - no `let _ =` on channel sends: a failed send is written as a record line.
-- [ ] T021 Create `crates/iv-app/src/app.rs` implementing `eframe::App` with the current viewer state (source, index, page, frame, viewport, animation, settings). Paint via `canvas.rs`, poll `loader.rs` each frame, and drive animation with `ctx.request_repaint_after(current_delay)`. Rewrite `crates/iv-app/src/main.rs` to call `eframe::run_native` with `ViewportBuilder` (native decorations, saved size and position) and open the CLI path. Remove the 16 ms `ControlFlow::WaitUntil` loop
+- [X] T021 Create `crates/iv-app/src/app.rs` implementing `eframe::App` with the current viewer state (source, index, page, frame, viewport, animation, settings). Paint via `canvas.rs`, poll `loader.rs` each frame, and drive animation with `ctx.request_repaint_after(current_delay)`. Rewrite `crates/iv-app/src/main.rs` to call `eframe::run_native` with `ViewportBuilder` (native decorations, saved size and position) and open the CLI path. Remove the 16 ms `ControlFlow::WaitUntil` loop
 - [ ] T022 Run `cargo build -p iv-app` and `cargo test --workspace`, then launch `target/debug/iv-app packaging/verify/reference.png` on the macOS host and confirm the image is displayed and the toolbar buttons respond to the first click
 
 **Checkpoint**: The eframe shell shows an image and responds to the mouse. User-story phases may start.
@@ -124,7 +124,7 @@ and no "damaged" message (FR-001–FR-006).
 
 ### Implementation for User Story 1
 
-- [ ] T025 [US1] Add `#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]` as the first line of `crates/iv-app/src/main.rs` (FR-003)
+- [X] T025 [US1] Add `#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]` as the first line of `crates/iv-app/src/main.rs` (FR-003)
 - [ ] T026 [P] [US1] Create `packaging/windows/ImageViewer.manifest`: per-monitor-v2 DPI awareness, Common Controls v6, `asInvoker`
 - [ ] T027 [US1] Create `crates/iv-app/build.rs` using `winresource`, only when `CARGO_CFG_TARGET_OS == "windows"`:
   - icon `packaging/windows/ImageViewer.ico`;
@@ -172,7 +172,7 @@ naming the cause and the log folder. A renderer fallback exists (FR-007–FR-010
 
 ### Tests for User Story 2 (write first)
 
-- [ ] T035 [P] [US2] Add failing tests to `crates/iv-core/tests/settings_tests.rs` for `SettingsStore::load -> (ViewerSettings, LoadOutcome)`:
+- [X] T035 [P] [US2] Add failing tests to `crates/iv-core/tests/settings_tests.rs` for `SettingsStore::load -> (ViewerSettings, LoadOutcome)`:
   - absent file → `CreatedDefaults`;
   - valid file → `Loaded`;
   - 70 KB file (`> 64 KB`) → `RecoveredFromDamage`;
@@ -184,31 +184,31 @@ naming the cause and the log folder. A renderer fallback exists (FR-007–FR-010
   Also:
   - `save_preferences` on a read-only directory returns `Err`;
   - two threads calling `save_preferences` concurrently on the same file (simulating two app copies) both return, and the resulting file parses as valid JSON equal to one of the two inputs. It is never truncated or interleaved (spec edge case "Two copies started at once").
-- [ ] T036 [P] [US2] Add failing tests to `crates/iv-core/tests/diagnostics_tests.rs` for `diagnostics::install_panic_hook(sink)`: inside `std::panic::catch_unwind`, a panic writes exactly one `fatal category=panic at=<file>:<line>` line to a real temp-dir log and invokes the supplied `on_fatal` callback once
-- [ ] T037 [P] [US2] Create `crates/iv-app/src/probe.rs` with failing unit tests (`#[cfg(test)] mod tests`) for the pure `select_renderer(&[AdapterSummary]) -> RendererChoice`:
+- [X] T036 [P] [US2] Add failing tests to `crates/iv-core/tests/diagnostics_tests.rs` for `diagnostics::install_panic_hook(sink)`: inside `std::panic::catch_unwind`, a panic writes exactly one `fatal category=panic at=<file>:<line>` line to a real temp-dir log and invokes the supplied `on_fatal` callback once
+- [X] T037 [P] [US2] Create `crates/iv-app/src/probe.rs` with failing unit tests (`#[cfg(test)] mod tests`) for the pure `select_renderer(&[AdapterSummary]) -> RendererChoice`:
   - an empty list gives `Glow`;
   - otherwise the order is `DiscreteGpu > IntegratedGpu > VirtualGpu > Cpu > Other`;
   - the chosen adapter's `name`, `device_type`, and `backend` are returned for the record.
-- [ ] T038 [P] [US2] Add failing tests to `crates/iv-core/tests/logger_and_i18n_tests.rs`: every key in `fatal.no_renderer`, `fatal.window_failed`, `fatal.panic`, `fatal.log_location`, `settings.reset_notice`, `settings.unreadable_notice`, `settings.save_failed`, `error.unsupported_format` returns a non-empty, distinct string for both `Language::Ko` and `Language::En`. Also add failing tests in `crates/iv-media/tests/sources_tests.rs` (FR-018): a new `user_message(&self, Language) -> String` on every `DecodeError` and `SourceError` variant returns a non-empty Korean string and a non-empty English string that differ, and never contains a full directory path
-- [ ] T039 [P] [US2] Add failing tests to `crates/iv-platform/tests/os_integration_tests.rs` for `fatal_dialog::redacted_log_folder(os)`, which returns exactly `%LOCALAPPDATA%\ImageViewer\logs` (Windows), `~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs` (macOS), and `~/.config/imageviewer/logs` (Linux), and never contains the real user name
+- [X] T038 [P] [US2] Add failing tests to `crates/iv-core/tests/logger_and_i18n_tests.rs`: every key in `fatal.no_renderer`, `fatal.window_failed`, `fatal.panic`, `fatal.log_location`, `settings.reset_notice`, `settings.unreadable_notice`, `settings.save_failed`, `error.unsupported_format` returns a non-empty, distinct string for both `Language::Ko` and `Language::En`. Also add failing tests in `crates/iv-media/tests/sources_tests.rs` (FR-018): a new `user_message(&self, Language) -> String` on every `DecodeError` and `SourceError` variant returns a non-empty Korean string and a non-empty English string that differ, and never contains a full directory path
+- [X] T039 [P] [US2] Add failing tests to `crates/iv-platform/tests/os_integration_tests.rs` for `fatal_dialog::redacted_log_folder(os)`, which returns exactly `%LOCALAPPDATA%\ImageViewer\logs` (Windows), `~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs` (macOS), and `~/.config/imageviewer/logs` (Linux), and never contains the real user name
 
 ### Implementation for User Story 2
 
-- [ ] T040 [US2] Implement `LoadOutcome` (`Loaded | CreatedDefaults | RecoveredFromDamage | Unreadable`) and make `save_preferences` / `save_window_geometry` return `Result` in `crates/iv-core/src/settings.rs`. Keep the existing `fs4` lock and write via temp file + rename so concurrent saves are atomic. Pass until T035 passes
-- [ ] T041 [US2] Implement `install_panic_hook` in `crates/iv-core/src/diagnostics.rs` until T036 passes
-- [ ] T042 [US2] Add the T038 keys in both languages to `crates/iv-core/src/i18n.rs`, plus one key per `DecodeError` and `SourceError` variant. Implement `user_message(lang)` in `crates/iv-media/src/decode.rs` and `crates/iv-media/src/sources/mod.rs` using those keys, until T038 passes
-- [ ] T043 [US2] Create `crates/iv-platform/src/fatal_dialog.rs`: `redacted_log_folder` and `show_fatal(lang, category)` using `rfd::MessageDialog` (level Error, title "ImageViewer", OK only). Export it in `crates/iv-platform/src/lib.rs`, until T039 passes
-- [ ] T044 [US2] Implement `select_renderer` and `probe()` in `crates/iv-app/src/probe.rs`: enumerate `wgpu` adapters for the primary backends with no surface, and build `egui_wgpu::WgpuSetupCreateNew` with a `native_adapter_selector` that applies the same ordering. Pass until T037 passes
-- [ ] T045 [US2] Rewrite the startup sequence in `crates/iv-app/src/main.rs` exactly per `contracts/launch-and-diagnostics-contract.md` §1:
+- [X] T040 [US2] Implement `LoadOutcome` (`Loaded | CreatedDefaults | RecoveredFromDamage | Unreadable`) and make `save_preferences` / `save_window_geometry` return `Result` in `crates/iv-core/src/settings.rs`. Keep the existing `fs4` lock and write via temp file + rename so concurrent saves are atomic. Pass until T035 passes
+- [X] T041 [US2] Implement `install_panic_hook` in `crates/iv-core/src/diagnostics.rs` until T036 passes
+- [X] T042 [US2] Add the T038 keys in both languages to `crates/iv-core/src/i18n.rs`, plus one key per `DecodeError` and `SourceError` variant. Implement `user_message(lang)` in `crates/iv-media/src/decode.rs` and `crates/iv-media/src/sources/mod.rs` using those keys, until T038 passes
+- [X] T043 [US2] Create `crates/iv-platform/src/fatal_dialog.rs`: `redacted_log_folder` and `show_fatal(lang, category)` using `rfd::MessageDialog` (level Error, title "ImageViewer", OK only). Export it in `crates/iv-platform/src/lib.rs`, until T039 passes
+- [X] T044 [US2] Implement `select_renderer` and `probe()` in `crates/iv-app/src/probe.rs`: enumerate `wgpu` adapters for the primary backends with no surface, and build `egui_wgpu::WgpuSetupCreateNew` with a `native_adapter_selector` that applies the same ordering. Pass until T037 passes
+- [X] T045 [US2] Rewrite the startup sequence in `crates/iv-app/src/main.rs` exactly per `contracts/launch-and-diagnostics-contract.md` §1:
   - logger → panic hook → `phase=start` → CLI → settings `phase=settings outcome=…` → probe `phase=probe renderer=… adapter="…" type=… backend=…` → `run_native` (`phase=window` on creation);
   - on error: `fatal category=window_failed` → `show_fatal` → exit 2;
   - on panic: exit 3.
-- [ ] T046 [US2] In `crates/iv-app/src/app.rs`:
+- [X] T046 [US2] In `crates/iv-app/src/app.rs`:
   - write `phase=first_frame source=<file name> w=<px> h=<px>` once, after the first paint of the requested image (`source=none` when none was requested);
   - write `exit=clean` in `on_exit` after saving settings and geometry (`settings_save_failed` on error);
   - show the `LoadOutcome` notice once via `crates/iv-app/src/views/status.rs`.
-- [ ] T047 [US2] Remove every `let _ =` / `.ok()` that discards an error in `crates/iv-app/src/` (the baseline was 24 sites, finding D7). Each becomes a status message or a record line (FR-010). Status messages shown to the user come from `user_message(lang)` / `I18n::tr`, never from `to_string()` on an error (FR-018); the English `Display` text goes only to the diagnostic record. Verify with `grep -rnE "let _ =|\.ok\(\)" crates/iv-app/src`, and justify any remaining hit inline
-- [ ] T048 [US2] Run every row of [quickstart.md](./quickstart.md) §3 that the macOS host can provoke. Paste the resulting record lines into `specs/004-launch-reliability-refactor/research.md` under "Spike Results / US2 evidence"
+- [X] T047 [US2] Remove every `let _ =` / `.ok()` that discards an error in `crates/iv-app/src/` (the baseline was 24 sites, finding D7). Each becomes a status message or a record line (FR-010). Status messages shown to the user come from `user_message(lang)` / `I18n::tr`, never from `to_string()` on an error (FR-018); the English `Display` text goes only to the diagnostic record. Verify with `grep -rnE "let _ =|\.ok\(\)" crates/iv-app/src`, and justify any remaining hit inline
+- [X] T048 [US2] Run every row of [quickstart.md](./quickstart.md) §3 that the macOS host can provoke. Paste the resulting record lines into `specs/004-launch-reliability-refactor/research.md` under "Spike Results / US2 evidence"
 
 **Checkpoint**: Failures are visible and recorded. Silent exits are gone.
 
@@ -224,12 +224,12 @@ first. Native window behaviour. The folder keeps its position. Korean appears on
 
 ### Tests for User Story 3 (write first)
 
-- [ ] T049 [P] [US3] Write failing tests in `crates/iv-core/tests/interaction_tests.rs`, one test per row of `contracts/interaction-contract.md` §2 (keyboard) and §3 (pointer). Each asserts the exact `Vec<ViewerCommand>` from `map_input(InputEvent, &InteractionContext)`, and both "Primary" variants (`is_macos = true/false`) are covered
-- [ ] T050 [P] [US3] Write failing precedence tests in `crates/iv-core/tests/interaction_tests.rs` (contract §1):
+- [X] T049 [P] [US3] Write failing tests in `crates/iv-core/tests/interaction_tests.rs`, one test per row of `contracts/interaction-contract.md` §2 (keyboard) and §3 (pointer). Each asserts the exact `Vec<ViewerCommand>` from `map_input(InputEvent, &InteractionContext)`, and both "Primary" variants (`is_macos = true/false`) are covered
+- [X] T050 [P] [US3] Write failing precedence tests in `crates/iv-core/tests/interaction_tests.rs` (contract §1):
   - Esc with 0, 1, and 2 open dialogs: `Quit` (or exit fullscreen when fullscreen) vs `CloseTopDialog` popping exactly one;
   - arrow keys with a dialog open produce no navigation command;
   - keys while a text widget has focus produce no command except Esc.
-- [ ] T051 [P] [US3] Write failing tests in `crates/iv-core/tests/interaction_model_tests.rs` for `ViewerModel::apply`, covering every `ViewerCommand` in data-model §7 and the invariant "`current` always refers to an entry in `source`, or is `None` when the source is empty":
+- [X] T051 [P] [US3] Write failing tests in `crates/iv-core/tests/interaction_model_tests.rs` for `ViewerModel::apply`, covering every `ViewerCommand` in data-model §7 and the invariant "`current` always refers to an entry in `source`, or is `None` when the source is empty":
   - `Next` on the last entry with `wrap_around` on and off;
   - `Prev` on an empty source;
   - `NextPage` on a single-page image falls through to `Next`;
@@ -246,7 +246,7 @@ first. Native window behaviour. The folder keeps its position. Korean appears on
 
 ### Implementation for User Story 3
 
-- [ ] T055 [US3] Create `crates/iv-core/src/interaction.rs` with `InputEvent`, `InteractionContext`, `ViewerCommand`, `DialogKind`, `ViewerModel`, `map_input`, and `ViewerModel::apply` exactly as in data-model §7 and the interaction contract. Export it from `crates/iv-core/src/lib.rs`, until T049–T051 pass
+- [X] T055 [US3] Create `crates/iv-core/src/interaction.rs` with `InputEvent`, `InteractionContext`, `ViewerCommand`, `DialogKind`, `ViewerModel`, `map_input`, and `ViewerModel::apply` exactly as in data-model §7 and the interaction contract. Export it from `crates/iv-core/src/lib.rs`, until T049–T051 pass
 - [ ] T056 [US3] In `crates/iv-app/src/app.rs`, translate `egui` input (keys, modifiers, pointer, scroll, pinch, dropped files, `focused` widget state) into `InputEvent`, call `map_input`, apply the commands, and route `RequestOpenFile` / `RequestOpenFolder` to `iv_platform::paths_dialogs` with callbacks that push onto a channel and call `ctx.request_repaint()`
 - [ ] T057 [P] [US3] Create `crates/iv-app/src/views/toolbar.rs` with the Core-only toolbars of interaction contract §5. Every label goes through `I18n` (add the missing keys to `crates/iv-core/src/i18n.rs`). Delete `crates/iv-app/src/views/main_view.rs` and its custom titlebar
 - [ ] T058 [P] [US3] Rewrite `crates/iv-app/src/views/settings_view.rs` as an `egui::Window` driven by the `ViewerModel` dialog stack:

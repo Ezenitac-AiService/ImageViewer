@@ -1,18 +1,19 @@
-//! OS app-data directories and non-blocking `rfd::AsyncFileDialog` file/folder pickers.
+//! OS app-data directories and non-blocking native file/folder pickers.
+//!
+//! Pickers run on a worker thread and report through a caller-supplied callback, so this crate
+//! has no dependency on the GUI framework (specs/004 finding C9).
 
 use directories::ProjectDirs;
 use std::path::PathBuf;
-use winit::event_loop::EventLoopProxy;
 
-/// User-facing dialog completion events sent asynchronously to `winit::ApplicationHandler`.
-#[derive(Debug, Clone)]
-pub enum AppUserEvent {
-    PickedOpenFile(Option<PathBuf>),
-    PickedOpenFolder(Option<PathBuf>),
-    OpenUrlPaths(Vec<PathBuf>),
-    DecodeWakeup,
-    UpdateChecked,
-}
+/// Callback invoked once with the picked path, or `None` when the user cancelled.
+pub type PickCallback = Box<dyn FnOnce(Option<PathBuf>) + Send + 'static>;
+
+/// Extensions offered by the file picker: Core formats plus read-only archives.
+pub const CORE_PICKER_EXTENSIONS: &[&str] = &[
+    "jpg", "jpeg", "jpe", "jfif", "png", "apng", "gif", "webp", "bmp", "dib", "tif", "tiff", "zip",
+    "cbz",
+];
 
 pub struct OsPaths;
 
@@ -40,56 +41,23 @@ impl OsPaths {
 pub struct OsDialogs;
 
 impl OsDialogs {
-    /// Launches a non-blocking native file/archive picker and forwards the result via `EventLoopProxy`.
-    pub fn pick_image_or_archive_async(proxy: EventLoopProxy<AppUserEvent>) {
-        let dialog = rfd::AsyncFileDialog::new().add_filter(
-            "Images & Archives",
-            &[
-                "jpg", "jpeg", "png", "apng", "gif", "webp", "bmp", "tif", "tiff", "ico", "cur",
-                "jxl", "psd", "dds", "pcx", "tga", "qoi", "exr", "hdr", "heic", "heif", "avif",
-                "dng", "cr2", "cr3", "nef", "arw", "zip", "cbz",
-            ],
-        );
+    /// Shows a native file/archive picker without blocking the caller.
+    pub fn pick_image_or_archive_async(title: &str, filter_label: &str, on_done: PickCallback) {
+        let dialog = rfd::AsyncFileDialog::new()
+            .set_title(title)
+            .add_filter(filter_label, CORE_PICKER_EXTENSIONS);
         std::thread::spawn(move || {
-            let picked = pollster_block(dialog.pick_file()).map(|f| f.path().to_path_buf());
-            let _ = proxy.send_event(AppUserEvent::PickedOpenFile(picked));
+            let picked = pollster::block_on(dialog.pick_file()).map(|f| f.path().to_path_buf());
+            on_done(picked);
         });
     }
 
-    /// Launches a non-blocking native folder picker and forwards the result via `EventLoopProxy`.
-    pub fn pick_folder_async(proxy: EventLoopProxy<AppUserEvent>) {
-        let dialog = rfd::AsyncFileDialog::new();
+    /// Shows a native folder picker without blocking the caller.
+    pub fn pick_folder_async(title: &str, on_done: PickCallback) {
+        let dialog = rfd::AsyncFileDialog::new().set_title(title);
         std::thread::spawn(move || {
-            let picked = pollster_block(dialog.pick_folder()).map(|f| f.path().to_path_buf());
-            let _ = proxy.send_event(AppUserEvent::PickedOpenFolder(picked));
+            let picked = pollster::block_on(dialog.pick_folder()).map(|f| f.path().to_path_buf());
+            on_done(picked);
         });
-    }
-}
-
-fn pollster_block<F: std::future::Future>(fut: F) -> F::Output {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build();
-    match rt {
-        Ok(r) => r.block_on(fut),
-        Err(_) => futures_noop_block(fut),
-    }
-}
-
-fn futures_noop_block<F: std::future::Future>(fut: F) -> F::Output {
-    use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
-    fn noop(_: *const ()) {}
-    fn clone(p: *const ()) -> RawWaker {
-        RawWaker::new(p, &VTABLE)
-    }
-    static VTABLE: RawWakerVTable = RawWakerVTable::new(clone, noop, noop, noop);
-    let waker = unsafe { Waker::from_raw(RawWaker::new(std::ptr::null(), &VTABLE)) };
-    let mut cx = Context::from_waker(&waker);
-    let mut pinned = std::pin::pin!(fut);
-    loop {
-        match pinned.as_mut().poll(&mut cx) {
-            Poll::Ready(val) => return val,
-            Poll::Pending => std::thread::yield_now(),
-        }
     }
 }

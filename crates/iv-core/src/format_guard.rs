@@ -78,17 +78,18 @@ impl FormatGuard {
 
         // BOM-less UTF-16 interleaved ASCII heuristic (`<\0`, `\0<`, ` \0`, etc.)
         if sample.len() >= 4 {
-            let even_ascii_odd_zero = sample
-                .chunks_exact(2)
+            let pairs = sample.as_chunks::<2>().0;
+            let even_ascii_odd_zero = pairs
+                .iter()
                 .take(8)
-                .all(|pair| pair[0].is_ascii() && pair[1] == 0);
+                .all(|[lo, hi]| lo.is_ascii() && *hi == 0);
             if even_ascii_odd_zero {
                 return Self::decode_utf16(sample, true);
             }
-            let even_zero_odd_ascii = sample
-                .chunks_exact(2)
+            let even_zero_odd_ascii = pairs
+                .iter()
                 .take(8)
-                .all(|pair| pair[0] == 0 && pair[1].is_ascii());
+                .all(|[lo, hi]| *lo == 0 && hi.is_ascii());
             if even_zero_odd_ascii {
                 return Self::decode_utf16(sample, false);
             }
@@ -99,11 +100,11 @@ impl FormatGuard {
 
     fn decode_utf32(bytes: &[u8], little_endian: bool) -> String {
         let mut out = String::new();
-        for chunk in bytes.chunks_exact(4) {
+        for chunk in bytes.as_chunks::<4>().0 {
             let code = if little_endian {
-                u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+                u32::from_le_bytes(*chunk)
             } else {
-                u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+                u32::from_be_bytes(*chunk)
             };
             if let Some(ch) = char::from_u32(code) {
                 out.push(ch);
@@ -114,12 +115,14 @@ impl FormatGuard {
 
     fn decode_utf16(bytes: &[u8], little_endian: bool) -> String {
         let units: Vec<u16> = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| {
                 if little_endian {
-                    u16::from_le_bytes([chunk[0], chunk[1]])
+                    u16::from_le_bytes(*chunk)
                 } else {
-                    u16::from_be_bytes([chunk[0], chunk[1]])
+                    u16::from_be_bytes(*chunk)
                 }
             })
             .collect();

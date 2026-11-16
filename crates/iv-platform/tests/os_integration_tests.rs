@@ -21,3 +21,29 @@ fn validates_exe_paths_and_generates_xdg_and_info_plist_entries() {
         &cmd_line
     ));
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T039: the fatal dialog names the log folder without the user's real path
+// ---------------------------------------------------------------------------
+
+#[test]
+fn redacted_log_folder_is_fixed_per_os_and_never_contains_a_user_name() {
+    use iv_platform::fatal_dialog::redacted_log_folder;
+    assert_eq!(
+        redacted_log_folder("windows"),
+        r"%LOCALAPPDATA%\ImageViewer\logs"
+    );
+    assert_eq!(
+        redacted_log_folder("macos"),
+        "~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs"
+    );
+    assert_eq!(redacted_log_folder("linux"), "~/.config/imageviewer/logs");
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_default();
+    for os in ["windows", "macos", "linux"] {
+        if !user.is_empty() {
+            assert!(!redacted_log_folder(os).contains(&user));
+        }
+    }
+}

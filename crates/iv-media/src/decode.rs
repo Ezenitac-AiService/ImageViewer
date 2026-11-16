@@ -26,6 +26,23 @@ pub enum DecodeError {
     OsCodec(#[from] OsCodecError),
 }
 
+impl DecodeError {
+    /// Localized message for the user (FR-018). Never includes paths or internal detail; the
+    /// English `Display` text is for the diagnostic record only.
+    pub fn user_message(&self, lang: iv_core::i18n::Language) -> String {
+        let key = match self {
+            Self::SecurityRejected(_) => "error.security_rejected",
+            Self::ExceedsPixelLimit | Self::DimensionOverflow => "error.too_large",
+            Self::UnsupportedOrCorrupt(_) => "error.corrupt",
+            Self::OsCodec(OsCodecError::MissingCodec) => "error.missing_os_codec",
+            Self::OsCodec(OsCodecError::ExceedsPixelLimit) => "error.too_large",
+            Self::OsCodec(OsCodecError::SecurityRejected) => "error.security_rejected",
+            Self::OsCodec(_) => "error.corrupt",
+        };
+        iv_core::i18n::I18n::tr(lang, key).to_string()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DecodeOptions {
     pub max_megapixels: u32,

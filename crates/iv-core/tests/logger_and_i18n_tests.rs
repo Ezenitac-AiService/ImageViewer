@@ -44,3 +44,23 @@ fn async_logger_redacts_paths_rotates_and_flushes_on_drop() {
     assert!(!content.contains("\r\nINJECT"));
     assert!(content.contains("342ms"));
 }
+
+#[test]
+fn startup_failure_and_status_keys_exist_in_both_languages_and_differ() {
+    for key in [
+        "fatal.no_renderer",
+        "fatal.window_failed",
+        "fatal.panic",
+        "fatal.log_location",
+        "settings.reset_notice",
+        "settings.unreadable_notice",
+        "settings.save_failed",
+        "error.unsupported_format",
+    ] {
+        let en = I18n::tr(Language::En, key);
+        let ko = I18n::tr(Language::Ko, key);
+        assert!(!en.is_empty(), "missing en {key}");
+        assert!(!ko.is_empty(), "missing ko {key}");
+        assert_ne!(en, ko, "untranslated {key}");
+    }
+}

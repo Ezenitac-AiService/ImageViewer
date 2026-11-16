@@ -76,3 +76,49 @@ fn zip_source_enforces_preflight_eocd_caps_traversal_and_symlinks() {
     zip64.extend_from_slice(&fixtures::build_forged_eocd_zip(0xFFFF, 1024));
     assert!(ZipSource::preflight_eocd_check(&zip64).is_err());
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T038 (FR-018): every user-visible error has a Korean and an English message
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_decode_source_and_animation_error_has_localized_user_messages() {
+    use iv_core::codecs::OsCodecError;
+    use iv_core::i18n::Language;
+    use iv_media::animation::AnimationError;
+    use iv_media::decode::DecodeError;
+    use iv_media::sources::SourceError;
+
+    let host_path = "/Users/bob/Private/secret-folder/photo.jpg";
+    let messages: Vec<(String, String)> = vec![
+        pair(&DecodeError::SecurityRejected(host_path.into())),
+        pair(&DecodeError::ExceedsPixelLimit),
+        pair(&DecodeError::DimensionOverflow),
+        pair(&DecodeError::UnsupportedOrCorrupt(host_path.into())),
+        pair(&DecodeError::OsCodec(OsCodecError::MissingCodec)),
+        pair_s(&SourceError::Io(std::io::Error::other(host_path))),
+        pair_s(&SourceError::Archive(host_path.into())),
+        pair_s(&SourceError::EncryptedArchive),
+        pair_s(&SourceError::ArchiveLimitExceeded(host_path.into())),
+        pair_s(&SourceError::SecurityViolation),
+        (
+            AnimationError::Decode(host_path.into()).user_message(Language::Ko),
+            AnimationError::Decode(host_path.into()).user_message(Language::En),
+        ),
+    ];
+    for (ko, en) in messages {
+        assert!(!ko.is_empty() && !en.is_empty());
+        assert_ne!(ko, en);
+        assert!(
+            !ko.contains("/Users/bob") && !en.contains("/Users/bob"),
+            "{en}"
+        );
+    }
+
+    fn pair(e: &DecodeError) -> (String, String) {
+        (e.user_message(Language::Ko), e.user_message(Language::En))
+    }
+    fn pair_s(e: &SourceError) -> (String, String) {
+        (e.user_message(Language::Ko), e.user_message(Language::En))
+    }
+}

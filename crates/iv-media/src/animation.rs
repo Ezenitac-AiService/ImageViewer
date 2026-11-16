@@ -34,6 +34,13 @@ pub enum AnimationError {
     Decode(String),
 }
 
+impl AnimationError {
+    /// Localized message for the user (FR-018), free of paths and internal detail.
+    pub fn user_message(&self, lang: iv_core::i18n::Language) -> String {
+        iv_core::i18n::I18n::tr(lang, "error.animation_failed").to_string()
+    }
+}
+
 pub struct AnimationFrame {
     pub frame: Arc<DecodedFrame>,
     pub delay: Duration,
@@ -445,7 +452,7 @@ fn to_rgba8(raw: &[u8], has_alpha: bool, w: u32, h: u32) -> Vec<u8> {
         return raw.to_vec();
     }
     let mut rgba = Vec::with_capacity((w as usize) * (h as usize) * 4);
-    for px in raw.chunks_exact(3) {
+    for px in raw.as_chunks::<3>().0 {
         rgba.extend_from_slice(&[px[0], px[1], px[2], 255]);
     }
     rgba

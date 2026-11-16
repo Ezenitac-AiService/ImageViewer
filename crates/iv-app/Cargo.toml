@@ -13,13 +13,5 @@ iv-core = { path = "../iv-core" }
 iv-media = { path = "../iv-media" }
 iv-platform = { path = "../iv-platform" }
 thiserror.workspace = true
-winit.workspace = true
-wgpu.workspace = true
-egui.workspace = true
-egui-winit.workspace = true
-egui-wgpu.workspace = true
-rfd.workspace = true
-pollster = "0.4"
-bytemuck = { version = "1", features = ["derive"] }
-arboard = "3"
-tokio.workspace = true
+eframe.workspace = true
+pollster.workspace = true
