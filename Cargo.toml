@@ -1,0 +1,66 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/iv-core",
+    "crates/iv-media",
+    "crates/iv-platform",
+    "crates/iv-app",
+]
+
+[workspace.package]
+version = "1.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+missing_docs = "allow"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+fs4 = "0.13"
+rand = "0.9"
+lru = "0.13"
+rayon = "1.10"
+zune-jpeg = "0.4"
+image = { version = "0.25.4", default-features = false, features = ["jpeg", "png", "gif", "bmp", "ico", "tiff", "webp", "tga", "qoi", "pnm", "hdr", "exr"] }
+image-extras = "0.1"
+image_dds = "0.7"
+rawpsd = "0.1"
+jxl-oxide = "0.12"
+exr = "1.7"
+image-webp = "0.2"
+tiff = "0.11"
+moxcms = "0.7"
+fast_image_resize = "5"
+kamadak-exif = "0.6"
+zip = { version = "2", default-features = false, features = ["deflate", "bzip2", "zstd"] }
+notify-debouncer-mini = "0.5"
+notify = "7"
+directories = "6"
+rfd = "0.15"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "blocking"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+winit = "0.30"
+wgpu = "24"
+egui = "0.31"
+egui-winit = "0.31"
+egui-wgpu = "0.31"
+criterion = "0.5"
+rcgen = "0.13"
+
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+
+[profile.dev.package.fast_image_resize]
+opt-level = 3

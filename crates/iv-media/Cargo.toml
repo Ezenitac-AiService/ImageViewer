@@ -1,0 +1,41 @@
+[package]
+name = "iv-media"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+iv-core = { path = "../iv-core" }
+thiserror.workspace = true
+lru.workspace = true
+rayon.workspace = true
+zune-jpeg.workspace = true
+image.workspace = true
+image-extras.workspace = true
+image_dds.workspace = true
+rawpsd.workspace = true
+jxl-oxide.workspace = true
+exr.workspace = true
+image-webp.workspace = true
+tiff.workspace = true
+moxcms.workspace = true
+fast_image_resize.workspace = true
+kamadak-exif.workspace = true
+zip.workspace = true
+notify-debouncer-mini.workspace = true
+notify.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "pipeline_bench"
+harness = false
+
+[[bench]]
+name = "animation_bench"
+harness = false

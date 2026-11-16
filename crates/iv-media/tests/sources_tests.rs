@@ -1,0 +1,50 @@
+#![allow(dead_code)]
+mod fixtures;
+
+use iv_media::sources::folder::FolderSource;
+use iv_media::sources::zip::ZipSource;
+use iv_media::sources::MediaSource;
+
+#[test]
+fn folder_source_natural_sorts_and_skips_symlinks() {
+    let dir = fixtures::TempTestDir::new("folder_src");
+    let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+    std::fs::write(dir.path().join("page10.png"), &png).expect("write 10");
+    std::fs::write(dir.path().join("page2.png"), &png).expect("write 2");
+
+    #[cfg(unix)]
+    {
+        let _ = std::os::unix::fs::symlink(dir.path().join("page2.png"), dir.path().join("link.png"));
+    }
+
+    let src = FolderSource::open(&dir.path().join("page2.png")).expect("open folder");
+    let names: Vec<_> = src.entries().iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, vec!["page2.png", "page10.png"]);
+}
+
+#[test]
+fn zip_source_enforces_preflight_eocd_caps_traversal_and_symlinks() {
+    // 1. Pre-flight EOCD rejects > 50,000 entries or > 64 MB CD BEFORE ZipArchive::new
+    let forged_entries = fixtures::build_forged_eocd_zip(55_000, 1024);
+    assert!(ZipSource::preflight_eocd_check(&forged_entries).is_err());
+
+    let forged_cd = fixtures::build_forged_eocd_zip(10, 70 * 1024 * 1024);
+    assert!(ZipSource::preflight_eocd_check(&forged_cd).is_err());
+
+    // 2. Rejects traversal keys and POSIX S_IFLNK symlinks inside zip
+    let dir = fixtures::TempTestDir::new("zip_src");
+    let zip_path = dir.path().join("test.cbz");
+    let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+    fixtures::write_zip_with_entries(
+        &zip_path,
+        &[
+            ("01.png", &png, 0o100644 << 16),
+            ("../escape.png", &png, 0o100644 << 16),
+            ("sym.png", &png, 0xA000_0000),
+        ],
+    );
+
+    let src = ZipSource::open(&zip_path, 512).expect("open valid zip");
+    let names: Vec<_> = src.entries().iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, vec!["01.png"]);
+}

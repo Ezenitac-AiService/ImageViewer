@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>ImageViewer</string>
+    <key>CFBundleDisplayName</key>
+    <string>ImageViewer</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.imageviewer.app</string>
+    <key>CFBundleVersion</key>
+    <string>1.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.1.0</string>
+    <key>CFBundleExecutable</key>
+    <string>iv-app</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Supported Images &amp; Archives</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>jpg</string><string>jpeg</string><string>png</string><string>apng</string>
+                <string>gif</string><string>webp</string><string>bmp</string><string>tif</string>
+                <string>tiff</string><string>ico</string><string>cur</string><string>jxl</string>
+                <string>psd</string><string>dds</string><string>pcx</string><string>tga</string>
+                <string>qoi</string><string>exr</string><string>hdr</string><string>heic</string>
+                <string>heif</string><string>avif</string><string>dng</string><string>cr2</string>
+                <string>cr3</string><string>nef</string><string>arw</string><string>zip</string>
+                <string>cbz</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

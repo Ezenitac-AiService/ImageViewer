@@ -1,0 +1,23 @@
+#![allow(dead_code)]
+mod fixtures;
+
+use iv_platform::integration::OsIntegration;
+
+#[test]
+fn validates_exe_paths_and_generates_xdg_and_info_plist_entries() {
+    assert!(OsIntegration::validate_exe_path(r"C:\Apps\ImageViewer.exe").is_ok());
+    assert!(OsIntegration::validate_exe_path("C:\\Apps\\bad\"quote.exe").is_err());
+    assert!(OsIntegration::validate_exe_path("C:\\Apps\\bad\nctrl.exe").is_err());
+
+    let desktop = OsIntegration::render_xdg_desktop_entry("/usr/local/bin/imageviewer");
+    assert!(desktop.contains("Exec=/usr/local/bin/imageviewer %F"));
+    assert!(desktop.contains("MimeType="));
+    assert!(desktop.contains("image/jpeg"));
+
+    let cmd_line = OsIntegration::format_windows_open_command(r"C:\Apps\ImageViewer.exe");
+    assert_eq!(cmd_line, "\"C:\\Apps\\ImageViewer.exe\" \"%1\"");
+    assert!(OsIntegration::commands_match_normalized(
+        "  \"C:\\Apps\\ImageViewer.exe\" \"%1\"  ",
+        &cmd_line
+    ));
+}
