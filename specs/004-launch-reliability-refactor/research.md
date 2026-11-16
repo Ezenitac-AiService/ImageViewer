@@ -359,3 +359,16 @@ Diagnostic record per scenario `[OBSERVED]`:
 `fs4` lock, so one instance could delete another instance's in-flight temp file and fail its
 rename. Running the concurrent-save test binary 48 times in parallel failed **15/48** before the
 fix and **0/48** after moving the cleanup inside the lock `[OBSERVED]`.
+
+### US1 evidence (T030, T034)
+
+- `packaging/macos/package-macos.sh`: universal binary (`x86_64 arm64`), all five
+  `assert-macos-bundle.sh` checks pass; the old bundle failed codesign, universal, and icon.
+- Quarantined copy: `codesign --verify --deep --strict` passes; `syspolicy_check` no longer reports
+  the codesign *Fatal* error. Remaining: ad-hoc warning and "notarization ticket not stapled",
+  as expected without credentials (FR-002, FR-005). `spctl` rejects the copy, which is the one-time
+  "Open Anyway" confirmation.
+- Bundle launch + `osascript … to quit` → `exit=clean` within 1 s (spike S3, macOS part).
+- The x86_64 slice could not be executed on this host (Rosetta not installed); it is unverified
+  until the `macos-15-intel` CI job runs.
+- `assert-windows-exe.ps1` and `package-windows.ps1` were not run: no PowerShell or Windows host.

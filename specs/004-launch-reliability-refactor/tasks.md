@@ -108,7 +108,7 @@ and no "damaged" message (FR-001–FR-006).
 
 ### Tests for User Story 1 (write first; run red against the current artifacts)
 
-- [ ] T023 [P] [US1] Write `packaging/verify/assert-macos-bundle.sh <ImageViewer.app>`. It exits non-zero unless all of the following hold, and printing each check. Run it red against today's bundle:
+- [X] T023 [P] [US1] Write `packaging/verify/assert-macos-bundle.sh <ImageViewer.app>`. It exits non-zero unless all of the following hold, and printing each check. Run it red against today's bundle:
   - `codesign --verify --deep --strict` succeeds;
   - `lipo -archs Contents/MacOS/iv-app` contains both `x86_64` and `arm64`;
   - `plutil -lint` passes;
@@ -125,8 +125,8 @@ and no "damaged" message (FR-001–FR-006).
 ### Implementation for User Story 1
 
 - [X] T025 [US1] Add `#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]` as the first line of `crates/iv-app/src/main.rs` (FR-003)
-- [ ] T026 [P] [US1] Create `packaging/windows/ImageViewer.manifest`: per-monitor-v2 DPI awareness, Common Controls v6, `asInvoker`
-- [ ] T027 [US1] Create `crates/iv-app/build.rs` using `winresource`, only when `CARGO_CFG_TARGET_OS == "windows"`:
+- [X] T026 [P] [US1] Create `packaging/windows/ImageViewer.manifest`: per-monitor-v2 DPI awareness, Common Controls v6, `asInvoker`
+- [X] T027 [US1] Create `crates/iv-app/build.rs` using `winresource`, only when `CARGO_CFG_TARGET_OS == "windows"`:
   - icon `packaging/windows/ImageViewer.ico`;
   - `FileVersion` / `ProductVersion` from `CARGO_PKG_VERSION`;
   - `ProductName` "ImageViewer";
@@ -138,18 +138,18 @@ and no "damaged" message (FR-001–FR-006).
   - otherwise print `signature=none` and continue.
 
   `.github/workflows/release.yml` (T076) passes both secrets when they are defined.
-- [ ] T029 [P] [US1] Edit `packaging/macos/Info.plist.in`:
+- [X] T029 [P] [US1] Edit `packaging/macos/Info.plist.in`:
   - replace the literal versions with `@VERSION@` (`CFBundleShortVersionString`) and `@BUILD@` (`CFBundleVersion`, numeric `MAJOR.MINOR.PATCH`);
   - add `LSMinimumSystemVersion` `11.0` and `CFBundleIconFile` `AppIcon`;
   - restrict `CFBundleTypeExtensions` to Core: `jpg jpeg png gif webp bmp tif tiff zip cbz` (FR-022).
-- [ ] T030 [US1] Create `packaging/macos/package-macos.sh` (executable) and delete `packaging/macos/package-dmg.sh`. The script, in order:
+- [X] T030 [US1] Create `packaging/macos/package-macos.sh` (executable) and delete `packaging/macos/package-dmg.sh`. The script, in order:
   1. builds `aarch64-apple-darwin` and `x86_64-apple-darwin` and `lipo -create`s them into `ImageViewer.app/Contents/MacOS/iv-app`;
   2. renders `Info.plist` from `Info.plist.in` with the version from `cargo metadata --format-version 1 --no-deps`;
   3. builds `AppIcon.icns` from `ImageViewer.png` with `sips` and `iconutil`;
   4. signs with `codesign --force --deep --sign "${MACOS_SIGNING_IDENTITY:--}"`, adding `--options runtime` when the identity is not `-`;
   5. runs `packaging/verify/assert-macos-bundle.sh`;
   6. creates `target/release/ImageViewer-macos-universal.dmg` containing the app and an `/Applications` symlink.
-- [ ] T031 [P] [US1] Rename `packaging/linux/package-appimage.sh` to `packaging/linux/package-linux.sh` (executable). It produces `ImageViewer-linux-x64.tar.gz` containing the binary, `imageviewer.desktop`, and a `README-EXPERIMENTAL.txt` stating that Linux is experimental and unverified (FR-026)
+- [X] T031 [P] [US1] Rename `packaging/linux/package-appimage.sh` to `packaging/linux/package-linux.sh` (executable). It produces `ImageViewer-linux-x64.tar.gz` containing the binary, `imageviewer.desktop`, and a `README-EXPERIMENTAL.txt` stating that Linux is experimental and unverified (FR-026)
 - [ ] T032 [P] [US1] Write `docs/FIRST_LAUNCH.md` (Korean) and `docs/FIRST_LAUNCH.en.md` (English), with a bidirectional language switcher:
   - Windows SmartScreen "More info → Run anyway", and the Smart App Control limitation;
   - macOS: open the DMG, drag to Applications, then System Settings → Privacy & Security → "Open Anyway";
@@ -157,7 +157,7 @@ and no "damaged" message (FR-001–FR-006).
 
   Mark where T110 adds the screenshots.
 - [ ] T033 [US1] Update `README.md` and `README.en.md`: the new asset names, a link to `docs/FIRST_LAUNCH*.md`, and Linux labelled experimental
-- [ ] T034 [US1] Run `packaging/macos/package-macos.sh` on the macOS host; T023 must now pass. Open the DMG copy with a quarantine attribute and confirm `syspolicy_check` reports no codesign *Fatal* error (a notarization notice is expected and acceptable)
+- [X] T034 [US1] Run `packaging/macos/package-macos.sh` on the macOS host; T023 must now pass. Open the DMG copy with a quarantine attribute and confirm `syspolicy_check` reports no codesign *Fatal* error (a notarization notice is expected and acceptable)
 
 **Checkpoint**: The macOS bundle verifies; the Windows build assertions are ready for CI (T076). Clean-machine confirmation happens in T110.
 
