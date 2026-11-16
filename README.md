@@ -76,7 +76,8 @@ powershell -ExecutionPolicy Bypass -File build\publish.ps1
   탐색기 메뉴 등록은 구성 요소 페이지의 선택 항목으로 동의를 받는다.
 - 제거 시 탐색기 메뉴 키(이미지 확장자 포함), 시작 메뉴 · 바탕 화면 바로 가기, 설치 폴더, 프로그램 추가/제거 정보를 삭제한다.
   사용자 설정(`%LOCALAPPDATA%\ImageViewer`)은 남긴다.
-- 포터블 단일 실행 파일 `ImageViewer-<버전>-portable.exe` 와, 두 파일의 확인값 `SHA256SUMS.txt` 도 함께 만든다.
+- 포터블 단일 실행 파일 `ImageViewer-<버전>-portable.exe`, Windows Installer 패키지 `ImageViewer-<버전>.msi` (`src/ImageViewer.Installer/ImageViewer.wxs`, WiX Toolset v5), 그리고 배포 파일들의 확인값 `SHA256SUMS.txt` 도 함께 만든다.
+- GitHub Actions (`.github/workflows/release.yml`): `v*.*.*` 태그를 푸시하거나 Actions 탭에서 수동 실행(`workflow_dispatch`)하면 테스트를 실행한 뒤 무설치(`-portable.exe`), 설치 파일(`-setup.exe`), MSI(`.msi`), `SHA256SUMS.txt` 를 자동으로 빌드해 GitHub Release 에 배포한다.
 
 ## 자동 업데이트
 
@@ -197,8 +198,73 @@ GitHub 저장소(`ImageViewer.csproj` 의 `UpdateRepository`, 현재 `edith2580/
 src/ImageViewer/            WPF 앱 (Models, ViewModels, Views, Services, Helpers)
   Services/ImageSources/    IImageSource, FolderImageSource, ZipImageSource
   Services/Updates/         UpdateService (릴리스 확인 · 다운로드 · SHA-256), UpdateInstaller (설치 / 포터블 교체)
-src/ImageViewer.Installer/  NSIS 설치 스크립트
+src/ImageViewer.Installer/  NSIS 설치 스크립트 (ImageViewer.nsi), WiX MSI 스크립트 (ImageViewer.wxs)
+.github/workflows/          GitHub Actions 자동 빌드 · 릴리스 배포 (release.yml)
 tests/ImageViewer.Tests/             단위 테스트 (배율 계산, 탐색, 슬라이드쇼, 설정, 단축키 등)
 tests/ImageViewer.IntegrationTests/  통합 테스트 (폴더/ZIP 소스, 디코딩, 렌더링, 썸네일)
 build/publish.ps1           게시 + 설치 프로그램 생성 스크립트
 ```
+
+## GitHub Actions 릴리스 워크플로 가이드
+
+`.github/workflows/release.yml` 워크플로는 Windows 환경(`windows-latest`)에서 전체 테스트를 실행한 뒤 아래 4개 배포 파일을 자동으로 빌드하고 GitHub Release에 등록한다.
+
+| 파일 이름 | 설명 |
+|---|---|
+| `ImageViewer-<버전>-portable.exe` | 무설치 단일 실행 파일 (포터블 버전 자동 업데이트 대상) |
+| `ImageViewer-<버전>-setup.exe` | NSIS 설치 프로그램 (설치 버전 자동 업데이트 대상) |
+| `ImageViewer-<버전>.msi` | Windows Installer (MSI) 설치 패키지 |
+| `SHA256SUMS.txt` | 위 배포 파일들의 SHA-256 무결성 해시 목록 |
+
+---
+
+### 방법 1: Git 태그를 푸시하여 자동 배포 (권장)
+
+`v*.*.*` 형식의 태그를 원격 저장소에 푸시하면 GitHub Actions가 자동으로 실행되어 버전 동기화 → 빌드 → GitHub Release 생성 및 파일 업로드까지 완료한다.
+
+```powershell
+# 1. 변경 사항 커밋 및 main 브랜치 푸시
+git add -A
+git commit -m "Release v1.0.7"
+git push origin main
+
+# 2. 버전 태그 생성 및 푸시 (푸시 즉시 GitHub Actions 실행)
+git tag -a v1.0.7 -m "ImageViewer v1.0.7"
+git push origin v1.0.7
+```
+
+> **참고**: 워크플로가 실행될 때 태그 이름(`v1.0.7`)에서 버전(`1.0.7`)을 추출하여 `ImageViewer.csproj`, `app.manifest`, `ImageViewer.nsi`의 버전을 빌드 전에 자동으로 맞춰 주므로 태그만 푸시해도 해당 버전으로 빌드된다.
+
+---
+
+### 방법 2: GitHub 웹 페이지(Actions 탭)에서 수동 실행
+
+명령행에서 태그를 푸시하지 않고 GitHub 웹 화면에서 직접 빌드를 실행할 수도 있다.
+
+1. GitHub 저장소의 **Actions** 탭으로 이동한다.
+2. 왼쪽 워크플로 목록에서 **Release** 를 선택한다.
+3. 오른쪽 위의 **Run workflow** 버튼을 클릭한다.
+4. **릴리스 태그** 입력란을 용도에 맞게 입력한 뒤 **Run workflow** (초록색 버튼)를 누른다:
+   - **GitHub Release까지 바로 배포할 때**: `v1.0.7` 처럼 태그 이름을 입력한다. 해당 태그로 새 GitHub Release가 만들어지고 4개 파일이 첨부된다.
+   - **릴리스 없이 빌드 파일만 테스트/확인할 때**: 입력란을 **비워 두고** 실행한다. `ImageViewer.csproj`의 현재 `<Version>` 값으로 빌드한 뒤 워크플로 실행 결과 하단의 **Artifacts** 섹션(`ImageViewer-<버전>-installers`)에 파일을 올려 주므로 다운로드하여 테스트할 수 있다.
+
+---
+
+### 방법 3: 로컬 PC에서 직접 빌드하여 수동 업로드
+
+GitHub Actions를 거치지 않고 로컬 PC에서 직접 4개 파일을 생성하려면 아래 명령을 실행한다.
+
+```powershell
+# 1. 버전 수정 후 전체 빌드 (테스트 + 포터블 EXE + NSIS Setup EXE + WiX MSI + SHA256SUMS.txt)
+powershell -ExecutionPolicy Bypass -File build\publish.ps1
+
+# (선택 옵션)
+# - 테스트 생략: powershell -ExecutionPolicy Bypass -File build\publish.ps1 -SkipTests
+# - MSI 생략:   powershell -ExecutionPolicy Bypass -File build\publish.ps1 -SkipMsi
+```
+
+빌드가 완료되면 `artifacts\installer\` 폴더에 생성된 아래 파일들을 GitHub **Releases → Draft a new release** 화면에서 태그(`v<버전>`)와 함께 직접 업로드한다:
+- `artifacts\installer\ImageViewer-<버전>-setup.exe`
+- `artifacts\installer\ImageViewer-<버전>.msi`
+- `artifacts\installer\ImageViewer-<버전>-portable.exe`
+- `artifacts\installer\SHA256SUMS.txt`
