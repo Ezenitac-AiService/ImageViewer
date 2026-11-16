@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 mod fixtures;
 
+use iv_media::sources::MediaSource;
 use iv_media::sources::folder::FolderSource;
 use iv_media::sources::zip::ZipSource;
-use iv_media::sources::MediaSource;
 
 #[test]
 fn folder_source_natural_sorts_and_skips_symlinks() {
@@ -14,7 +14,8 @@ fn folder_source_natural_sorts_and_skips_symlinks() {
 
     #[cfg(unix)]
     {
-        let _ = std::os::unix::fs::symlink(dir.path().join("page2.png"), dir.path().join("link.png"));
+        let _ =
+            std::os::unix::fs::symlink(dir.path().join("page2.png"), dir.path().join("link.png"));
     }
 
     let src = FolderSource::open(&dir.path().join("page2.png")).expect("open folder");
@@ -47,7 +48,11 @@ fn zip_source_enforces_preflight_eocd_caps_traversal_and_symlinks() {
     let src = ZipSource::open(&zip_path, 512).expect("open valid zip");
     let names: Vec<_> = src.entries().iter().map(|e| e.name.as_str()).collect();
     assert_eq!(names, vec!["01.png"]);
-    assert!(!src.read_entry_bytes(0).expect("read reused handle").is_empty());
+    assert!(
+        !src.read_entry_bytes(0)
+            .expect("read reused handle")
+            .is_empty()
+    );
 
     // 3. Rejects ZIP64 EOCD claiming > 50,000 entries
     let mut zip64 = Vec::new();

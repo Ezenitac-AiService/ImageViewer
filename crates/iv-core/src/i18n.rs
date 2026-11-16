@@ -31,18 +31,32 @@ impl I18n {
     pub fn tr(lang: Language, key: &str) -> &'static str {
         match (lang, key) {
             (Language::En, "app.title") | (Language::Ko, "app.title") => "ImageViewer",
-            (Language::En, "error.path_not_found") => "The requested file or folder could not be found",
+            (Language::En, "error.path_not_found") => {
+                "The requested file or folder could not be found"
+            }
             (Language::Ko, "error.path_not_found") => "요청한 파일 또는 폴더를 찾을 수 없습니다",
             (Language::En, "error.invalid_cli_args") => "Invalid command-line arguments",
             (Language::Ko, "error.invalid_cli_args") => "잘못된 명령줄 인수입니다",
-            (Language::En, "error.unsupported_os_switch") => "Shell registration switches are only supported on Windows",
-            (Language::Ko, "error.unsupported_os_switch") => "셸 등록 스위치는 Windows에서만 지원됩니다",
+            (Language::En, "error.unsupported_os_switch") => {
+                "Shell registration switches are only supported on Windows"
+            }
+            (Language::Ko, "error.unsupported_os_switch") => {
+                "셸 등록 스위치는 Windows에서만 지원됩니다"
+            }
             (Language::En, "error.encrypted_archive") => "Encrypted archives are not supported",
             (Language::Ko, "error.encrypted_archive") => "암호화된 압축 파일은 지원되지 않습니다",
-            (Language::En, "error.missing_os_codec") => "No compatible system codec is available for this format",
-            (Language::Ko, "error.missing_os_codec") => "이 형식을 열 수 있는 시스템 코덱이 설치되어 있지 않습니다",
-            (Language::En, "error.unsafe_image_or_archive") => "Blocked unsafe or malformed image/archive input",
-            (Language::Ko, "error.unsafe_image_or_archive") => "안전하지 않거나 손상된 이미지/압축 입력이 차단되었습니다",
+            (Language::En, "error.missing_os_codec") => {
+                "No compatible system codec is available for this format"
+            }
+            (Language::Ko, "error.missing_os_codec") => {
+                "이 형식을 열 수 있는 시스템 코덱이 설치되어 있지 않습니다"
+            }
+            (Language::En, "error.unsafe_image_or_archive") => {
+                "Blocked unsafe or malformed image/archive input"
+            }
+            (Language::Ko, "error.unsafe_image_or_archive") => {
+                "안전하지 않거나 손상된 이미지/압축 입력이 차단되었습니다"
+            }
             (Language::En, "dialog.settings") => "Settings",
             (Language::Ko, "dialog.settings") => "설정",
             (Language::En, "dialog.about") => "About ImageViewer",
@@ -79,10 +93,16 @@ impl I18n {
                 "app.title" => "ImageViewer",
                 "error.path_not_found" => "The requested file or folder could not be found",
                 "error.invalid_cli_args" => "Invalid command-line arguments",
-                "error.unsupported_os_switch" => "Shell registration switches are only supported on Windows",
+                "error.unsupported_os_switch" => {
+                    "Shell registration switches are only supported on Windows"
+                }
                 "error.encrypted_archive" => "Encrypted archives are not supported",
-                "error.missing_os_codec" => "No compatible system codec is available for this format",
-                "error.unsafe_image_or_archive" => "Blocked unsafe or malformed image/archive input",
+                "error.missing_os_codec" => {
+                    "No compatible system codec is available for this format"
+                }
+                "error.unsafe_image_or_archive" => {
+                    "Blocked unsafe or malformed image/archive input"
+                }
                 "dialog.settings" => "Settings",
                 "dialog.about" => "About ImageViewer",
                 "dialog.image_list" => "Image List",

@@ -1,8 +1,8 @@
 use iv_core::settings::{FilterMode, SlideShowMode};
 use iv_core::slideshow::{Clock, SlideShowController};
 use iv_media::resize_filter::SimdResizer;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 struct TestClock(Arc<AtomicU64>);
@@ -23,7 +23,8 @@ fn screen_pixel_filter_scales_sigma_skips_tiny_and_bypasses_animations() {
     assert!(!tiny.active);
 
     // Bypassed on animated images
-    let anim = SimdResizer::compute_filter_uniforms(FilterMode::SmoothSharpen, 0.5, 1.0, 1.0, 1.0, true);
+    let anim =
+        SimdResizer::compute_filter_uniforms(FilterMode::SmoothSharpen, 0.5, 1.0, 1.0, 1.0, true);
     assert!(!anim.active);
 }
 

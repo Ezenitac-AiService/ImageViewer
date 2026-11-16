@@ -23,7 +23,7 @@ impl OsPaths {
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
             return PathBuf::from(local).join("ImageViewer");
         }
-        ProjectDirs::from("com", "ImageViewer", "ImageViewer")
+        ProjectDirs::from("com", "Ezenitac-AiService", "ImageViewer")
             .map(|p| p.config_dir().to_path_buf())
             .unwrap_or_else(|| std::env::temp_dir().join("ImageViewer"))
     }

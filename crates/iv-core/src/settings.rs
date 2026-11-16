@@ -381,15 +381,13 @@ impl SettingsStore {
     {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
-            PathSecurity::ensure_not_symlink(parent)
-                .map_err(|_| SettingsError::SymlinkRejected)?;
+            PathSecurity::ensure_not_symlink(parent).map_err(|_| SettingsError::SymlinkRejected)?;
             cleanup_orphan_tmps(parent);
         }
         PathSecurity::ensure_not_symlink(path).map_err(|_| SettingsError::SymlinkRejected)?;
 
         let lock_path = path.with_extension("lock");
-        PathSecurity::ensure_not_symlink(&lock_path)
-            .map_err(|_| SettingsError::SymlinkRejected)?;
+        PathSecurity::ensure_not_symlink(&lock_path).map_err(|_| SettingsError::SymlinkRejected)?;
         let lock_file = OpenOptions::new()
             .create(true)
             .read(true)

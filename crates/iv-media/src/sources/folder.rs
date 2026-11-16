@@ -1,6 +1,6 @@
 //! Local directory media source with symlink skip and natural ordering.
 
-use super::{is_supported_image_extension, ImageSourceType, MediaEntry, MediaSource, SourceError};
+use super::{ImageSourceType, MediaEntry, MediaSource, SourceError, is_supported_image_extension};
 use iv_core::natural_sort::NaturalSort;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;

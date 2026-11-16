@@ -7,9 +7,24 @@ use std::time::Duration;
 
 #[test]
 fn natural_sort_orders_numeric_chunks_before_lexicographic() {
-    let mut items = vec!["image10.png", "image2.png", "image1.png", "IMG_020.jpg", "img_3.jpg"];
+    let mut items = vec![
+        "image10.png",
+        "image2.png",
+        "image1.png",
+        "IMG_020.jpg",
+        "img_3.jpg",
+    ];
     items.sort_by(|a, b| NaturalSort::cmp(a, b));
-    assert_eq!(items, vec!["image1.png", "image2.png", "image10.png", "img_3.jpg", "IMG_020.jpg"]);
+    assert_eq!(
+        items,
+        vec![
+            "image1.png",
+            "image2.png",
+            "image10.png",
+            "img_3.jpg",
+            "IMG_020.jpg"
+        ]
+    );
 }
 
 #[test]

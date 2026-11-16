@@ -14,10 +14,7 @@ fn empty_args_launches_empty_viewer() {
 #[test]
 fn ignores_benign_macos_psn_session_flag() {
     let opts = CliOptions::parse(
-        &[
-            "ImageViewer".to_string(),
-            "-psn_0_123456".to_string(),
-        ],
+        &["ImageViewer".to_string(), "-psn_0_123456".to_string()],
         Language::En,
         false,
     );

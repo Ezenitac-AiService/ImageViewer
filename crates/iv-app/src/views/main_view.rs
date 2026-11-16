@@ -128,7 +128,10 @@ pub fn draw_main_overlays(
                         if ui.button("－").clicked() {
                             action = MainUiAction::ZoomOut;
                         }
-                        if ui.button(format!("{:.0}%", viewport.zoom_scale * 100.0)).clicked() {
+                        if ui
+                            .button(format!("{:.0}%", viewport.zoom_scale * 100.0))
+                            .clicked()
+                        {
                             action = MainUiAction::ZoomReset;
                         }
                         if ui.button("＋").clicked() {
@@ -148,7 +151,11 @@ pub fn draw_main_overlays(
                             action = MainUiAction::NextImage;
                         }
                         ui.separator();
-                        let ss_lbl = if is_slideshow_playing { "⏸" } else { "▶ Slideshow" };
+                        let ss_lbl = if is_slideshow_playing {
+                            "⏸"
+                        } else {
+                            "▶ Slideshow"
+                        };
                         if ui.button(ss_lbl).clicked() {
                             action = MainUiAction::ToggleSlideshow;
                         }
@@ -207,7 +214,9 @@ pub fn draw_main_overlays(
             .show(ctx, |ui| {
                 let mut scroll = egui::ScrollArea::horizontal();
                 if !thumb_cfg.show_scroll_bar {
-                    scroll = scroll.scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+                    scroll = scroll.scroll_bar_visibility(
+                        egui::scroll_area::ScrollBarVisibility::AlwaysHidden,
+                    );
                 }
                 scroll.show(ui, |ui| {
                     ui.horizontal(|ui| {

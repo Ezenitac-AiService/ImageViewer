@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-15
 
-**Status**: Draft
+**Status**: Archived (Legacy v1.0.6 C# Baseline — preserved at git tag `legacy-v1.0.6`; superseded on `main` by `002-rust-crossplatform-viewer` and `003-independent-fork-separation`)
 
 **Input**: User description: "프로젝트를 전반적으로 분석하고 검토하여 리펙토링을 진행하려 하고 있는데, 프로젝트 분석 작업과, 개선할 사항에 대한 내용을 판단하기 위한 리서치 작업을 진행하고 스펙을 작성해줘"
 

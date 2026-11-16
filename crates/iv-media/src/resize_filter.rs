@@ -48,8 +48,7 @@ impl SimdResizer {
             .map_err(|e| ResizeError::Failed(e.to_string()))?;
         let mut dst_img = Image::new(dst_w, dst_h, PixelType::U8x4);
         let mut resizer = Resizer::new();
-        let opts = ResizeOptions::new()
-            .resize_alg(ResizeAlg::Convolution(FilterType::Lanczos3));
+        let opts = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Lanczos3));
         resizer
             .resize(&src_img, &mut dst_img, Some(&opts))
             .map_err(|e| ResizeError::Failed(e.to_string()))?;

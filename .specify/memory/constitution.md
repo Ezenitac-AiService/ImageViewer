@@ -1,19 +1,15 @@
 <!--
 Sync Impact Report:
-- Version change: 1.4.0 -> 2.0.0 (MAJOR: platform and language governance transition from Windows-only .NET 10 / WPF / C# to cross-platform Rust across Windows, macOS, and Linux)
-- Modified principles:
-  - II. English-First Reasoning & Code Implementation (updated terminology from C#/XML docstrings/SatelliteResourceLanguages to Rust crates/types/rustdoc and cross-platform ko/en localization)
-  - III. Test-Driven Development (NON-NEGOTIABLE) (updated from xUnit/ImageViewer.sln to Cargo workspace `cargo test` Classical TDD and deterministic headless fixtures)
-  - IV. Zero Hardcoding, Mocking, or Test-Bypass Logic (NON-NEGOTIABLE) (replaced C# #if/[Fact(Skip)] rules with Rust #[cfg(test)]/#[cfg(debug_assertions)]/#[ignore] prohibitions and strict unsafe/FFI confinement behind OS boundary traits)
-  - V. Evidence-Based Research & Verification (NON-NEGOTIABLE) (updated library authority scope to Rust core/SIMD/GPU/archive crates, OS platform codecs, and empirical multi-OS verification disclosure)
-  - VI. Skeptical Verification & Fallibility Awareness (NON-NEGOTIABLE) (updated lifecycle/disposal focus to deterministic RAII/Drop, async task cancellation, GPU resource teardown, and multi-OS desktop edge cases)
-  - VII. Zero Trust Security & Untrusted Input Stance (NON-NEGOTIABLE) (extended CWE-22/88/117/190/400/409/494/532 defenses to cross-platform symlink/path normalization, OS-idiomatic associations, and unconditional HTTPS + SHA-256 updates)
+- Version change: 2.0.0 -> 2.1.0 (MINOR: added Principle VIII for GPL-3.0-only compliance, third-party attribution, and independent fork stewardship of Ezenitac-AiService/ImageViewer)
+- Modified principles: None (Principles I–VII preserved intact)
+- Added principles:
+  - VIII. License Compliance, Attribution & Independent Stewardship (NON-NEGOTIABLE)
 - Modified sections:
-  - Technical Stack & Architectural Constraints (redefined for stable Rust Cargo workspace targeting Windows 10/11 x64, macOS Apple Silicon & Intel, and Linux X11/Wayland, hybrid memory-safe core + OS codec strategy, and v1.0.6 performance parity baseline)
-  - Development Workflow & Quality Gates (updated verification commands to Cargo build/clippy/test + multi-OS CI transparency rule)
-- Added sections: None
+  - Technical Stack & Architectural Constraints (clarified legacy-v1.0.6 archive tag boundary & Ezenitac-AiService/ImageViewer identity)
+  - Development Workflow & Quality Gates (added License & Attribution Gate via deny.toml / cargo-deny)
+  - Governance (updated compliance check scope to Principles I–VIII)
 - Removed sections: None
-- Follow-up TODOs: None (run `/speckit-plan` in `specs/002-rust-crossplatform-viewer` to select concrete Rust GUI/SIMD/codec crates and architecture against v2.0.0)
+- Follow-up TODOs: None
 -->
 # ImageViewer Constitution
 
@@ -157,6 +153,28 @@ potentially malformed, hostile, or compromised.
   archives, decoders, updates, CLI/OS hooks, or persistence documents trust boundaries and
   includes automated negative security tests.
 
+### VIII. License Compliance, Attribution & Independent Stewardship (NON-NEGOTIABLE)
+
+`Ezenitac-AiService/ImageViewer` operates as an independent, detached cross-platform fork of
+`edith2580/ImageViewer` (`v1.0.6`). Contributors MUST uphold legal copyleft compliance, full
+third-party attribution, and courteous upstream boundaries at all times.
+
+- **GPLv3 Continuity & §5 Notices**: The repository root `LICENSE` (`GNU GPLv3`) and all workspace
+  package manifests (`Cargo.toml` `license = "GPL-3.0-only"`) MUST remain consistent. Original
+  `edith2580` copyright notices MUST be preserved intact alongside `Ezenitac-AiService` notices
+  and prominent GPLv3 §5(a)/(d) modification and date notices (`NOTICE`, `CHANGELOG.md`, `README.md`,
+  and the in-app `About` dialog).
+- **Third-Party Dependency & Compatibility Gate**: All bundled and transitive dependencies MUST be
+  compatible with `GPL-3.0-only` (verified via `deny.toml` / `cargo-deny`), with framework and
+  library notices published in `THIRD_PARTY_NOTICES.md`.
+- **Detached Identity & Courteous Boundaries**: Runtime update feeds, releases, and OS bundle
+  identifiers (`com.ezenitac.imageviewer`) MUST target exclusively `Ezenitac-AiService/ImageViewer`.
+  Direct `git merge upstream` synchronization is prohibited; desired upstream ideas MUST be
+  re-specified and re-implemented independently, and `README.md` / `.github/ISSUE_TEMPLATE/` MUST
+  courteously route cross-platform fork issues away from the upstream maintainer.
+- **Compliance Check**: Audits confirm zero non-GPLv3 manifest declarations, zero unlicensed or
+  GPLv3-incompatible dependencies, and zero stray upstream or placeholder update endpoints.
+
 ## Technical Stack & Architectural Constraints
 
 - **Target Platforms**: Cross-platform desktop support across **Windows 10 / 11 (x64)**,
@@ -180,9 +198,9 @@ potentially malformed, hostile, or compromised.
   pre-decode pixel cap (`10-1000 MP` clamp), `512 MB` stream/animation cap (`128 MB` forward
   ring buffer), `<= 8` decoded LRU cache, `300`-thumbnail cap, `64 KB` settings cap, and
   `ko`/`en` bilingual localization.
-- **Legacy Reference Boundary**: Prior C#/.NET 10 WPF code in `src/` and `specs/001-*`
-  serves as the behavioral parity reference during `002-rust-crossplatform-viewer` transition
-  until superseded cleanly by the Rust workspace.
+- **Legacy Reference Boundary**: Prior C#/.NET 10 WPF `v1.0.6` source is preserved under the
+  immutable `legacy-v1.0.6` archive tag and `specs/001-*` (archived baseline) once cut over to
+  the pure-Rust workspace on `main`.
 
 ## Development Workflow & Quality Gates
 
@@ -210,6 +228,9 @@ potentially malformed, hostile, or compromised.
 - **Language Gate**: User-facing Q&A and Git commit messages MUST be Korean (Principle I),
   while reasoning, Rust code, tests, rustdoc, and inline comments MUST default to English
   (Principle II).
+- **License & Attribution Gate**: `cargo deny check licenses` (`deny.toml`) and manifest/URL audits
+  MUST confirm `GPL-3.0-only` compliance, `THIRD_PARTY_NOTICES.md` currency, and zero upstream
+  update-feed coupling (Principle VIII).
 
 ## Governance
 
@@ -217,7 +238,7 @@ potentially malformed, hostile, or compromised.
   convenience shortcuts across the `ImageViewer` repository. Any conflict between this
   constitution and a spec, plan, or task list is `CRITICAL` and MUST be resolved by amending
   the downstream artifact rather than diluting a constitutional principle.
-- **No Unilateral Waivers**: `NON-NEGOTIABLE` principles (`III`–`VII`) and language mandates
+- **No Unilateral Waivers**: `NON-NEGOTIABLE` principles (`III`–`VIII`) and language mandates
   (`I`–`II`) admit no unilateral runtime exceptions; relaxing or altering any rule requires a
   formal constitution amendment.
 - **Amendment Procedure**: Amendments require an explicit proposal stating the rationale,
@@ -229,6 +250,6 @@ potentially malformed, hostile, or compromised.
   - `PATCH`: Clarifications, wording improvements, typo fixes, or non-semantic refinements.
 - **Compliance Review**: Every Spec Kit command (`/speckit-specify`, `/speckit-plan`,
   `/speckit-tasks`, `/speckit-analyze`, `/speckit-implement`) and code review MUST verify
-  adherence to Principles I–VII and record verification evidence explicitly.
+  adherence to Principles I–VIII and record verification evidence explicitly.
 
-**Version**: 2.0.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16
+**Version**: 2.1.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16

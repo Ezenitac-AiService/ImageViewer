@@ -1,0 +1,29 @@
+name: Feature Request
+description: Suggest a feature for Ezenitac-AiService/ImageViewer (Cross-Platform Rust Edition)
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest an improvement for **Ezenitac-AiService/ImageViewer** (independent cross-platform Rust fork of `edith2580/ImageViewer`).
+  - type: checkboxes
+    id: fork-confirmation
+    attributes:
+      label: Fork Confirmation
+      options:
+        - label: I confirm this request is for Ezenitac-AiService/ImageViewer (not upstream edith2580/ImageViewer).
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What workflow or platform need does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+    validations:
+      required: false

@@ -78,7 +78,10 @@ impl AsyncFileLogger {
     pub fn log_slow_render(&self, label: &str, elapsed: Duration) {
         let ms = elapsed.as_millis();
         if ms >= SLOW_RENDER_THRESHOLD_MS {
-            self.push_line("PERF", &format!("slow_render item={label} elapsed={}ms", ms));
+            self.push_line(
+                "PERF",
+                &format!("slow_render item={label} elapsed={}ms", ms),
+            );
         }
     }
 

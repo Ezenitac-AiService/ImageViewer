@@ -49,3 +49,15 @@ jobs:
 
       - name: Benchmarks compile check
         run: cargo bench --workspace --no-run
+
+  licenses:
+    name: GPLv3 License Compatibility (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check third-party crate licenses
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: ""
+          command-arguments: licenses

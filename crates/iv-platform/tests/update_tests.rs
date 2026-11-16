@@ -2,7 +2,7 @@
 mod fixtures;
 
 use iv_platform::update::{
-    HttpFeedTransport, UpdateClient, UpdateError, MAX_BINARY_BYTES, MAX_JSON_BYTES, MAX_SUMS_BYTES,
+    HttpFeedTransport, MAX_BINARY_BYTES, MAX_JSON_BYTES, MAX_SUMS_BYTES, UpdateClient, UpdateError,
 };
 use sha2::{Digest, Sha256};
 
@@ -40,13 +40,13 @@ fn update_client_enforces_https_stream_caps_and_sha256_verification() {
     let transport = MemoryFeedTransport {
         json_body: serde_json::json!({
             "tag_name": "v1.2.0",
-            "html_url": "https://github.com/ImageViewer/ImageViewer/releases/tag/v1.2.0",
+            "html_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/tag/v1.2.0",
             "body": "Release notes",
             "prerelease": false,
             "draft": false,
             "assets": [{
                 "name": "ImageViewer-1.2.0.dmg",
-                "browser_download_url": "https://github.com/ImageViewer/ImageViewer/releases/download/v1.2.0/ImageViewer-1.2.0.dmg"
+                "browser_download_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/download/v1.2.0/ImageViewer-1.2.0.dmg"
             }]
         })
         .to_string()
@@ -66,7 +66,7 @@ fn update_client_enforces_https_stream_caps_and_sha256_verification() {
 
     let rel = UpdateClient::check_latest_with_transport(
         &transport,
-        "https://api.github.com/repos/ImageViewer/ImageViewer/releases/latest",
+        "https://api.github.com/repos/Ezenitac-AiService/ImageViewer/releases/latest",
         "1.1.0",
     )
     .expect("valid release");
@@ -97,13 +97,79 @@ fn update_client_enforces_https_stream_caps_and_sha256_verification() {
     assert!(!dir.path().join("ImageViewer-bad.dmg.part").exists());
 
     // Sanitize Windows /RELAUNCH=
-    assert!(UpdateClient::validate_relaunch_path(r"C:\Program Files\ImageViewer\ImageViewer.exe").is_ok());
+    assert!(
+        UpdateClient::validate_relaunch_path(r"C:\Program Files\ImageViewer\ImageViewer.exe")
+            .is_ok()
+    );
     assert!(UpdateClient::validate_relaunch_path("C:\\bad\" /calc.exe").is_err());
     assert!(UpdateClient::validate_relaunch_path("C:\\bad\r\n.exe").is_err());
 
     assert_eq!(MAX_JSON_BYTES, 1024 * 1024);
     assert_eq!(MAX_SUMS_BYTES, 64 * 1024);
     assert_eq!(MAX_BINARY_BYTES, 256 * 1024 * 1024);
+}
+
+#[test]
+fn update_client_selects_os_matching_release_asset() {
+    let win_digest = "a".repeat(64);
+    let mac_digest = "b".repeat(64);
+    let linux_digest = "c".repeat(64);
+
+    let transport = MemoryFeedTransport {
+        json_body: serde_json::json!({
+            "tag_name": "v1.2.0",
+            "html_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/tag/v1.2.0",
+            "body": "Cross-platform release",
+            "prerelease": false,
+            "draft": false,
+            "assets": [
+                {
+                    "name": "SHA256SUMS.txt",
+                    "browser_download_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/download/v1.2.0/SHA256SUMS.txt"
+                },
+                {
+                    "name": "ImageViewer-linux-x64.tar.gz",
+                    "browser_download_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/download/v1.2.0/ImageViewer-linux-x64.tar.gz"
+                },
+                {
+                    "name": "ImageViewer-macos.dmg",
+                    "browser_download_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/download/v1.2.0/ImageViewer-macos.dmg"
+                },
+                {
+                    "name": "ImageViewer-windows-x64.exe",
+                    "browser_download_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/download/v1.2.0/ImageViewer-windows-x64.exe"
+                }
+            ]
+        })
+        .to_string()
+        .into_bytes(),
+        sums_body: format!(
+            "{win_digest}  ImageViewer-windows-x64.exe\n\
+             {mac_digest}  ImageViewer-macos.dmg\n\
+             {linux_digest}  ImageViewer-linux-x64.tar.gz\n"
+        )
+        .into_bytes(),
+        bin_body: Vec::new(),
+    };
+
+    let feed = "https://api.github.com/repos/Ezenitac-AiService/ImageViewer/releases/latest";
+
+    let win =
+        UpdateClient::check_latest_with_transport_for_os(&transport, feed, "1.1.0", "windows")
+            .expect("windows asset");
+    assert_eq!(win.asset_name, "ImageViewer-windows-x64.exe");
+    assert_eq!(win.sha256.as_deref(), Some(win_digest.as_str()));
+
+    let mac = UpdateClient::check_latest_with_transport_for_os(&transport, feed, "1.1.0", "macos")
+        .expect("macos asset");
+    assert_eq!(mac.asset_name, "ImageViewer-macos.dmg");
+    assert_eq!(mac.sha256.as_deref(), Some(mac_digest.as_str()));
+
+    let linux =
+        UpdateClient::check_latest_with_transport_for_os(&transport, feed, "1.1.0", "linux")
+            .expect("linux asset");
+    assert_eq!(linux.asset_name, "ImageViewer-linux-x64.tar.gz");
+    assert_eq!(linux.sha256.as_deref(), Some(linux_digest.as_str()));
 }
 
 #[test]
@@ -151,7 +217,9 @@ fn reqwest_tls_transport_accepts_custom_root_store_over_rcgen_loopback_https() {
 
     let transport = ReqwestTlsTransport::with_root_certs(roots).expect("tls transport");
     let url = format!("https://localhost:{port}/latest.json");
-    let body = transport.get_bounded(&url, 1024).expect("loopback https get");
+    let body = transport
+        .get_bounded(&url, 1024)
+        .expect("loopback https get");
     assert_eq!(body, br#"{"ok":true}"#);
     let _ = handle.join();
 }

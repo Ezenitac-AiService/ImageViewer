@@ -30,8 +30,7 @@ impl FormatGuard {
         let sample = &bytes[..bytes.len().min(FORMAT_GUARD_SCAN_BYTES)];
         let decoded = Self::decode_prefix_text(sample);
 
-        let trimmed_chars = decoded
-            .trim_start_matches(|c: char| c.is_whitespace() || c == '\0');
+        let trimmed_chars = decoded.trim_start_matches(|c: char| c.is_whitespace() || c == '\0');
         let leading_ws_bytes = decoded.len().saturating_sub(trimmed_chars.len());
         if leading_ws_bytes >= MAX_LEADING_WHITESPACE_BYTES && trimmed_chars.is_empty() {
             return Err(FormatGuardError::ExcessiveWhitespacePadding);
@@ -47,14 +46,7 @@ impl FormatGuard {
 
         let lower = trimmed_chars.to_ascii_lowercase();
         const BLOCKED_PREFIXES: &[&str] = &[
-            "<",
-            "<?xml",
-            "<svg",
-            "<html",
-            "%!",
-            "%pdf",
-            "push ",
-            "viewbox",
+            "<", "<?xml", "<svg", "<html", "%!", "%pdf", "push ", "viewbox",
         ];
         if BLOCKED_PREFIXES
             .iter()

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 mod fixtures;
 
-use iv_media::cache::{DecodedFrameCache, DecodedFrame};
+use iv_media::cache::{DecodedFrame, DecodedFrameCache};
 use iv_media::session::SessionCoordinator;
 use std::sync::Arc;
 

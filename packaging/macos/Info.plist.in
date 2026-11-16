@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>ImageViewer</string>
     <key>CFBundleIdentifier</key>
-    <string>com.imageviewer.app</string>
+    <string>com.ezenitac.imageviewer</string>
     <key>CFBundleVersion</key>
     <string>1.1.0</string>
     <key>CFBundleShortVersionString</key>

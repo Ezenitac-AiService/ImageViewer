@@ -154,7 +154,8 @@ impl GpuRenderer {
 
         // Request up to 16,384 px texture dimension instead of default 8,192 (E1)
         let max_texture_dim = adapter.limits().max_texture_dimension_2d.min(16_384);
-        let mut limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+        let mut limits =
+            wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
         limits.max_texture_dimension_2d = max_texture_dim;
 
         let (device, queue) = pollster::block_on(adapter.request_device(
@@ -423,22 +424,38 @@ impl GpuRenderer {
                 let y0 = 1.0 - (y as f32 / height as f32) * 2.0;
                 let y1 = 1.0 - ((y + th) as f32 / height as f32) * 2.0;
                 let verts = [
-                    Vertex { pos: [x0, y0], uv: [0.0, 0.0] },
-                    Vertex { pos: [x1, y0], uv: [1.0, 0.0] },
-                    Vertex { pos: [x1, y1], uv: [1.0, 1.0] },
-                    Vertex { pos: [x0, y1], uv: [0.0, 1.0] },
+                    Vertex {
+                        pos: [x0, y0],
+                        uv: [0.0, 0.0],
+                    },
+                    Vertex {
+                        pos: [x1, y0],
+                        uv: [1.0, 0.0],
+                    },
+                    Vertex {
+                        pos: [x1, y1],
+                        uv: [1.0, 1.0],
+                    },
+                    Vertex {
+                        pos: [x0, y1],
+                        uv: [0.0, 1.0],
+                    },
                 ];
                 let indices: [u16; 6] = [0, 1, 2, 0, 2, 3];
-                let vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("iv-tile-vb"),
-                    contents: bytemuck::cast_slice(&verts),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-                let index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("iv-tile-ib"),
-                    contents: bytemuck::cast_slice(&indices),
-                    usage: wgpu::BufferUsages::INDEX,
-                });
+                let vertex_buffer =
+                    self.device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("iv-tile-vb"),
+                            contents: bytemuck::cast_slice(&verts),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
+                let index_buffer =
+                    self.device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("iv-tile-ib"),
+                            contents: bytemuck::cast_slice(&indices),
+                            usage: wgpu::BufferUsages::INDEX,
+                        });
                 tiles.push(GpuTile {
                     bind_group,
                     vertex_buffer,
@@ -454,9 +471,19 @@ impl GpuRenderer {
     pub fn background_clear_color(bg: ViewerBackground) -> wgpu::Color {
         match bg {
             ViewerBackground::Black => wgpu::Color::BLACK,
-            ViewerBackground::DarkGray => wgpu::Color { r: 0.12, g: 0.12, b: 0.12, a: 1.0 },
+            ViewerBackground::DarkGray => wgpu::Color {
+                r: 0.12,
+                g: 0.12,
+                b: 0.12,
+                a: 1.0,
+            },
             ViewerBackground::White => wgpu::Color::WHITE,
-            ViewerBackground::Checkerboard => wgpu::Color { r: 0.16, g: 0.16, b: 0.16, a: 1.0 },
+            ViewerBackground::Checkerboard => wgpu::Color {
+                r: 0.16,
+                g: 0.16,
+                b: 0.16,
+                a: 1.0,
+            },
         }
     }
 
@@ -470,13 +497,20 @@ impl GpuRenderer {
         viewport: &ViewportState,
         bg: ViewerBackground,
         filters: FilterUniforms,
-        egui_paint: Option<(&egui::Context, Vec<egui::ClippedPrimitive>, egui::TexturesDelta, f32)>,
+        egui_paint: Option<(
+            &egui::Context,
+            Vec<egui::ClippedPrimitive>,
+            egui::TexturesDelta,
+            f32,
+        )>,
     ) {
         if win_surface.config.width == 0 || win_surface.config.height == 0 {
             return;
         }
         if win_surface.needs_reconfigure {
-            win_surface.surface.configure(&self.device, &win_surface.config);
+            win_surface
+                .surface
+                .configure(&self.device, &win_surface.config);
             win_surface.needs_reconfigure = false;
         }
 
@@ -507,22 +541,31 @@ impl GpuRenderer {
             blur_sigma: filters.blur_sigma,
             sharpen_sigma: filters.sharpen_sigma,
             sharpen_amount: filters.sharpen_amount,
-            checker_mode: if bg == ViewerBackground::Checkerboard { 1.0 } else { 0.0 },
+            checker_mode: if bg == ViewerBackground::Checkerboard {
+                1.0
+            } else {
+                0.0
+            },
             rot_turns: f32::from(viewport.rotation_quarter_turns),
             flip_h: if viewport.flip_h { 1.0 } else { 0.0 },
             flip_v: if viewport.flip_v { 1.0 } else { 0.0 },
             _pad: 0.0,
         };
-        self.queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
+        self.queue
+            .write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
 
         let Ok(frame) = win_surface.surface.get_current_texture() else {
             win_surface.needs_reconfigure = true;
             return;
         };
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("iv-frame-encoder"),
-        });
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("iv-frame-encoder"),
+            });
 
         let screen_desc = egui_wgpu::ScreenDescriptor {
             size_in_pixels: [win_surface.config.width, win_surface.config.height],
@@ -532,7 +575,9 @@ impl GpuRenderer {
         let mut egui_prims = Vec::new();
         if let Some((_, prims, tdelta, _)) = egui_paint {
             for (id, delta) in &tdelta.set {
-                win_surface.egui_renderer.update_texture(&self.device, &self.queue, *id, delta);
+                win_surface
+                    .egui_renderer
+                    .update_texture(&self.device, &self.queue, *id, delta);
             }
             win_surface.egui_renderer.update_buffers(
                 &self.device,
@@ -575,7 +620,9 @@ impl GpuRenderer {
                 }
             }
             if !egui_prims.is_empty() {
-                win_surface.egui_renderer.render(&mut rpass, &egui_prims, &screen_desc);
+                win_surface
+                    .egui_renderer
+                    .render(&mut rpass, &egui_prims, &screen_desc);
             }
         }
 

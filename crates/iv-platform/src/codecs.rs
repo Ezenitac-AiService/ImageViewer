@@ -12,7 +12,18 @@ impl OsCodecProvider for HostOsCodecProvider {
     fn supports_extension(&self, ext_lower: &str) -> bool {
         matches!(
             ext_lower,
-            "dng" | "cr2" | "cr3" | "nef" | "arw" | "orf" | "rw2" | "raf" | "heic" | "heif" | "avif" | "jp2"
+            "dng"
+                | "cr2"
+                | "cr3"
+                | "nef"
+                | "arw"
+                | "orf"
+                | "rw2"
+                | "raf"
+                | "heic"
+                | "heif"
+                | "avif"
+                | "jp2"
         )
     }
 
@@ -37,14 +48,14 @@ impl OsCodecProvider for HostOsCodecProvider {
 
 #[cfg(target_os = "macos")]
 fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer, OsCodecError> {
-    use objc2_core_foundation::{kCFBooleanFalse, CFData, CFDictionary, CFNumber, CFString};
+    use objc2_core_foundation::{CFData, CFDictionary, CFNumber, CFString, kCFBooleanFalse};
     use objc2_core_graphics::{
-        kCGColorSpaceSRGB, CGBitmapContextCreate, CGColorSpace, CGContext, CGImage,
-        CGImageAlphaInfo,
+        CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo,
+        kCGColorSpaceSRGB,
     };
     use objc2_image_io::{
-        kCGImagePropertyPixelHeight, kCGImagePropertyPixelWidth, kCGImageSourceShouldCache,
-        CGImageSource,
+        CGImageSource, kCGImagePropertyPixelHeight, kCGImagePropertyPixelWidth,
+        kCGImageSourceShouldCache,
     };
     use std::ffi::c_void;
 
@@ -156,7 +167,7 @@ fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer,
         WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+        CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
     };
 
     // SAFETY: Initialize COM on current thread and query WIC decoder dimensions strictly BEFORE CopyPixels.

@@ -1,0 +1,26 @@
+# cargo-deny configuration for ImageViewer (GPL-3.0-only)
+# Verifies all workspace dependencies are GPLv3-compatible.
+
+[graph]
+all-features = false
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "BSL-1.0",
+    "OpenSSL",
+    "CDLA-Permissive-2.0",
+    "GPL-3.0-only",
+    "Unlicense",
+]

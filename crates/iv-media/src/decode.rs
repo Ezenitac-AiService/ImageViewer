@@ -47,13 +47,17 @@ pub struct MediaDecoder;
 
 impl MediaDecoder {
     /// Checks `checked_mul(width, 4)` and `width * height <= max_megapixels * 1_000_000` before allocation.
-    pub fn check_pixel_cap(width: u32, height: u32, max_megapixels: u32) -> Result<(), DecodeError> {
+    pub fn check_pixel_cap(
+        width: u32,
+        height: u32,
+        max_megapixels: u32,
+    ) -> Result<(), DecodeError> {
         if width == 0 || height == 0 {
-            return Err(DecodeError::UnsupportedOrCorrupt("zero dimensions".to_string()));
+            return Err(DecodeError::UnsupportedOrCorrupt(
+                "zero dimensions".to_string(),
+            ));
         }
-        width
-            .checked_mul(4)
-            .ok_or(DecodeError::DimensionOverflow)?;
+        width.checked_mul(4).ok_or(DecodeError::DimensionOverflow)?;
         let pixels = u64::from(width)
             .checked_mul(u64::from(height))
             .ok_or(DecodeError::DimensionOverflow)?;
@@ -126,8 +130,12 @@ impl MediaDecoder {
                 .map(ExifExtractor::extract)
                 .unwrap_or_default();
 
-            let (rgba8, buffer_width, buffer_height, is_downscaled) =
-                maybe_downscale_for_viewport(img.into_rgba8().into_raw(), source_width, source_height, opts);
+            let (rgba8, buffer_width, buffer_height, is_downscaled) = maybe_downscale_for_viewport(
+                img.into_rgba8().into_raw(),
+                source_width,
+                source_height,
+                opts,
+            );
 
             return Ok(DecodedFrame {
                 source_width,
@@ -260,7 +268,11 @@ fn decode_jpeg_fast(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, Decode
     Ok((dyn_img, icc, orient, 1, 0, "JPEG".to_string()))
 }
 
-fn decode_standard_image(bytes: &[u8], ext: &str, max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
+fn decode_standard_image(
+    bytes: &[u8],
+    ext: &str,
+    max_mp: u32,
+) -> Result<RawDecodeResult, DecodeError> {
     let reader = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
         .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
@@ -280,7 +292,11 @@ fn decode_standard_image(bytes: &[u8], ext: &str, max_mp: u32) -> Result<RawDeco
     Ok((img, icc, orient, 1, 0, label))
 }
 
-fn decode_tiff_page(bytes: &[u8], target_page: u32, max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
+fn decode_tiff_page(
+    bytes: &[u8],
+    target_page: u32,
+    max_mp: u32,
+) -> Result<RawDecodeResult, DecodeError> {
     let mut dec = tiff::decoder::Decoder::new(Cursor::new(bytes))
         .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
     let mut total_pages = 1u32;
@@ -308,7 +324,9 @@ fn decode_tiff_page(bytes: &[u8], target_page: u32, max_mp: u32) -> Result<RawDe
         .map(|v| v as u16)
         .unwrap_or(1);
     let orient = orientation_from_tag(orient_val);
-    let icc = page_dec.get_tag_u8_vec(tiff::tags::Tag::Unknown(34675)).ok();
+    let icc = page_dec
+        .get_tag_u8_vec(tiff::tags::Tag::Unknown(34675))
+        .ok();
 
     let res = page_dec
         .read_image()
@@ -328,10 +346,13 @@ fn decode_tiff_page(bytes: &[u8], target_page: u32, max_mp: u32) -> Result<RawDe
                     .map(DynamicImage::ImageLuma8)
                     .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("tiff luma8".to_string()))?,
                 tiff::ColorType::CMYK(8) => {
-                    let srgb = ColorHdrNormalizer::convert_cmyk8_to_srgb_rgba8(&buf, icc.as_deref());
+                    let srgb =
+                        ColorHdrNormalizer::convert_cmyk8_to_srgb_rgba8(&buf, icc.as_deref());
                     image::RgbaImage::from_raw(w, h, srgb)
                         .map(DynamicImage::ImageRgba8)
-                        .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("tiff cmyk8".to_string()))?
+                        .ok_or_else(|| {
+                            DecodeError::UnsupportedOrCorrupt("tiff cmyk8".to_string())
+                        })?
                 }
                 _ => {
                     return Err(DecodeError::UnsupportedOrCorrupt(
@@ -345,10 +366,13 @@ fn decode_tiff_page(bytes: &[u8], target_page: u32, max_mp: u32) -> Result<RawDe
             let ct = page_dec.colortype().unwrap_or(tiff::ColorType::RGBA(16));
             match ct {
                 tiff::ColorType::CMYK(16) => {
-                    let srgb = ColorHdrNormalizer::convert_cmyk8_to_srgb_rgba8(&u8_buf, icc.as_deref());
+                    let srgb =
+                        ColorHdrNormalizer::convert_cmyk8_to_srgb_rgba8(&u8_buf, icc.as_deref());
                     image::RgbaImage::from_raw(w, h, srgb)
                         .map(DynamicImage::ImageRgba8)
-                        .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("tiff cmyk16".to_string()))?
+                        .ok_or_else(|| {
+                            DecodeError::UnsupportedOrCorrupt("tiff cmyk16".to_string())
+                        })?
                 }
                 tiff::ColorType::RGBA(16) => image::RgbaImage::from_raw(w, h, u8_buf)
                     .map(DynamicImage::ImageRgba8)
@@ -370,34 +394,67 @@ fn decode_tiff_page(bytes: &[u8], target_page: u32, max_mp: u32) -> Result<RawDe
         }
     };
 
-    Ok((dyn_img, icc, orient, total_pages, clamped_page, "TIFF".to_string()))
+    Ok((
+        dyn_img,
+        icc,
+        orient,
+        total_pages,
+        clamped_page,
+        "TIFF".to_string(),
+    ))
 }
 
 fn decode_cur_largest(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
     if bytes.len() < 6 {
-        return Err(DecodeError::UnsupportedOrCorrupt("truncated .cur".to_string()));
+        return Err(DecodeError::UnsupportedOrCorrupt(
+            "truncated .cur".to_string(),
+        ));
     }
     let reserved = u16::from_le_bytes([bytes[0], bytes[1]]);
     let img_type = u16::from_le_bytes([bytes[2], bytes[3]]);
     let count = u16::from_le_bytes([bytes[4], bytes[5]]) as usize;
     if reserved != 0 || img_type != 2 || count == 0 {
-        return Err(DecodeError::UnsupportedOrCorrupt("invalid .cur header".to_string()));
+        return Err(DecodeError::UnsupportedOrCorrupt(
+            "invalid .cur header".to_string(),
+        ));
     }
     let dir_end = 6usize
         .checked_add(count * 16)
         .ok_or(DecodeError::DimensionOverflow)?;
     if bytes.len() < dir_end {
-        return Err(DecodeError::UnsupportedOrCorrupt("truncated .cur directory".to_string()));
+        return Err(DecodeError::UnsupportedOrCorrupt(
+            "truncated .cur directory".to_string(),
+        ));
     }
 
     let mut best: Option<(u32, usize, usize)> = None;
     for i in 0..count {
         let off = 6 + i * 16;
-        let w = if bytes[off] == 0 { 256u32 } else { u32::from(bytes[off]) };
-        let h = if bytes[off + 1] == 0 { 256u32 } else { u32::from(bytes[off + 1]) };
-        let size = u32::from_le_bytes([bytes[off + 8], bytes[off + 9], bytes[off + 10], bytes[off + 11]]) as usize;
-        let img_off = u32::from_le_bytes([bytes[off + 12], bytes[off + 13], bytes[off + 14], bytes[off + 15]]) as usize;
-        let Some(end) = img_off.checked_add(size) else { continue };
+        let w = if bytes[off] == 0 {
+            256u32
+        } else {
+            u32::from(bytes[off])
+        };
+        let h = if bytes[off + 1] == 0 {
+            256u32
+        } else {
+            u32::from(bytes[off + 1])
+        };
+        let size = u32::from_le_bytes([
+            bytes[off + 8],
+            bytes[off + 9],
+            bytes[off + 10],
+            bytes[off + 11],
+        ]) as usize;
+        let img_off = u32::from_le_bytes([
+            bytes[off + 12],
+            bytes[off + 13],
+            bytes[off + 14],
+            bytes[off + 15],
+        ]) as usize;
+        let Some(end) = img_off.checked_add(size) else {
+            continue;
+        };
         if end <= bytes.len() {
             let area = w.saturating_mul(h);
             if best.is_none_or(|(b_area, _, _)| area > b_area) {
@@ -406,7 +463,8 @@ fn decode_cur_largest(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, Deco
         }
     }
 
-    let (_, start, end) = best.ok_or_else(|| DecodeError::UnsupportedOrCorrupt("no valid .cur frame".to_string()))?;
+    let (_, start, end) =
+        best.ok_or_else(|| DecodeError::UnsupportedOrCorrupt("no valid .cur frame".to_string()))?;
     let payload = &bytes[start..end];
     if payload.starts_with(&[0x89, b'P', b'N', b'G']) {
         let mut res = decode_standard_image(payload, "png", max_mp)?;
@@ -443,12 +501,18 @@ fn decode_dds(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError>
     MediaDecoder::check_pixel_cap(dds.get_width(), dds.get_height(), max_mp)?;
     let rgba = image_dds::image_from_dds(&dds, 0)
         .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    Ok((DynamicImage::ImageRgba8(rgba), None, None, 1, 0, "DDS".to_string()))
+    Ok((
+        DynamicImage::ImageRgba8(rgba),
+        None,
+        None,
+        1,
+        0,
+        "DDS".to_string(),
+    ))
 }
 
 fn decode_psd(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
-    let meta = rawpsd::parse_psd_metadata(bytes)
-        .map_err(DecodeError::UnsupportedOrCorrupt)?;
+    let meta = rawpsd::parse_psd_metadata(bytes).map_err(DecodeError::UnsupportedOrCorrupt)?;
     let w = meta.width;
     let h = meta.height;
     MediaDecoder::check_pixel_cap(w, h, max_mp)?;
@@ -490,21 +554,29 @@ fn decode_psd_composite_fallback(
     canvas: &mut [u8],
 ) -> Result<(), DecodeError> {
     if bytes.len() < 34 || &bytes[0..4] != b"8BPS" {
-        return Err(DecodeError::UnsupportedOrCorrupt("invalid psd header".to_string()));
+        return Err(DecodeError::UnsupportedOrCorrupt(
+            "invalid psd header".to_string(),
+        ));
     }
     let channels = u16::from_be_bytes([bytes[12], bytes[13]]) as usize;
     let mut pos = 26usize;
     for _ in 0..3 {
         if pos + 4 > bytes.len() {
-            return Err(DecodeError::UnsupportedOrCorrupt("truncated psd section".to_string()));
+            return Err(DecodeError::UnsupportedOrCorrupt(
+                "truncated psd section".to_string(),
+            ));
         }
-        let sec_len = u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]]) as usize;
+        let sec_len =
+            u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]])
+                as usize;
         pos = pos
             .checked_add(4 + sec_len)
             .ok_or(DecodeError::DimensionOverflow)?;
     }
     if pos + 2 > bytes.len() {
-        return Err(DecodeError::UnsupportedOrCorrupt("missing psd image data".to_string()));
+        return Err(DecodeError::UnsupportedOrCorrupt(
+            "missing psd image data".to_string(),
+        ));
     }
     let compression = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]);
     pos += 2;
@@ -543,7 +615,9 @@ fn decode_psd_composite_fallback(
         }
     }
     if planes.is_empty() {
-        return Err(DecodeError::UnsupportedOrCorrupt("empty psd composite".to_string()));
+        return Err(DecodeError::UnsupportedOrCorrupt(
+            "empty psd composite".to_string(),
+        ));
     }
     for i in 0..plane_len {
         let r = planes[0].get(i).copied().unwrap_or(0);
@@ -616,7 +690,9 @@ fn maybe_downscale_for_viewport(
         if scale < 0.60 {
             let dst_w = ((f64::from(source_w) * scale).round() as u32).max(1);
             let dst_h = ((f64::from(source_h) * scale).round() as u32).max(1);
-            if let Ok(down) = SimdResizer::downscale_rgba8(&rgba_raw, source_w, source_h, dst_w, dst_h) {
+            if let Ok(down) =
+                SimdResizer::downscale_rgba8(&rgba_raw, source_w, source_h, dst_w, dst_h)
+            {
                 return (down, dst_w, dst_h, true);
             }
         }

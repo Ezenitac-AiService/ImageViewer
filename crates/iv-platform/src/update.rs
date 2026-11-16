@@ -118,7 +118,21 @@ impl UpdateClient {
     pub fn check_latest_with_transport(
         transport: &dyn HttpFeedTransport,
         feed_url: &str,
+        current_version: &str,
+    ) -> Result<ReleaseInfo, UpdateError> {
+        Self::check_latest_with_transport_for_os(
+            transport,
+            feed_url,
+            current_version,
+            std::env::consts::OS,
+        )
+    }
+
+    pub fn check_latest_with_transport_for_os(
+        transport: &dyn HttpFeedTransport,
+        feed_url: &str,
         _current_version: &str,
+        target_os: &str,
     ) -> Result<ReleaseInfo, UpdateError> {
         if !feed_url.starts_with("https://") {
             return Err(UpdateError::InsecureScheme);
@@ -129,10 +143,7 @@ impl UpdateClient {
         if dto.prerelease || dto.draft || !dto.html_url.starts_with("https://") {
             return Err(UpdateError::InsecureScheme);
         }
-        let asset = dto
-            .assets
-            .iter()
-            .find(|a| a.browser_download_url.starts_with("https://") && a.name != "SHA256SUMS.txt")
+        let asset = select_asset_for_os(&dto.assets, target_os)
             .ok_or_else(|| UpdateError::Transport("no https asset".to_string()))?;
 
         let mut sha256 = asset
@@ -146,7 +157,9 @@ impl UpdateClient {
             && let Some(sums_url) = dto
                 .assets
                 .iter()
-                .find(|a| a.name == "SHA256SUMS.txt" && a.browser_download_url.starts_with("https://"))
+                .find(|a| {
+                    a.name == "SHA256SUMS.txt" && a.browser_download_url.starts_with("https://")
+                })
                 .map(|a| a.browser_download_url.as_str())
                 .or_else(|| {
                     asset
@@ -196,27 +209,27 @@ impl UpdateClient {
             return Err(UpdateError::InsecureScheme);
         }
         if expected_sha256_hex.len() != 64
-            || !expected_sha256_hex
-                .chars()
-                .all(|c| c.is_ascii_hexdigit())
+            || !expected_sha256_hex.chars().all(|c| c.is_ascii_hexdigit())
         {
             return Err(UpdateError::ChecksumMismatch);
         }
         if PathSecurity::ensure_not_symlink(dest_dir).is_err() {
             return Err(UpdateError::UnsafePath);
         }
-        let final_path =
-            PathSecurity::safe_join_filename(dest_dir, filename).map_err(|_| UpdateError::UnsafePath)?;
+        let final_path = PathSecurity::safe_join_filename(dest_dir, filename)
+            .map_err(|_| UpdateError::UnsafePath)?;
         let part_name = format!("{filename}.part");
         let part_path = PathSecurity::safe_join_filename(dest_dir, &part_name)
             .map_err(|_| UpdateError::UnsafePath)?;
 
         let bytes = transport.get_bounded(download_url, MAX_BINARY_BYTES)?;
         {
-            let mut f = File::create(&part_path).map_err(|e| UpdateError::Transport(e.to_string()))?;
+            let mut f =
+                File::create(&part_path).map_err(|e| UpdateError::Transport(e.to_string()))?;
             f.write_all(&bytes)
                 .map_err(|e| UpdateError::Transport(e.to_string()))?;
-            f.sync_all().map_err(|e| UpdateError::Transport(e.to_string()))?;
+            f.sync_all()
+                .map_err(|e| UpdateError::Transport(e.to_string()))?;
         }
 
         let actual_hex = format!("{:x}", Sha256::digest(&bytes));
@@ -286,4 +299,29 @@ fn parse_sha256_sums(text: &str, asset_name: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn select_asset_for_os<'a>(
+    assets: &'a [GitHubAssetDto],
+    target_os: &str,
+) -> Option<&'a GitHubAssetDto> {
+    let eligible = |a: &&GitHubAssetDto| {
+        a.browser_download_url.starts_with("https://") && a.name != "SHA256SUMS.txt"
+    };
+    let suffixes: &[&str] = match target_os {
+        "windows" => &[".exe", ".zip", ".msi"],
+        "macos" => &[".dmg", ".pkg"],
+        "linux" => &[".appimage", ".tar.gz", ".deb", ".rpm"],
+        _ => &[],
+    };
+    for suffix in suffixes {
+        if let Some(matched) = assets
+            .iter()
+            .filter(eligible)
+            .find(|a| a.name.to_ascii_lowercase().ends_with(suffix))
+        {
+            return Some(matched);
+        }
+    }
+    assets.iter().find(eligible)
 }

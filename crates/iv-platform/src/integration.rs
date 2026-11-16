@@ -17,9 +17,7 @@ pub struct OsIntegration;
 
 impl OsIntegration {
     pub fn validate_exe_path(exe_path: &str) -> Result<(), IntegrationError> {
-        if exe_path.is_empty()
-            || exe_path.contains('"')
-            || exe_path.chars().any(|c| c.is_control())
+        if exe_path.is_empty() || exe_path.contains('"') || exe_path.chars().any(|c| c.is_control())
         {
             return Err(IntegrationError::UnsafeExePath);
         }
@@ -45,8 +43,8 @@ impl OsIntegration {
         Self::validate_exe_path(exe_path)?;
         #[cfg(target_os = "windows")]
         {
-            use winreg::enums::HKEY_CURRENT_USER;
             use winreg::RegKey;
+            use winreg::enums::HKEY_CURRENT_USER;
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
             let cmd = Self::format_windows_open_command(exe_path);
             for sub in [
@@ -67,8 +65,8 @@ impl OsIntegration {
     pub fn unregister_windows_shell() -> Result<(), IntegrationError> {
         #[cfg(target_os = "windows")]
         {
-            use winreg::enums::HKEY_CURRENT_USER;
             use winreg::RegKey;
+            use winreg::enums::HKEY_CURRENT_USER;
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
             for sub in [
                 r"Software\Classes\Directory\shell\ImageViewer",
@@ -89,8 +87,7 @@ impl OsIntegration {
             .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
             .ok_or_else(|| IntegrationError::Failed("missing HOME".to_string()))?;
         let app_dir = base.join("applications");
-        std::fs::create_dir_all(&app_dir)
-            .map_err(|e| IntegrationError::Failed(e.to_string()))?;
+        std::fs::create_dir_all(&app_dir).map_err(|e| IntegrationError::Failed(e.to_string()))?;
         let desktop_path = app_dir.join("imageviewer.desktop");
         std::fs::write(&desktop_path, content)
             .map_err(|e| IntegrationError::Failed(e.to_string()))?;

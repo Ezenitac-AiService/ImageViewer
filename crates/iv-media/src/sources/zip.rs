@@ -1,14 +1,14 @@
 //! Zero-disk-extraction ZIP/CBZ source with zero-allocation pre-flight EOCD/ZIP64 checks and reused handle.
 
-use super::{is_supported_image_extension, ImageSourceType, MediaEntry, MediaSource, SourceError};
+use super::{ImageSourceType, MediaEntry, MediaSource, SourceError, is_supported_image_extension};
 use iv_core::natural_sort::NaturalSort;
 use iv_core::path_security::PathSecurity;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Mutex;
-use zip::result::ZipError;
 use zip::ZipArchive;
+use zip::result::ZipError;
 
 pub const MAX_ZIP_ENTRIES: u64 = 50_000;
 pub const MAX_ZIP_CD_BYTES: u64 = 64 * 1024 * 1024;
@@ -109,8 +109,7 @@ impl ZipSource {
         let mut file = File::open(archive_path)?;
         Self::preflight_file(&mut file)?;
 
-        let mut archive =
-            ZipArchive::new(file).map_err(|e| SourceError::Archive(e.to_string()))?;
+        let mut archive = ZipArchive::new(file).map_err(|e| SourceError::Archive(e.to_string()))?;
         if (archive.len() as u64) > MAX_ZIP_ENTRIES {
             return Err(SourceError::ArchiveLimitExceeded(
                 "archive entries exceed 50,000".to_string(),

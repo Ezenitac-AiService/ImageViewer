@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use iv_media::animation::AnimationPlayer;
 
 fn build_synthetic_gif(frames: usize, w: u32, h: u32) -> Vec<u8> {

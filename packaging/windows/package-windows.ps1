@@ -10,5 +10,5 @@ New-Item -ItemType Directory -Force -Path "packaging/windows/dist" | Out-Null
 Copy-Item "$outDir/iv-app.exe" "packaging/windows/dist/ImageViewer.exe" -Force
 
 if ($BuildInstaller) {
-    makensis /DPRODUCT_VERSION=$Version src/ImageViewer.Installer/ImageViewer.nsi
+    makensis /DVERSION=$Version /DPUBLISH_DIR=dist packaging/windows/ImageViewer.nsi
 }

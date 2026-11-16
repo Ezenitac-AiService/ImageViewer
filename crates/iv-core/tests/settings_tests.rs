@@ -88,7 +88,13 @@ fn selective_merge_save_prevents_multi_instance_lost_updates() {
     SettingsStore::save_window_geometry(&path, &stale_b.window).expect("save window B");
 
     let final_disk = SettingsStore::load(&path);
-    assert!(!final_disk.navigation.wrap_around, "preference from A must survive");
-    assert_eq!(final_disk.window.width, 1600.0, "geometry from B must survive");
+    assert!(
+        !final_disk.navigation.wrap_around,
+        "preference from A must survive"
+    );
+    assert_eq!(
+        final_disk.window.width, 1600.0,
+        "geometry from B must survive"
+    );
     assert_eq!(final_disk.window.height, 900.0);
 }

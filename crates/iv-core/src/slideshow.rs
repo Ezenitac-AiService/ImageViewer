@@ -28,7 +28,12 @@ pub struct SlideShowController {
 }
 
 impl SlideShowController {
-    pub fn new(clock: Box<dyn Clock>, interval_seconds: u32, mode: SlideShowMode, repeat: bool) -> Self {
+    pub fn new(
+        clock: Box<dyn Clock>,
+        interval_seconds: u32,
+        mode: SlideShowMode,
+        repeat: bool,
+    ) -> Self {
         let now = clock.now_millis();
         Self {
             clock,

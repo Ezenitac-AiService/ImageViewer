@@ -99,7 +99,11 @@ impl ExifExtractor {
         // 12. Artist
         push_if(&mut items, "exif.artist", get_ascii(&exif, Tag::Artist));
         // 13. Copyright
-        push_if(&mut items, "exif.copyright", get_ascii(&exif, Tag::Copyright));
+        push_if(
+            &mut items,
+            "exif.copyright",
+            get_ascii(&exif, Tag::Copyright),
+        );
 
         items
     }

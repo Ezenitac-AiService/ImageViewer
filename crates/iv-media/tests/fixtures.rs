@@ -14,7 +14,10 @@ impl TempTestDir {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("iv_media_test_{prefix}_{}_{nanos}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "iv_media_test_{prefix}_{}_{nanos}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         Self { path: dir }
     }
@@ -82,7 +85,11 @@ pub fn write_zip_with_entries(path: &Path, entries: &[(&str, &[u8], u32)]) {
     for (name, data, ext_attr) in entries {
         if (*ext_attr >> 16) & 0xF000 == 0xA000 {
             writer
-                .add_symlink(*name, "target.png", zip::write::SimpleFileOptions::default())
+                .add_symlink(
+                    *name,
+                    "target.png",
+                    zip::write::SimpleFileOptions::default(),
+                )
                 .expect("add zip symlink");
         } else {
             let opts = zip::write::SimpleFileOptions::default()

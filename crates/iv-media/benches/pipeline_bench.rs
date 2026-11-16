@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use iv_media::decode::{DecodeOptions, MediaDecoder};
 
 fn build_synthetic_jpeg(w: u32, h: u32) -> Vec<u8> {
@@ -7,7 +7,10 @@ fn build_synthetic_jpeg(w: u32, h: u32) -> Vec<u8> {
     });
     let mut out = Vec::new();
     image::DynamicImage::ImageRgb8(img)
-        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Jpeg)
+        .write_to(
+            &mut std::io::Cursor::new(&mut out),
+            image::ImageFormat::Jpeg,
+        )
         .expect("encode bench jpeg");
     out
 }

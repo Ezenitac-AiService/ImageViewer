@@ -38,11 +38,15 @@ impl ViewportState {
     }
 
     pub fn physical_width(&self) -> u32 {
-        (self.logical_width * self.dpi_scale_factor).round().max(1.0) as u32
+        (self.logical_width * self.dpi_scale_factor)
+            .round()
+            .max(1.0) as u32
     }
 
     pub fn physical_height(&self) -> u32 {
-        (self.logical_height * self.dpi_scale_factor).round().max(1.0) as u32
+        (self.logical_height * self.dpi_scale_factor)
+            .round()
+            .max(1.0) as u32
     }
 
     pub fn rotate_cw(&mut self) {
@@ -90,12 +94,7 @@ pub struct ViewportLayoutCalculator;
 
 impl ViewportLayoutCalculator {
     /// Computes the physical-pixel fit scale for an image of `src_w x src_h` (pre-rotation).
-    pub fn compute_fit_scale(
-        src_w: u32,
-        src_h: u32,
-        vp: &ViewportState,
-        mode: DisplayMode,
-    ) -> f64 {
+    pub fn compute_fit_scale(src_w: u32, src_h: u32, vp: &ViewportState, mode: DisplayMode) -> f64 {
         let (eff_w, eff_h) = if vp.rotation_quarter_turns % 2 == 1 {
             (src_h.max(1) as f64, src_w.max(1) as f64)
         } else {

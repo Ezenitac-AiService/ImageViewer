@@ -8,12 +8,14 @@ use iv_media::resize_filter::SimdResizer;
 #[test]
 fn decodes_png_and_synthetic_cur_and_blocks_script_headers() {
     let png = fixtures::build_rgba_png(8, 4, &[200u8; 8 * 4 * 4]);
-    let frame = MediaDecoder::decode_bytes(&png, "test.png", &DecodeOptions::default()).expect("png");
+    let frame =
+        MediaDecoder::decode_bytes(&png, "test.png", &DecodeOptions::default()).expect("png");
     assert_eq!(frame.source_width, 8);
     assert_eq!(frame.source_height, 4);
 
     let cur = fixtures::build_synthetic_cur(8, 4, &png);
-    let cur_frame = MediaDecoder::decode_bytes(&cur, "cursor.cur", &DecodeOptions::default()).expect("cur");
+    let cur_frame =
+        MediaDecoder::decode_bytes(&cur, "cursor.cur", &DecodeOptions::default()).expect("cur");
     assert_eq!(cur_frame.source_width, 8);
     assert_eq!(cur_frame.source_height, 4);
 
@@ -57,7 +59,8 @@ fn decodes_flattened_composite_psd_without_layers() {
     psd.extend_from_slice(&[100, 100, 100, 100]);
     psd.extend_from_slice(&[50, 50, 50, 50]);
 
-    let frame = MediaDecoder::decode_bytes(&psd, "flat.psd", &DecodeOptions::default()).expect("flat psd");
+    let frame =
+        MediaDecoder::decode_bytes(&psd, "flat.psd", &DecodeOptions::default()).expect("flat psd");
     assert_eq!(frame.source_width, 2);
     assert_eq!(frame.source_height, 2);
     assert_eq!(&frame.rgba8[0..4], &[200, 100, 50, 255]);

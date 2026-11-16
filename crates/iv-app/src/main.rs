@@ -4,12 +4,12 @@ mod renderer;
 mod views;
 
 use crate::renderer::{GpuRenderer, GpuTile, WindowGpuSurface};
+use crate::views::ChildWindowKind;
 use crate::views::about_view::draw_about_window;
 use crate::views::image_list_view::draw_image_list;
-use crate::views::main_view::{draw_main_overlays, MainUiAction};
-use crate::views::settings_view::{draw_settings_window, SettingsDialogAction};
-use crate::views::update_notice::{draw_update_notice, UpdateNoticeAction};
-use crate::views::ChildWindowKind;
+use crate::views::main_view::{MainUiAction, draw_main_overlays};
+use crate::views::settings_view::{SettingsDialogAction, draw_settings_window};
+use crate::views::update_notice::{UpdateNoticeAction, draw_update_notice};
 use iv_core::chrome_state::ChromeState;
 use iv_core::cli::{CliCommand, CliOptions};
 use iv_core::i18n::Language;
@@ -26,10 +26,10 @@ use iv_media::cache::{DecodedFrame, DecodedFrameCache};
 use iv_media::decode::{DecodeOptions, MediaDecoder};
 use iv_media::resize_filter::SimdResizer;
 use iv_media::session::SessionCoordinator;
+use iv_media::sources::MediaSource;
 use iv_media::sources::folder::FolderSource;
 use iv_media::sources::watcher::FolderWatcher;
 use iv_media::sources::zip::ZipSource;
-use iv_media::sources::MediaSource;
 use iv_platform::codecs::HostOsCodecProvider;
 use iv_platform::integration::OsIntegration;
 use iv_platform::paths_dialogs::{AppUserEvent, OsDialogs, OsPaths};
@@ -37,7 +37,7 @@ use iv_platform::update::{ReleaseInfo, ReqwestTlsTransport, UpdateClient};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::Ordering;
-use std::sync::{mpsc, Arc};
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalPosition, LogicalSize};
@@ -223,10 +223,14 @@ impl ViewerApp {
         }
         let idx = main.current_index.min(src.entries().len() - 1);
         let entry = src.entries()[idx].clone();
-        let cache_key = format!("{}:{}:{force_full_res}", entry.source_key, main.current_page);
+        let cache_key = format!(
+            "{}:{}:{force_full_res}",
+            entry.source_key, main.current_page
+        );
 
         if let Some(cached) = main.frame_cache.get(&cache_key) {
-            main.tiles = gpu.upload_tiled_rgba8(&cached.rgba8, cached.buffer_width, cached.buffer_height);
+            main.tiles =
+                gpu.upload_tiled_rgba8(&cached.rgba8, cached.buffer_width, cached.buffer_height);
             main.current_frame = Some(cached);
             main.status_error = None;
             main.pending_load_started = None;
@@ -247,7 +251,10 @@ impl ViewerApp {
         let target_vp = if force_full_res || main.viewport.display_mode == DisplayMode::Original {
             None
         } else {
-            Some((main.viewport.physical_width(), main.viewport.physical_height()))
+            Some((
+                main.viewport.physical_width(),
+                main.viewport.physical_height(),
+            ))
         };
 
         let task = move || {
@@ -280,9 +287,14 @@ impl ViewerApp {
                             page_index: page,
                         };
                         let os_provider = HostOsCodecProvider;
-                        MediaDecoder::decode_bytes_with_os(&bytes, &entry.name, &opts, Some(&os_provider))
-                            .map(|f| (f, None))
-                            .map_err(|e| e.to_string())
+                        MediaDecoder::decode_bytes_with_os(
+                            &bytes,
+                            &entry.name,
+                            &opts,
+                            Some(&os_provider),
+                        )
+                        .map(|f| (f, None))
+                        .map_err(|e| e.to_string())
                     }
                 }
                 Err(err) => Err(err.to_string()),
@@ -305,9 +317,11 @@ impl ViewerApp {
         }
 
         // Dispatch directional +1, +2, -1 (burst +4) background prefetching
-        let prefetch_indices = main
-            .session
-            .prefetch_targets(idx, main.source.as_ref().map(|s| s.entries().len()).unwrap_or(0), is_burst);
+        let prefetch_indices = main.session.prefetch_targets(
+            idx,
+            main.source.as_ref().map(|s| s.entries().len()).unwrap_or(0),
+            is_burst,
+        );
         if let Some(src_arc) = main.source.as_ref().map(Arc::clone) {
             for p_idx in prefetch_indices {
                 let p_entry = src_arc.entries()[p_idx].clone();
@@ -370,11 +384,8 @@ impl ViewerApp {
             match msg.result {
                 Ok((frame, anim_opt)) => {
                     let arc = Arc::new(frame);
-                    main.tiles = gpu.upload_tiled_rgba8(
-                        &arc.rgba8,
-                        arc.buffer_width,
-                        arc.buffer_height,
-                    );
+                    main.tiles =
+                        gpu.upload_tiled_rgba8(&arc.rgba8, arc.buffer_width, arc.buffer_height);
                     main.frame_cache.insert(msg.cache_key, Arc::clone(&arc));
                     main.current_frame = Some(arc);
                     main.animation = anim_opt;
@@ -439,7 +450,11 @@ impl ViewerApp {
         let Some(main) = self.main_window.as_mut() else {
             return;
         };
-        let page_count = main.current_frame.as_ref().map(|f| f.page_count).unwrap_or(1);
+        let page_count = main
+            .current_frame
+            .as_ref()
+            .map(|f| f.page_count)
+            .unwrap_or(1);
         if page_count > 1 {
             let next_page = if delta > 0 {
                 (main.current_page + 1).min(page_count - 1)
@@ -465,9 +480,15 @@ impl ViewerApp {
             return;
         };
         let title = match kind {
-            ChildWindowKind::ImageList => iv_core::i18n::I18n::tr(self.settings.language, "dialog.image_list"),
-            ChildWindowKind::Settings => iv_core::i18n::I18n::tr(self.settings.language, "dialog.settings"),
-            ChildWindowKind::About => iv_core::i18n::I18n::tr(self.settings.language, "dialog.about"),
+            ChildWindowKind::ImageList => {
+                iv_core::i18n::I18n::tr(self.settings.language, "dialog.image_list")
+            }
+            ChildWindowKind::Settings => {
+                iv_core::i18n::I18n::tr(self.settings.language, "dialog.settings")
+            }
+            ChildWindowKind::About => {
+                iv_core::i18n::I18n::tr(self.settings.language, "dialog.about")
+            }
         };
         let attrs = WindowAttributes::default()
             .with_title(title)
@@ -611,7 +632,9 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
         ));
         self.drain_async_decodes();
 
-        let (ss_next, reload_path, anim_redraw) = if let (Some(main), Some(gpu)) = (self.main_window.as_mut(), self.gpu.as_ref()) {
+        let (ss_next, reload_path, anim_redraw) = if let (Some(main), Some(gpu)) =
+            (self.main_window.as_mut(), self.gpu.as_ref())
+        {
             // Advance animated playback on wall-clock delay
             let mut anim_redraw = false;
             if self.settings.display.play_animations
@@ -680,7 +703,7 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                     let found = if let Ok(transport) = ReqwestTlsTransport::new() {
                         UpdateClient::check_latest_with_transport(
                             &transport,
-                            "https://api.github.com/repos/ImageViewer/ImageViewer/releases/latest",
+                            "https://api.github.com/repos/Ezenitac-AiService/ImageViewer/releases/latest",
                             env!("CARGO_PKG_VERSION"),
                         )
                         .ok()
@@ -733,7 +756,12 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
         }
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
         if let Some(child) = self.child_windows.get_mut(&window_id) {
             let _ = child.egui_state.on_window_event(&child.window, &event);
             match event {
@@ -761,7 +789,11 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                             .and_then(|m| m.source.as_ref())
                             .map(|s| s.entries().to_vec())
                             .unwrap_or_default();
-                        let cur_idx = self.main_window.as_ref().map(|m| m.current_index).unwrap_or(0);
+                        let cur_idx = self
+                            .main_window
+                            .as_ref()
+                            .map(|m| m.current_index)
+                            .unwrap_or(0);
                         let kind = child.kind;
                         let mut sf = self.sort_field;
                         let mut sd = self.sort_dir;
@@ -783,7 +815,7 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                             ChildWindowKind::About => {
                                 if draw_about_window(ctx, lang) {
                                     let _ = UpdateClient::open_https_release_page(
-                                        "https://github.com/ImageViewer/ImageViewer/releases",
+                                        "https://github.com/Ezenitac-AiService/ImageViewer/releases",
                                     );
                                 }
                             }
@@ -793,10 +825,17 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                         if save_settings {
                             draft_settings.normalize();
                             self.settings = draft_settings;
-                            let _ = SettingsStore::save_preferences(&OsPaths::settings_file(), &self.settings);
+                            let _ = SettingsStore::save_preferences(
+                                &OsPaths::settings_file(),
+                                &self.settings,
+                            );
                         }
-                        child.egui_state.handle_platform_output(&child.window, full.platform_output);
-                        let prims = child.egui_ctx.tessellate(full.shapes, full.pixels_per_point);
+                        child
+                            .egui_state
+                            .handle_platform_output(&child.window, full.platform_output);
+                        let prims = child
+                            .egui_ctx
+                            .tessellate(full.shapes, full.pixels_per_point);
                         let dummy_vp = ViewportState::new(560.0, 440.0, 1.0);
                         gpu.render_frame(
                             &mut child.gpu_surface,
@@ -805,8 +844,20 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                             1,
                             &dummy_vp,
                             self.settings.display.background,
-                            SimdResizer::compute_filter_uniforms(FilterMode::None, 0.5, 1.0, 1.0, 1.0, false),
-                            Some((&child.egui_ctx, prims, full.textures_delta, full.pixels_per_point)),
+                            SimdResizer::compute_filter_uniforms(
+                                FilterMode::None,
+                                0.5,
+                                1.0,
+                                1.0,
+                                1.0,
+                                false,
+                            ),
+                            Some((
+                                &child.egui_ctx,
+                                prims,
+                                full.textures_delta,
+                                full.pixels_per_point,
+                            )),
                         );
                     }
                     if close_child {
@@ -832,7 +883,10 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
         if main.window.id() != window_id {
             return;
         }
-        let consumed = main.egui_state.on_window_event(&main.window, &event).consumed;
+        let consumed = main
+            .egui_state
+            .on_window_event(&main.window, &event)
+            .consumed;
         let mut trigger_fullres = false;
 
         match event {
@@ -887,8 +941,11 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
             }
             WindowEvent::PinchGesture { delta, .. } => {
                 let factor = TrackpadAccumulator::pinch_delta_to_zoom_factor(delta);
-                main.viewport.zoom_at_cursor(factor, main.last_cursor.0, main.last_cursor.1);
-                if main.current_frame.as_ref().is_some_and(|f| f.is_downscaled) && main.viewport.zoom_scale > 1.2 {
+                main.viewport
+                    .zoom_at_cursor(factor, main.last_cursor.0, main.last_cursor.1);
+                if main.current_frame.as_ref().is_some_and(|f| f.is_downscaled)
+                    && main.viewport.zoom_scale > 1.2
+                {
                     trigger_fullres = true;
                 }
                 main.window.request_redraw();
@@ -927,35 +984,42 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                     }
                     (MouseScrollDelta::LineDelta(_, y), MouseWheelAction::Zoom) => {
                         let f = if y > 0.0 { 1.1 } else { 0.9 };
-                        main.viewport.zoom_at_cursor(f, main.last_cursor.0, main.last_cursor.1);
-                        if main.current_frame.as_ref().is_some_and(|fr| fr.is_downscaled) && main.viewport.zoom_scale > 1.2 {
+                        main.viewport
+                            .zoom_at_cursor(f, main.last_cursor.0, main.last_cursor.1);
+                        if main
+                            .current_frame
+                            .as_ref()
+                            .is_some_and(|fr| fr.is_downscaled)
+                            && main.viewport.zoom_scale > 1.2
+                        {
                             trigger_fullres = true;
                         }
                     }
                     (MouseScrollDelta::PixelDelta(pos), MouseWheelAction::Zoom) => {
                         let f = (1.0 + pos.y * 0.002).clamp(0.8, 1.25);
-                        main.viewport.zoom_at_cursor(f, main.last_cursor.0, main.last_cursor.1);
+                        main.viewport
+                            .zoom_at_cursor(f, main.last_cursor.0, main.last_cursor.1);
                     }
                 }
                 if let Some(m) = self.main_window.as_ref() {
                     m.window.request_redraw();
                 }
             }
-            WindowEvent::MouseInput { state, button, .. } => {
-                match (state, button) {
-                    (ElementState::Pressed, MouseButton::Left) if !consumed => {
-                        if !main.chrome.is_fullscreen && main.viewport.zoom_scale <= 1.01 {
-                            let _ = main.window.drag_window();
-                        }
+            WindowEvent::MouseInput { state, button, .. } => match (state, button) {
+                (ElementState::Pressed, MouseButton::Left) if !consumed => {
+                    if !main.chrome.is_fullscreen && main.viewport.zoom_scale <= 1.01 {
+                        let _ = main.window.drag_window();
                     }
-                    (ElementState::Pressed, MouseButton::Middle) => main.middle_dragging = true,
-                    (ElementState::Released, MouseButton::Middle) => main.middle_dragging = false,
-                    (ElementState::Pressed, MouseButton::Back) => self.step_image(-1),
-                    (ElementState::Pressed, MouseButton::Forward) => self.step_image(1),
-                    _ => {}
                 }
-            }
-            WindowEvent::KeyboardInput { event: key_ev, .. } if key_ev.state == ElementState::Pressed => {
+                (ElementState::Pressed, MouseButton::Middle) => main.middle_dragging = true,
+                (ElementState::Released, MouseButton::Middle) => main.middle_dragging = false,
+                (ElementState::Pressed, MouseButton::Back) => self.step_image(-1),
+                (ElementState::Pressed, MouseButton::Forward) => self.step_image(1),
+                _ => {}
+            },
+            WindowEvent::KeyboardInput { event: key_ev, .. }
+                if key_ev.state == ElementState::Pressed =>
+            {
                 let primary_mod = if cfg!(target_os = "macos") {
                     main.modifiers.super_key()
                 } else {
@@ -963,8 +1027,12 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                 };
                 match &key_ev.logical_key {
                     Key::Named(NamedKey::Escape) => event_loop.exit(),
-                    Key::Named(NamedKey::ArrowRight) | Key::Named(NamedKey::ArrowDown) => self.step_image(1),
-                    Key::Named(NamedKey::ArrowLeft) | Key::Named(NamedKey::ArrowUp) => self.step_image(-1),
+                    Key::Named(NamedKey::ArrowRight) | Key::Named(NamedKey::ArrowDown) => {
+                        self.step_image(1)
+                    }
+                    Key::Named(NamedKey::ArrowLeft) | Key::Named(NamedKey::ArrowUp) => {
+                        self.step_image(-1)
+                    }
                     Key::Named(NamedKey::PageDown) => self.step_page_or_image(1),
                     Key::Named(NamedKey::PageUp) => self.step_page_or_image(-1),
                     Key::Named(NamedKey::Home) => {
@@ -1025,7 +1093,11 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                             let cy = main.viewport.logical_height * 0.5;
                             main.viewport.zoom_at_cursor(0.83, cx, cy);
                         }
-                        "f" | "F" if cfg!(target_os = "macos") && main.modifiers.control_key() && main.modifiers.super_key() => {
+                        "f" | "F"
+                            if cfg!(target_os = "macos")
+                                && main.modifiers.control_key()
+                                && main.modifiers.super_key() =>
+                        {
                             let next_fs = if main.window.fullscreen().is_some() {
                                 None
                             } else {
@@ -1110,10 +1182,12 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                             main.status_error.as_deref(),
                         );
                         if let Some(rel) = main.pending_release.as_ref() {
-                            notice_action = draw_update_notice(ctx, self.settings.language, rel, None);
+                            notice_action =
+                                draw_update_notice(ctx, self.settings.language, rel, None);
                         }
                     });
-                    main.egui_state.handle_platform_output(&main.window, full.platform_output);
+                    main.egui_state
+                        .handle_platform_output(&main.window, full.platform_output);
                     let prims = main.egui_ctx.tessellate(full.shapes, full.pixels_per_point);
                     let (tw, th) = main
                         .current_frame
@@ -1136,14 +1210,22 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                         &main.viewport,
                         self.settings.display.background,
                         filters,
-                        Some((&main.egui_ctx, prims, full.textures_delta, full.pixels_per_point)),
+                        Some((
+                            &main.egui_ctx,
+                            prims,
+                            full.textures_delta,
+                            full.pixels_per_point,
+                        )),
                     );
                 }
 
                 match notice_action {
                     UpdateNoticeAction::SkipVersion(v) => {
                         self.settings.update.skipped_version = Some(v);
-                        let _ = SettingsStore::save_preferences(&OsPaths::settings_file(), &self.settings);
+                        let _ = SettingsStore::save_preferences(
+                            &OsPaths::settings_file(),
+                            &self.settings,
+                        );
                         if let Some(m) = self.main_window.as_mut() {
                             m.pending_release = None;
                         }
@@ -1154,7 +1236,11 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                         }
                     }
                     UpdateNoticeAction::Install => {
-                        if let Some(rel) = self.main_window.as_ref().and_then(|m| m.pending_release.as_ref()) {
+                        if let Some(rel) = self
+                            .main_window
+                            .as_ref()
+                            .and_then(|m| m.pending_release.as_ref())
+                        {
                             let _ = UpdateClient::open_https_release_page(&rel.page_url);
                         }
                     }
@@ -1178,7 +1264,9 @@ impl ApplicationHandler<AppUserEvent> for ViewerApp {
                             let _ = m.window.drag_window();
                         }
                     }
-                    MainUiAction::OpenFile => OsDialogs::pick_image_or_archive_async(self.proxy.clone()),
+                    MainUiAction::OpenFile => {
+                        OsDialogs::pick_image_or_archive_async(self.proxy.clone())
+                    }
                     MainUiAction::OpenFolder => OsDialogs::pick_folder_async(self.proxy.clone()),
                     MainUiAction::PrevImage => self.step_image(-1),
                     MainUiAction::NextImage => self.step_image(1),

@@ -2,9 +2,9 @@
 
 use crate::cache::DecodedFrame;
 use crate::decode::MediaDecoder;
+use image::AnimationDecoder;
 use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
-use image::AnimationDecoder;
 use iv_core::format_guard::FormatGuard;
 use std::io::Cursor;
 use std::path::Path;
@@ -74,7 +74,11 @@ impl AnimationPlayer {
 
     /// APNG rational frame duration (`delay_num / delay_den` seconds, `delay_den == 0 -> 100`, `<= 10 ms -> 100 ms`).
     pub fn apng_frame_delay(delay_num: u16, delay_den: u16) -> Duration {
-        let den = if delay_den == 0 { 100u32 } else { u32::from(delay_den) };
+        let den = if delay_den == 0 {
+            100u32
+        } else {
+            u32::from(delay_den)
+        };
         let ms = (u64::from(delay_num) * 1000) / u64::from(den);
         let d = Duration::from_millis(ms);
         if d <= Duration::from_millis(10) {
@@ -108,7 +112,8 @@ impl AnimationPlayer {
                 }
                 match blend {
                     ApngBlendOp::Source => {
-                        canvas[dst_idx..dst_idx + 4].copy_from_slice(&src_rgba[src_idx..src_idx + 4]);
+                        canvas[dst_idx..dst_idx + 4]
+                            .copy_from_slice(&src_rgba[src_idx..src_idx + 4]);
                     }
                     ApngBlendOp::Over => {
                         let sa = f32::from(src_rgba[src_idx + 3]) / 255.0;
@@ -169,8 +174,7 @@ impl AnimationPlayer {
         filename: &str,
         max_megapixels: u32,
     ) -> Result<Self, AnimationError> {
-        FormatGuard::validate_header(bytes)
-            .map_err(|e| AnimationError::Decode(e.to_string()))?;
+        FormatGuard::validate_header(bytes).map_err(|e| AnimationError::Decode(e.to_string()))?;
         let ext = Path::new(filename)
             .extension()
             .and_then(|e| e.to_str())
@@ -237,7 +241,11 @@ impl AnimationPlayer {
                 let mut frames = Vec::with_capacity(raw_frames.len());
                 for f in raw_frames {
                     let (num, den) = f.delay().numer_denom_ms();
-                    let delay_ms = if den == 0 { 100 } else { u64::from(num) / u64::from(den) };
+                    let delay_ms = if den == 0 {
+                        100
+                    } else {
+                        u64::from(num) / u64::from(den)
+                    };
                     let delay = Self::normalize_gif_delay(Duration::from_millis(delay_ms));
                     let buf = f.into_buffer();
                     let (w, h) = buf.dimensions();
@@ -285,7 +293,11 @@ impl AnimationPlayer {
                 let mut frames = Vec::with_capacity(raw_frames.len());
                 for f in raw_frames {
                     let (num, den) = f.delay().numer_denom_ms();
-                    let delay_ms = if den == 0 { 100 } else { u64::from(num) / u64::from(den) };
+                    let delay_ms = if den == 0 {
+                        100
+                    } else {
+                        u64::from(num) / u64::from(den)
+                    };
                     let delay = Self::normalize_gif_delay(Duration::from_millis(delay_ms));
                     let buf = f.into_buffer();
                     let (w, h) = buf.dimensions();
