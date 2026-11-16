@@ -103,7 +103,7 @@ description: "Actionable, dependency-ordered task list for Independent Project S
 **Purpose**: Final automated verification, branch cutover to `main`, and GitHub Support fork-detachment submission.
 
 - [X] T021 Run `specs/003-independent-fork-separation/quickstart.md` audits (`grep` for `ImageViewer/ImageViewer` / `com.imageviewer.app`, `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`) (`SC-001`–`SC-004`)
-- [ ] T022 Merge `002-rust-crossplatform-viewer` into `main`, push `main` + `legacy-v1.0.6` to `origin`, verify CI green on `Ezenitac-AiService/ImageViewer`, and submit GitHub Support fork-detachment request ("leave fork network") (`FR-003`, `FR-010`, `SC-003`)
+- [X] T022 Merge `002-rust-crossplatform-viewer` into `main`, push `main` + `legacy-v1.0.6` to `origin`, verify CI green on `Ezenitac-AiService/ImageViewer`, and submit GitHub Support fork-detachment request ("leave fork network") (`FR-003`, `FR-010`, `SC-003`)
 
 ---
 

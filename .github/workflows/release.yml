@@ -105,6 +105,7 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
           name: ImageViewer ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') || contains(github.event.inputs.tag, '-') }}
           generate_release_notes: true
           files: |
             release-assets/ImageViewer-windows-x64.exe

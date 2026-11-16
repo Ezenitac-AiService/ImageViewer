@@ -2001,7 +2001,7 @@ checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
 name = "iv-app"
-version = "1.1.0"
+version = "1.1.0-alpha.1"
 dependencies = [
  "arboard",
  "bytemuck",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "iv-core"
-version = "1.1.0"
+version = "1.1.0-alpha.1"
 dependencies = [
  "chrono",
  "fs4",
@@ -2033,7 +2033,7 @@ dependencies = [
 
 [[package]]
 name = "iv-media"
-version = "1.1.0"
+version = "1.1.0-alpha.1"
 dependencies = [
  "criterion",
  "exr",
@@ -2059,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "iv-platform"
-version = "1.1.0"
+version = "1.1.0-alpha.1"
 dependencies = [
  "directories",
  "iv-core",

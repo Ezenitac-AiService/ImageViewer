@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [1.1.0] - 2026-11-16 (Independent Cross-Platform Rust Fork)
+## [1.1.0-alpha.1] - 2026-11-16 (Independent Cross-Platform Rust Fork — Alpha Pre-release)
 
 ### Changed
 - **Independent Fork Separation**: Separated `Ezenitac-AiService/ImageViewer` as an independent cross-platform fork derived from [edith2580/ImageViewer](https://github.com/edith2580/ImageViewer) (`v1.0.6`).
