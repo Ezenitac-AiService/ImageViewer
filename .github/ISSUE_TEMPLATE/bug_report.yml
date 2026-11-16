@@ -1,25 +1,25 @@
-name: Bug Report
-description: Report a bug in Ezenitac-AiService/ImageViewer (Cross-Platform Rust Edition)
+name: 버그 제보 / Bug Report
+description: Ezenitac-AiService/ImageViewer (크로스 플랫폼 Rust 에디션) 버그 제보 / Report a bug
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting an issue with **Ezenitac-AiService/ImageViewer**.
-        Please note this is an independent cross-platform Rust fork of `edith2580/ImageViewer (v1.0.6)`.
+        **Ezenitac-AiService/ImageViewer** 이슈를 제보해 주셔서 감사합니다. 본 프로젝트는 `edith2580/ImageViewer (v1.0.6)`의 독립 크로스 플랫폼 Rust 포크입니다.
+        Thank you for reporting an issue with **Ezenitac-AiService/ImageViewer** (independent cross-platform Rust fork of `edith2580/ImageViewer v1.0.6`).
   - type: checkboxes
     id: fork-confirmation
     attributes:
-      label: Fork & Version Confirmation
-      description: Please confirm this issue applies to Ezenitac-AiService/ImageViewer and not the upstream Windows C#/.NET repository.
+      label: 포크 저장소 확인 / Fork & Version Confirmation
+      description: 본 이슈가 업스트림(Windows C#/.NET)이 아닌 Ezenitac-AiService/ImageViewer에서 발생했음을 확인해 주세요.
       options:
-        - label: I confirm this bug occurs in Ezenitac-AiService/ImageViewer (not upstream edith2580/ImageViewer).
+        - label: 이 버그가 업스트림(edith2580/ImageViewer)이 아닌 Ezenitac-AiService/ImageViewer에서 발생함을 확인합니다. (I confirm this bug occurs in Ezenitac-AiService/ImageViewer.)
           required: true
   - type: dropdown
     id: os
     attributes:
-      label: Operating System
+      label: 운영체제 / Operating System
       options:
         - Windows
         - macOS
@@ -29,14 +29,14 @@ body:
   - type: input
     id: version
     attributes:
-      label: App Version
-      placeholder: "e.g. 1.1.0"
+      label: 앱 버전 / App Version
+      placeholder: "예: 1.1.0-alpha.1"
     validations:
       required: true
   - type: textarea
     id: description
     attributes:
-      label: What happened?
-      description: Clear description of the bug and steps to reproduce.
+      label: 증상 및 재현 방법 / What happened?
+      description: 발생한 현상과 재현 절차를 적어 주세요. / Clear description of the bug and steps to reproduce.
     validations:
       required: true

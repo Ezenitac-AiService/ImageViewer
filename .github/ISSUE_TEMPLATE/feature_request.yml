@@ -1,29 +1,30 @@
-name: Feature Request
-description: Suggest a feature for Ezenitac-AiService/ImageViewer (Cross-Platform Rust Edition)
+name: 기능 제안 / Feature Request
+description: Ezenitac-AiService/ImageViewer (크로스 플랫폼 Rust 에디션) 기능 제안 / Suggest a feature
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
+        **Ezenitac-AiService/ImageViewer**(독립 크로스 플랫폼 Rust 포크)에 대한 개선 아이디어를 제안해 주세요.
         Suggest an improvement for **Ezenitac-AiService/ImageViewer** (independent cross-platform Rust fork of `edith2580/ImageViewer`).
   - type: checkboxes
     id: fork-confirmation
     attributes:
-      label: Fork Confirmation
+      label: 포크 저장소 확인 / Fork Confirmation
       options:
-        - label: I confirm this request is for Ezenitac-AiService/ImageViewer (not upstream edith2580/ImageViewer).
+        - label: 이 기능 제안이 업스트림(edith2580/ImageViewer)이 아닌 Ezenitac-AiService/ImageViewer 대상임을 확인합니다. (I confirm this request is for Ezenitac-AiService/ImageViewer.)
           required: true
   - type: textarea
     id: problem
     attributes:
-      label: Problem or Use Case
-      description: What workflow or platform need does this solve?
+      label: 해결하려는 문제 또는 사용 시나리오 / Problem or Use Case
+      description: 어떤 워크플로나 플랫폼 요구 사항을 해결하기 위한 제안인가요? / What workflow or platform need does this solve?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed Solution
+      label: 제안하는 해결 방법 / Proposed Solution
     validations:
       required: false

@@ -1,33 +1,36 @@
-ImageViewer (Cross-Platform Rust Edition)
+ImageViewer (크로스 플랫폼 Rust 에디션)
+언어 / Language: 한국어 (NOTICE) | English (NOTICE.en.md)
+
 Copyright (C) edith2580
 Copyright (C) 2026 Ezenitac-AiService
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, version 3 of the License (GPL-3.0-only).
+이 프로그램은 자유 소프트웨어입니다. 소프트웨어의 피양도자는 자유 소프트웨어 재단이
+공표한 GNU 일반 공중 사용 허가서(GNU General Public License) 버전 3(GPL-3.0-only)의
+조항에 따라 프로그램을 개작하거나 재배포할 수 있습니다.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License in LICENSE for more details.
+이 프로그램은 유용하게 사용되리라는 희망에서 배포되지만, 특정한 목적에 맞는 적합성
+여부나 판매용으로 사용할 수 있으리라는 묵시적인 보증을 포함한 어떠한 형태의 보증도
+제공하지 않습니다. 보다 자세한 사항에 대해서는 LICENSE 파일의 GNU 일반 공중 사용
+허가서를 참고하시기 바랍니다.
 
 -------------------------------------------------------------------------------
-Modification & Origin Notice (GNU GPLv3 Section 5(a))
+변경 및 출처 고지 (GNU GPLv3 제5조 (a)항)
 -------------------------------------------------------------------------------
-Original Upstream Project:
-  https://github.com/edith2580/ImageViewer (Windows C#/.NET v1.0.6 baseline)
+원본 업스트림 프로젝트:
+  https://github.com/edith2580/ImageViewer (Windows C#/.NET v1.0.6 기준선)
 
-Independent Fork & Modification Date:
+독립 포크 및 변경 일자:
   2026-11-16 — Ezenitac-AiService (https://github.com/Ezenitac-AiService/ImageViewer)
 
-Summary of Prominent Modifications:
-  - Re-architected from the Windows-only C#/.NET v1.0.6 codebase into a
-    cross-platform Rust workspace (iv-core, iv-media, iv-platform, iv-app)
-    supporting Windows, macOS, and Linux.
-  - Replaced Windows-only GDI+/DirectComposition/WinForms rendering with
-    winit, wgpu, egui, zune-jpeg, image, fast_image_resize, moxcms, and
-    jxl-oxide.
-  - Isolated auto-update endpoints, bundle identifiers (com.ezenitac.imageviewer),
-    and issue/release workflows to Ezenitac-AiService/ImageViewer.
+주요 변경 사항 요약:
+  - Windows 전용 C#/.NET v1.0.6 코드베이스를 Windows·macOS·Linux를 지원하는
+    크로스 플랫폼 Rust 워크스페이스(iv-core, iv-media, iv-platform, iv-app)로
+    전면 재설계 및 재작성했습니다.
+  - Windows 전용 GDI+/DirectComposition/WPF 렌더링을 winit, wgpu, egui,
+    zune-jpeg, image, fast_image_resize, moxcms, jxl-oxide 기반 파이프라인으로
+    대체했습니다.
+  - 자동 업데이트 엔드포인트, 번들 식별자(com.ezenitac.imageviewer), 이슈/릴리스
+    워크플로를 Ezenitac-AiService/ImageViewer 전용으로 분리했습니다.
 
-For third-party Rust framework and library attributions, see THIRD_PARTY_NOTICES.md.
+서드파티 Rust 프레임워크 및 라이브러리 출처·라이선스 고지는 THIRD_PARTY_NOTICES.md
+(English: THIRD_PARTY_NOTICES.en.md)를 참고해 주세요.
