@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     ImageViewer 를 Self-contained 로 게시하고, NSIS 가 설치되어 있으면 설치 프로그램을 만든다.
 
@@ -12,7 +12,8 @@ param(
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
     [switch]$SkipTests,
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$SkipMsi
 )
 
 $ErrorActionPreference = "Stop"
@@ -76,13 +77,45 @@ if ($LASTEXITCODE -ne 0) { throw "설치 프로그램 생성 실패" }
 $setupExe = Join-Path $root "artifacts\installer\ImageViewer-$version-setup.exe"
 Get-Item $setupExe
 
-# 자동 업데이트용 확인값: GitHub 릴리스에 설치 파일 · 포터블 exe 와 함께 SHA256SUMS.txt 를 올린다.
+$releaseAssets = @($setupExe, $portableExe)
+
+if (-not $SkipMsi) {
+    $wix = (Get-Command wix -ErrorAction SilentlyContinue).Source
+    if (-not $wix) {
+        $dotnetTools = Join-Path $env:USERPROFILE ".dotnet\tools\wix.exe"
+        if (Test-Path $dotnetTools) {
+            $wix = $dotnetTools
+        }
+    }
+    if (-not $wix) {
+        Write-Host "== WiX Toolset (.NET Global Tool) 설치" -ForegroundColor Cyan
+        dotnet tool update --global wix --version 5.0.2
+        $dotnetTools = Join-Path $env:USERPROFILE ".dotnet\tools\wix.exe"
+        if (Test-Path $dotnetTools) {
+            $wix = $dotnetTools
+        }
+    }
+
+    if ($wix) {
+        $msiFile = Join-Path $root "artifacts\installer\ImageViewer-$version.msi"
+        $wxsFile = Join-Path $root "src\ImageViewer.Installer\ImageViewer.wxs"
+        Write-Host "== MSI 설치 패키지 생성 (WiX, v$version) -> $msiFile" -ForegroundColor Cyan
+        & $wix build $wxsFile -arch x64 -culture ko-KR -pdbtype none -d "Version=$version" -d "PublishDir=$output" -o $msiFile
+        if ($LASTEXITCODE -ne 0) { throw "MSI 설치 패키지 생성 실패" }
+        Get-Item $msiFile
+        $releaseAssets += $msiFile
+    } else {
+        Write-Warning "WiX (wix.exe) 를 찾지 못해 MSI 생성을 건너뜁니다. (dotnet tool install --global wix)"
+    }
+}
+
+# 자동 업데이트용 확인값: GitHub 릴리스에 설치 파일 · 포터블 exe · MSI 와 함께 SHA256SUMS.txt 를 올린다.
 # (앱은 GitHub 가 계산한 파일 digest 를 먼저 쓰고, 없으면 이 파일을 본다)
 $sumsFile = Join-Path $root "artifacts\installer\SHA256SUMS.txt"
-$lines = foreach ($file in @($setupExe, $portableExe)) {
+$lines = foreach ($file in $releaseAssets) {
     $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $(Split-Path $file -Leaf)"
 }
 [IO.File]::WriteAllText($sumsFile, ($lines -join "`n") + "`n", (New-Object Text.UTF8Encoding $false))
 Write-Host "== 릴리스에 올릴 파일 (태그 v$version)" -ForegroundColor Cyan
-Get-Item $setupExe, $portableExe, $sumsFile | Select-Object Name, Length | Format-Table -AutoSize
+Get-Item ($releaseAssets + $sumsFile) | Select-Object Name, Length | Format-Table -AutoSize
