@@ -1,0 +1,39 @@
+## ImageViewer @VERSION@
+
+**언어 / Language**: 한국어 아래에 영어가 이어집니다. / English follows Korean.
+
+### 처음 실행하기 / First launch
+
+인증서로 서명되지 않은 빌드이므로 처음 한 번은 OS 확인 창이 나타납니다.
+[최초 실행 안내](https://github.com/Ezenitac-AiService/ImageViewer/blob/main/docs/FIRST_LAUNCH.md)를 따라 주세요.
+This build is not signed with a publisher certificate, so the OS asks once before the first launch.
+Follow the [first-launch guide](https://github.com/Ezenitac-AiService/ImageViewer/blob/main/docs/FIRST_LAUNCH.en.md).
+
+### 검증된 플랫폼 / Verified platforms
+
+| Platform | Arch | Automated | Clean machine | Status |
+|----------|------|-----------|---------------|--------|
+| Windows 10 | x64 | @WIN_AUTO@ | @WIN10@ | @WIN10_STATUS@ |
+| Windows 11 | x64 | @WIN_AUTO@ | @WIN11@ | @WIN11_STATUS@ |
+| macOS | Apple Silicon | @MAC_ARM_AUTO@ | @MAC_ARM@ | @MAC_ARM_STATUS@ |
+| macOS | Intel | @MAC_X64_AUTO@ | @MAC_X64@ | @MAC_X64_STATUS@ |
+| Linux | x64 | @LINUX_AUTO@ | n/a | experimental |
+
+"Automated" comes from the launch-verification records attached to this release.
+"Clean machine" is filled in by the maintainer before publishing (see `launch-verification-manual.md`).
+
+### 알려진 제한 / Known limitations
+
+- 게시자 서명이 없어 최초 실행 시 확인이 필요합니다. Windows Smart App Control이 켜진 PC에서는 실행이 차단될 수 있습니다.
+  No publisher signature: a one-time confirmation is needed, and Windows Smart App Control blocks unsigned apps outright where it is enabled.
+- 이 버전에서 제공하지 않는 기능은 [기능 목록](https://github.com/Ezenitac-AiService/ImageViewer/blob/main/docs/CAPABILITIES.md)을 참고하세요.
+  Capabilities that are not available in this version are listed in the [capability register](https://github.com/Ezenitac-AiService/ImageViewer/blob/main/docs/CAPABILITIES.en.md).
+- v1.0.6 대비 성능 동등성: 측정되지 않음.
+  Performance parity with v1.0.6: unmeasured.
+- Linux 빌드는 실험적이며 검증되지 않았습니다. Linux build is experimental and unverified.
+
+### 무결성 / Integrity
+
+```text
+sha256sum -c SHA256SUMS.txt --ignore-missing
+```

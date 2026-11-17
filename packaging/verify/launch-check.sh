@@ -26,6 +26,8 @@ mkdir -p "$LOG_DIR"
 OFFSET=$( [ -f "$LOG" ] && wc -c <"$LOG" | tr -d ' ' || echo 0 )
 
 new_log() { tail -c +"$((OFFSET + 1))" "$LOG" 2>/dev/null; }
+# osascript can block on an Automation permission prompt on fresh hosts; never wait more than 10 s.
+osa() { perl -e 'alarm 10; exec @ARGV' osascript "$@"; }
 wait_for() {
     local pattern="$1" secs="$2"
     for _ in $(seq 1 "$((secs * 2))"); do
@@ -62,7 +64,7 @@ fi
 
 # --- interaction step (§3): Right Arrow → navigate index=1
 if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
-    if osascript -e "tell application id \"$BUNDLE_ID\" to activate" \
+    if osa -e "tell application id \"$BUNDLE_ID\" to activate" \
         -e 'tell application "System Events" to key code 124' >/dev/null 2>&1; then
         if wait_for "phase=navigate index=1" 2; then navigated=true; else navigated=false; fi
     else
@@ -72,7 +74,8 @@ fi
 
 # --- quit the way the OS does
 if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
-    osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1
+    osa -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 ||
+        notes="${notes:+$notes; }quit Apple Event was not delivered (Automation permission?)"
 elif command -v xdotool >/dev/null 2>&1; then
     WID="$(xdotool search --pid "$PID" 2>/dev/null | head -1)"
     [ -n "$WID" ] && xdotool windowclose "$WID"

@@ -294,7 +294,7 @@ yields no draft release.
   - require exit code 0 within 10 s and an `exit=clean` line.
 
   It writes `launch-verification-<os>-<arch>.json` with the fields of data-model §2 (`release_file`, `target`, `layer="automated"`, `window_shown`, `first_frame`, `responding=null`, `console_window=null`, `clean_exit`, `result`, `performed_by="ci"`, `recorded_at`, `notes`).
-- [ ] T069 [US4] Create `packaging/verify/launch-check.ps1 <exe> <image>` for Windows:
+- [X] T069 [US4] Create `packaging/verify/launch-check.ps1 <exe> <image>` for Windows:
   - `Start-Process -PassThru`;
   - `MainWindowHandle ≠ 0` within 30 s;
   - `phase=first_frame` line seen;
@@ -304,13 +304,13 @@ yields no draft release.
   - exit code 0 within 10 s and an `exit=clean` line.
 
   It writes the JSON as in T068, with `responding` and `console_window` set.
-- [ ] T070 [US4] Add the interaction step from `contracts/release-verification-contract.md` §3 to both launch-check scripts: open `packaging/verify/fixtures/two-images/a.png`, send Right Arrow via `osascript` System Events / `SendKeys` (as permitted by spike T010), and expect `phase=navigate index=1` within 1 s. If input injection is not permitted, record `notes="interaction step moved to clean-machine"`
+- [X] T070 [US4] Add the interaction step from `contracts/release-verification-contract.md` §3 to both launch-check scripts: open `packaging/verify/fixtures/two-images/a.png`, send Right Arrow via `osascript` System Events / `SendKeys` (as permitted by spike T010), and expect `phase=navigate index=1` within 1 s. If input injection is not permitted, record `notes="interaction step moved to clean-machine"`
 - [X] T071 [US4] Run `launch-check.sh` against the `v1.1.0-alpha.1` macOS asset to confirm it fails for the expected reason (no `first_frame` record), and against the T034 bundle to confirm it passes. Record both outputs in `specs/004-launch-reliability-refactor/research.md`
 
 ### Implementation for User Story 4
 
 - [X] T072 [US4] Write `phase=navigate index=<n> total=<n>` at INFO on every image change in `crates/iv-app/src/app.rs` (launch contract §3); cover the formatter in `crates/iv-core/tests/diagnostics_tests.rs`
-- [ ] T073 [P] [US4] Create `packaging/release-notes.md.in`:
+- [X] T073 [P] [US4] Create `packaging/release-notes.md.in`:
   - the platform table from `contracts/release-verification-contract.md` §4, with `@WIN10@`, `@WIN11@`, `@MAC_ARM@`, `@MAC_X64@`, `@LINUX@` placeholders filled by the workflow;
   - known limitations: one-time trust confirmation, Smart App Control, and Unavailable capabilities linked to `docs/CAPABILITIES.md`;
   - the line "Performance parity with v1.0.6: unmeasured" (constitution v2.4.0).
@@ -318,7 +318,7 @@ yields no draft release.
   - `[advisories]` with `version = 2`, an `ignore = []` list where each entry carries a `reason`;
   - `[bans]` with `multiple-versions = "warn"`;
   - `[sources]` with `unknown-registry = "deny"` and `unknown-git = "deny"`.
-- [ ] T075 [US4] Rewrite `.github/workflows/ci.yml` per release-verification contract §5. Run on `ubuntu-latest`, `macos-latest`, `windows-latest`:
+- [X] T075 [US4] Rewrite `.github/workflows/ci.yml` per release-verification contract §5. Run on `ubuntu-latest`, `macos-latest`, `windows-latest`:
   - `cargo fmt --check`;
   - `clippy --workspace --all-targets --all-features -D warnings`;
   - `cargo test --workspace --all-features`;
@@ -326,7 +326,7 @@ yields no draft release.
   - a release build plus `launch-check` (Windows and macOS blocking; Linux under `xvfb-run` with `continue-on-error: true`);
   - `cargo deny check advisories bans licenses sources`;
   - `packaging/verify/component-count.sh`.
-- [ ] T076 [US4] Rewrite `.github/workflows/release.yml` per contract §4:
+- [X] T076 [US4] Rewrite `.github/workflows/release.yml` per contract §4:
   - jobs `build-windows` (T028), `build-macos` (T030), and `build-linux` (T031);
   - `verify-windows` (`windows-latest`), `verify-macos-arm64` (`macos-latest`), and `verify-macos-x64` (`macos-15-intel`, mounting the universal DMG), all blocking;
   - `verify-linux` with `continue-on-error: true`;
@@ -334,7 +334,7 @@ yields no draft release.
   - `publish-draft` (`needs` all blocking jobs plus `deny`), using `softprops/action-gh-release` with `draft: true`, the assets, `SHA256SUMS.txt`, all `launch-verification-*.json`, and the body rendered from `packaging/release-notes.md.in`.
 
   Remove every path that publishes a non-draft release.
-- [ ] T077 [P] [US4] Add a "Definition of Done" section to `CONTRIBUTING.md` and `CONTRIBUTING.en.md`: a task is complete only when its behaviour was observed in the started application on each claimed OS or the gap is recorded (FR-030). Include the release procedure: draft → clean-machine checklist ([quickstart.md](./quickstart.md) §4) → attach `launch-verification-manual.md` → publish
+- [X] T077 [P] [US4] Add a "Definition of Done" section to `CONTRIBUTING.md` and `CONTRIBUTING.en.md`: a task is complete only when its behaviour was observed in the started application on each claimed OS or the gap is recorded (FR-030). Include the release procedure: draft → clean-machine checklist ([quickstart.md](./quickstart.md) §4) → attach `launch-verification-manual.md` → publish
 - [ ] T078 [US4] Release rehearsal per [quickstart.md](./quickstart.md) §5 via `workflow_dispatch` with tag `v1.1.0-rc.1`. Then repeat on a branch that skips the signing step in `packaging/macos/package-macos.sh`, and confirm no draft is created. Record the run URLs in `specs/004-launch-reliability-refactor/research.md`
 
 **Checkpoint**: A broken artifact cannot reach a published release.

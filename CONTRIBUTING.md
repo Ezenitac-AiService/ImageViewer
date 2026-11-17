@@ -18,10 +18,30 @@ Pull Request를 열기 전에 로컬에서 아래 검증 명령이 모두 통과
 
 ```bash
 cargo fmt --all -- --check
-cargo check --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --all-features
 cargo test --workspace
+cargo deny check advisories bans licenses sources
+packaging/verify/component-count.sh
 ```
+
+배포 설정(기본 기능)과 전체 기능 설정을 모두 테스트합니다. 전체 기능에는 아직 배포하지 않는 기능(업데이트, OS 코덱, 확장 포맷, 셸 등록)이 포함됩니다. 자세한 내용은 [기능 목록](docs/CAPABILITIES.md)을 참고하세요.
+
+## 완료 기준 (Definition of Done)
+
+작업은 다음을 모두 만족해야 완료입니다.
+
+1. 실패하는 테스트를 먼저 작성하고, 구현 후 통과합니다.
+2. 동작을 **실행한 앱에서 직접 확인**했습니다. 지원 대상 OS(Windows, macOS)마다 확인하거나, 확인하지 못한 OS를 PR에 명시합니다. 라이브러리 테스트 통과만으로는 완료가 아닙니다.
+3. 화면이나 문서에 새로 노출되는 기능은 [기능 목록](docs/CAPABILITIES.md)에 근거와 함께 등록되어 있습니다.
+
+## 릴리스 절차
+
+1. `v*` 태그를 올리면 릴리스 워크플로가 Windows·macOS(Apple Silicon·Intel)·Linux 파일을 빌드하고, 각 OS에서 **실제로 실행해 검사**합니다. Windows·macOS 검사나 `cargo deny`가 실패하면 릴리스가 만들어지지 않습니다.
+2. 통과하면 **초안(draft) 릴리스**만 만들어집니다.
+3. 관리자가 깨끗한 Windows 10·11 VM과 실제 Mac에서 [수동 체크리스트](specs/004-launch-reliability-refactor/quickstart.md)를 실행하고, 결과를 `launch-verification-manual.md`로 초안에 첨부합니다.
+4. 그 다음에만 게시합니다.
 
 ### 코딩 표준
 - 테스트 주도 개발(TDD) 원칙에 따라 프로덕션 코드 수정 전 실패하는 테스트를 먼저 작성합니다.
