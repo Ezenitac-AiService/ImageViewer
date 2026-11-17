@@ -150,13 +150,13 @@ and no "damaged" message (FR-001–FR-006).
   5. runs `packaging/verify/assert-macos-bundle.sh`;
   6. creates `target/release/ImageViewer-macos-universal.dmg` containing the app and an `/Applications` symlink.
 - [X] T031 [P] [US1] Rename `packaging/linux/package-appimage.sh` to `packaging/linux/package-linux.sh` (executable). It produces `ImageViewer-linux-x64.tar.gz` containing the binary, `imageviewer.desktop`, and a `README-EXPERIMENTAL.txt` stating that Linux is experimental and unverified (FR-026)
-- [ ] T032 [P] [US1] Write `docs/FIRST_LAUNCH.md` (Korean) and `docs/FIRST_LAUNCH.en.md` (English), with a bidirectional language switcher:
+- [X] T032 [P] [US1] Write `docs/FIRST_LAUNCH.md` (Korean) and `docs/FIRST_LAUNCH.en.md` (English), with a bidirectional language switcher:
   - Windows SmartScreen "More info → Run anyway", and the Smart App Control limitation;
   - macOS: open the DMG, drag to Applications, then System Settings → Privacy & Security → "Open Anyway";
   - Intel and Apple Silicon are both supported by one download.
 
   Mark where T110 adds the screenshots.
-- [ ] T033 [US1] Update `README.md` and `README.en.md`: the new asset names, a link to `docs/FIRST_LAUNCH*.md`, and Linux labelled experimental
+- [X] T033 [US1] Update `README.md` and `README.en.md`: the new asset names, a link to `docs/FIRST_LAUNCH*.md`, and Linux labelled experimental
 - [X] T034 [US1] Run `packaging/macos/package-macos.sh` on the macOS host; T023 must now pass. Open the DMG copy with a quarantine attribute and confirm `syspolicy_check` reports no codesign *Fatal* error (a notarization notice is expected and acceptable)
 
 **Checkpoint**: The macOS bundle verifies; the Windows build assertions are ready for CI (T076). Clean-machine confirmation happens in T110.
@@ -365,11 +365,11 @@ access. No placeholders (FR-020–FR-026, FR-037).
   - remove the thumbnail strip;
   - remove the `HostOsCodecProvider` usage from `loader.rs` (decode with `os_provider = None`);
   - restrict the `rfd` filter in `crates/iv-platform/src/paths_dialogs.rs` to Core extensions plus `zip cbz`.
-- [ ] T086 [US5] Evaluate each Extended candidate against FR-023 (slideshow, EXIF panel, multi-page TIFF paging, Image List sorting). For each, write or point to real-fixture tests in `crates/iv-media/tests/` and `crates/iv-core/tests/`, run it on macOS (and on Windows in T110), and either keep it reachable or hide it in `crates/iv-app/src/views/toolbar.rs` and the interaction mapping. Record the verdicts in `docs/CAPABILITIES.md`
-- [ ] T087 [US5] Write `docs/CAPABILITIES.md` (Korean) and `docs/CAPABILITIES.en.md` (English), with language switchers:
+- [X] T086 [US5] Evaluate each Extended candidate against FR-023 (slideshow, EXIF panel, multi-page TIFF paging, Image List sorting). For each, write or point to real-fixture tests in `crates/iv-media/tests/` and `crates/iv-core/tests/`, run it on macOS (and on Windows in T110), and either keep it reachable or hide it in `crates/iv-app/src/views/toolbar.rs` and the interaction mapping. Record the verdicts in `docs/CAPABILITIES.md`
+- [X] T087 [US5] Write `docs/CAPABILITIES.md` (Korean) and `docs/CAPABILITIES.en.md` (English), with language switchers:
   - one row per capability with the data-model §4 fields `id`, `tier` (`core | extended | unavailable`), `user_visible` ("MUST be false when `tier = unavailable`"), `evidence` (links to tests and records), `verified_on`, and `components`;
   - the initial classification from data-model §4 as amended by T086.
-- [ ] T088 [US5] Align `README.md`, `README.en.md`, `SECURITY.md`, and `SECURITY.en.md` with `docs/CAPABILITIES*.md`: remove claims about auto-update, extended formats, OS codecs, shell registration, and thumbnails; label Linux experimental; state "performance parity with v1.0.6: unmeasured"
+- [X] T088 [US5] Align `README.md`, `README.en.md`, `SECURITY.md`, and `SECURITY.en.md` with `docs/CAPABILITIES*.md`: remove claims about auto-update, extended formats, OS codecs, shell registration, and thumbnails; label Linux experimental; state "performance parity with v1.0.6: unmeasured"
 - [X] T089 [US5] Run `packaging/verify/component-count.sh`; it must report no `reqwest` / `hyper` / `rustls` / `tokio` (FR-025)
 
 **Checkpoint**: Everything reachable is in the register. Nothing unverified is advertised.
@@ -423,8 +423,8 @@ justified component inventory within budget (FR-031–FR-036).
   - drop the direct `chrono` use in `crates/iv-core/src/logger.rs` if needed to meet the budget.
 
   Record the final count and each decision in research.md R13 ("Result" sub-heading).
-- [ ] T099 [US6] Add a "Justification" column to the direct-dependency tables in `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_NOTICES.en.md`. Each entry links a capability id from `docs/CAPABILITIES.md` (data-model §5: "MUST reference a `core` or verified `extended` capability"). Remove entries for crates no longer shipped, and add eframe, glow, glutin, and sys-locale
-- [ ] T100 [US6] Map every safety property stated in `SECURITY.md` and `SECURITY.en.md` to a test name from T090–T093 or launch contract §6. Delete any property without one (FR-033)
+- [X] T099 [US6] Add a "Justification" column to the direct-dependency tables in `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_NOTICES.en.md`. Each entry links a capability id from `docs/CAPABILITIES.md` (data-model §5: "MUST reference a `core` or verified `extended` capability"). Remove entries for crates no longer shipped, and add eframe, glow, glutin, and sys-locale
+- [X] T100 [US6] Map every safety property stated in `SECURITY.md` and `SECURITY.en.md` to a test name from T090–T093 or launch contract §6. Delete any property without one (FR-033)
 - [X] T101 [US6] Run `cargo deny check advisories bans licenses sources`. Resolve or record (with a reason in `deny.toml`) every finding
 
 **Checkpoint**: Safety claims equal tested behaviour. Dependencies are justified and within budget.
@@ -437,7 +437,7 @@ justified component inventory within budget (FR-031–FR-036).
   - `SessionPhase`, `begin_open`, `begin_render`, `open_gen`, `render_gen` in `crates/iv-media/src/session.rs` (and their tests);
   - `register_linux_desktop` and `render_xdg_desktop_entry` in `crates/iv-platform/src/integration.rs`, unless a caller exists;
   - `crates/iv-app/src/resources/strings.json` if unused.
-- [ ] T103 [P] Remove `install_cjk_fallback_fonts` hard-coded paths, or keep them through eframe font definitions in `crates/iv-app/src/app.rs`. Confirm Korean text renders on Windows (Malgun Gothic) and macOS (Apple SD Gothic Neo); record the result in T110
+- [X] T103 [P] Remove `install_cjk_fallback_fonts` hard-coded paths, or keep them through eframe font definitions in `crates/iv-app/src/app.rs`. Confirm Korean text renders on Windows (Malgun Gothic) and macOS (Apple SD Gothic Neo); record the result in T110
 - [ ] T104 Bump the workspace `version` to `1.1.0-alpha.2` in `Cargo.toml` (single source per FR-006) and confirm `packaging/macos/Info.plist.in` and `crates/iv-app/build.rs` pick it up
 - [ ] T105 [P] Add `1.1.0-alpha.2` entries to `CHANGELOG.md` and `CHANGELOG.en.md`: the console fix, responsiveness, macOS signing and universal build, diagnostics, scope changes, and Linux experimental
 - [ ] T106 [P] Update the `**Status**` lines: `specs/002-rust-crossplatform-viewer/spec.md` (superseded for the next release by 004) and `specs/004-launch-reliability-refactor/spec.md` (Implemented, pending clean-machine verification)
