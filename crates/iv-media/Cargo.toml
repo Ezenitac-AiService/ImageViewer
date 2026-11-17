@@ -15,11 +15,11 @@ lru.workspace = true
 rayon.workspace = true
 zune-jpeg.workspace = true
 image.workspace = true
-image-extras.workspace = true
-image_dds.workspace = true
-rawpsd.workspace = true
-jxl-oxide.workspace = true
-exr.workspace = true
+image-extras = { workspace = true, optional = true }
+image_dds = { workspace = true, optional = true }
+rawpsd = { workspace = true, optional = true }
+jxl-oxide = { workspace = true, optional = true }
+exr = { workspace = true, optional = true }
 image-webp.workspace = true
 tiff.workspace = true
 moxcms.workspace = true
@@ -28,6 +28,23 @@ kamadak-exif.workspace = true
 zip.workspace = true
 notify-debouncer-mini.workspace = true
 notify.workspace = true
+
+[features]
+default = []
+# Extended-tier decoders (Unavailable in the shipped build; re-admitted per FR-023).
+extended-formats = [
+    "dep:image-extras",
+    "dep:image_dds",
+    "dep:rawpsd",
+    "dep:jxl-oxide",
+    "dep:exr",
+    "image/ico",
+    "image/tga",
+    "image/qoi",
+    "image/pnm",
+    "image/hdr",
+    "image/exr",
+]
 
 [dev-dependencies]
 criterion.workspace = true

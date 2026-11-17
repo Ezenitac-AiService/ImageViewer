@@ -85,4 +85,4 @@ blocking, and Unavailable capabilities.
 `fmt` → `clippy -D warnings` (workspace, all targets, all features) → `test --workspace
 --all-features` → `test --workspace` (default features, i.e. the shipped configuration) → launch
 check on Windows and macOS → `cargo deny check` (all sections) → shipped-component count reported,
-failing if it exceeds 411 (research R13).
+failing if it exceeds 356 (research R13).

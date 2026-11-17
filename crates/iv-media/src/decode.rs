@@ -7,7 +7,7 @@ use crate::resize_filter::SimdResizer;
 use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 use iv_core::codecs::{OsCodecError, OsCodecProvider};
-use iv_core::format_guard::FormatGuard;
+use iv_core::format_guard::{CoreFormat, FormatGuard};
 use std::io::Cursor;
 use std::path::Path;
 use thiserror::Error;
@@ -24,6 +24,8 @@ pub enum DecodeError {
     UnsupportedOrCorrupt(String),
     #[error("host OS codec error: {0}")]
     OsCodec(#[from] OsCodecError),
+    #[error("format not supported in this build")]
+    UnsupportedFormat,
 }
 
 impl DecodeError {
@@ -38,6 +40,7 @@ impl DecodeError {
             Self::OsCodec(OsCodecError::ExceedsPixelLimit) => "error.too_large",
             Self::OsCodec(OsCodecError::SecurityRejected) => "error.security_rejected",
             Self::OsCodec(_) => "error.corrupt",
+            Self::UnsupportedFormat => "error.unsupported_format",
         };
         iv_core::i18n::I18n::tr(lang, key).to_string()
     }
@@ -172,16 +175,25 @@ impl MediaDecoder {
 
         let exif_items = ExifExtractor::extract(bytes);
         let (mut img, icc_opt, orientation_opt, page_count, page_index, format_label) =
-            match ext.as_str() {
-                "cur" => decode_cur_largest(bytes, opts.max_megapixels)?,
-                "pcx" => decode_pcx(bytes, opts.max_megapixels)?,
-                "dds" => decode_dds(bytes, opts.max_megapixels)?,
-                "psd" => decode_psd(bytes, opts.max_megapixels)?,
-                "jxl" => decode_jxl(bytes, opts.max_megapixels)?,
-                "exr" => decode_exr(bytes, opts.max_megapixels)?,
-                "tif" | "tiff" => decode_tiff_page(bytes, opts.page_index, opts.max_megapixels)?,
-                "jpg" | "jpeg" | "jpe" | "jfif" => decode_jpeg_fast(bytes, opts.max_megapixels)?,
-                _ => decode_standard_image(bytes, &ext, opts.max_megapixels)?,
+            match FormatGuard::identify(bytes) {
+                Some(CoreFormat::Jpeg) => decode_jpeg_fast(bytes, opts.max_megapixels)?,
+                Some(CoreFormat::Tiff) => {
+                    decode_tiff_page(bytes, opts.page_index, opts.max_megapixels)?
+                }
+                Some(CoreFormat::Png) => {
+                    decode_standard_image(bytes, ImageFormat::Png, opts.max_megapixels)?
+                }
+                Some(CoreFormat::Gif) => {
+                    decode_standard_image(bytes, ImageFormat::Gif, opts.max_megapixels)?
+                }
+                Some(CoreFormat::WebP) => {
+                    decode_standard_image(bytes, ImageFormat::WebP, opts.max_megapixels)?
+                }
+                Some(CoreFormat::Bmp) => {
+                    decode_standard_image(bytes, ImageFormat::Bmp, opts.max_megapixels)?
+                }
+                Some(CoreFormat::Zip) => return Err(DecodeError::UnsupportedFormat),
+                None => decode_unidentified(bytes, &ext, opts)?,
             };
 
         let mut orientation_applied = false;
@@ -287,13 +299,11 @@ fn decode_jpeg_fast(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, Decode
 
 fn decode_standard_image(
     bytes: &[u8],
-    ext: &str,
+    format: ImageFormat,
     max_mp: u32,
 ) -> Result<RawDecodeResult, DecodeError> {
-    let reader = ImageReader::new(Cursor::new(bytes))
-        .with_guessed_format()
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    let fmt = reader.format();
+    let mut reader = ImageReader::new(Cursor::new(bytes));
+    reader.set_format(format);
     let mut decoder = reader
         .into_decoder()
         .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
@@ -303,10 +313,26 @@ fn decode_standard_image(
     let icc = decoder.icc_profile().ok().flatten();
     let img = DynamicImage::from_decoder(decoder)
         .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    let label = fmt
-        .map(|f| format!("{f:?}").to_ascii_uppercase())
-        .unwrap_or_else(|| ext.to_ascii_uppercase());
+    let label = format!("{format:?}").to_ascii_uppercase();
     Ok((img, icc, orient, 1, 0, label))
+}
+
+/// Content without a Core signature: refused in the shipped build (FR-031), decoded by
+/// extension only when the extended tier is compiled in.
+fn decode_unidentified(
+    bytes: &[u8],
+    ext: &str,
+    opts: &DecodeOptions,
+) -> Result<RawDecodeResult, DecodeError> {
+    #[cfg(feature = "extended-formats")]
+    {
+        extended::decode_by_extension(bytes, ext, opts)
+    }
+    #[cfg(not(feature = "extended-formats"))]
+    {
+        let _ = (bytes, ext, opts);
+        Err(DecodeError::UnsupportedFormat)
+    }
 }
 
 fn decode_tiff_page(
@@ -421,274 +447,311 @@ fn decode_tiff_page(
     ))
 }
 
-fn decode_cur_largest(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
-    if bytes.len() < 6 {
-        return Err(DecodeError::UnsupportedOrCorrupt(
-            "truncated .cur".to_string(),
-        ));
-    }
-    let reserved = u16::from_le_bytes([bytes[0], bytes[1]]);
-    let img_type = u16::from_le_bytes([bytes[2], bytes[3]]);
-    let count = u16::from_le_bytes([bytes[4], bytes[5]]) as usize;
-    if reserved != 0 || img_type != 2 || count == 0 {
-        return Err(DecodeError::UnsupportedOrCorrupt(
-            "invalid .cur header".to_string(),
-        ));
-    }
-    let dir_end = 6usize
-        .checked_add(count * 16)
-        .ok_or(DecodeError::DimensionOverflow)?;
-    if bytes.len() < dir_end {
-        return Err(DecodeError::UnsupportedOrCorrupt(
-            "truncated .cur directory".to_string(),
-        ));
-    }
+/// Extended-tier decoders (capability register: Unavailable until re-admitted under FR-023).
+/// Compiled and tested only with `--features extended-formats`; never in the shipped build.
+#[cfg(feature = "extended-formats")]
+mod extended {
+    use super::*;
 
-    let mut best: Option<(u32, usize, usize)> = None;
-    for i in 0..count {
-        let off = 6 + i * 16;
-        let w = if bytes[off] == 0 {
-            256u32
-        } else {
-            u32::from(bytes[off])
-        };
-        let h = if bytes[off + 1] == 0 {
-            256u32
-        } else {
-            u32::from(bytes[off + 1])
-        };
-        let size = u32::from_le_bytes([
-            bytes[off + 8],
-            bytes[off + 9],
-            bytes[off + 10],
-            bytes[off + 11],
-        ]) as usize;
-        let img_off = u32::from_le_bytes([
-            bytes[off + 12],
-            bytes[off + 13],
-            bytes[off + 14],
-            bytes[off + 15],
-        ]) as usize;
-        let Some(end) = img_off.checked_add(size) else {
-            continue;
-        };
-        if end <= bytes.len() {
-            let area = w.saturating_mul(h);
-            if best.is_none_or(|(b_area, _, _)| area > b_area) {
-                best = Some((area, img_off, end));
-            }
-        }
-    }
-
-    let (_, start, end) =
-        best.ok_or_else(|| DecodeError::UnsupportedOrCorrupt("no valid .cur frame".to_string()))?;
-    let payload = &bytes[start..end];
-    if payload.starts_with(&[0x89, b'P', b'N', b'G']) {
-        let mut res = decode_standard_image(payload, "png", max_mp)?;
-        res.5 = "CUR".to_string();
-        Ok(res)
-    } else {
-        // Re-tag ICO type=1 so `image` ICO decoder parses DIB/XOR/AND masks cleanly
-        let mut ico_buf = Vec::with_capacity(22 + payload.len());
-        ico_buf.extend_from_slice(&0u16.to_le_bytes());
-        ico_buf.extend_from_slice(&1u16.to_le_bytes());
-        ico_buf.extend_from_slice(&1u16.to_le_bytes());
-        ico_buf.extend_from_slice(&bytes[6..22]);
-        ico_buf[18..22].copy_from_slice(&22u32.to_le_bytes());
-        ico_buf.extend_from_slice(payload);
-        let mut res = decode_standard_image(&ico_buf, "ico", max_mp)?;
-        res.5 = "CUR".to_string();
-        Ok(res)
-    }
-}
-
-fn decode_pcx(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
-    let dec = image_extras::pcx::PCXDecoder::new(Cursor::new(bytes))
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    let (w, h) = dec.dimensions();
-    MediaDecoder::check_pixel_cap(w, h, max_mp)?;
-    let img = DynamicImage::from_decoder(dec)
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    Ok((img, None, None, 1, 0, "PCX".to_string()))
-}
-
-fn decode_dds(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
-    let dds = image_dds::ddsfile::Dds::read(&mut Cursor::new(bytes))
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    MediaDecoder::check_pixel_cap(dds.get_width(), dds.get_height(), max_mp)?;
-    let rgba = image_dds::image_from_dds(&dds, 0)
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    Ok((
-        DynamicImage::ImageRgba8(rgba),
-        None,
-        None,
-        1,
-        0,
-        "DDS".to_string(),
-    ))
-}
-
-fn decode_psd(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
-    let meta = rawpsd::parse_psd_metadata(bytes).map_err(DecodeError::UnsupportedOrCorrupt)?;
-    let w = meta.width;
-    let h = meta.height;
-    MediaDecoder::check_pixel_cap(w, h, max_mp)?;
-    let layers = rawpsd::parse_layer_records(bytes).unwrap_or_default();
-    let mut canvas = vec![0u8; (w as usize) * (h as usize) * 4];
-    let mut drew_layer = false;
-    for layer in layers {
-        if !layer.image_data_rgba.is_empty() {
-            let lw = layer.w;
-            let lh = layer.h;
-            let copy_w = lw.min(w);
-            let copy_h = lh.min(h);
-            for y in 0..copy_h as usize {
-                let src_start = y * (lw as usize) * 4;
-                let src_end = src_start + (copy_w as usize) * 4;
-                if src_end <= layer.image_data_rgba.len() {
-                    let dst_start = y * (w as usize) * 4;
-                    canvas[dst_start..dst_start + (copy_w as usize) * 4]
-                        .copy_from_slice(&layer.image_data_rgba[src_start..src_end]);
-                }
-            }
-            drew_layer = true;
-            break;
-        }
-    }
-    if !drew_layer {
-        decode_psd_composite_fallback(bytes, w, h, &mut canvas)?;
-    }
-    let img = image::RgbaImage::from_raw(w, h, canvas)
-        .map(DynamicImage::ImageRgba8)
-        .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("invalid psd rgba".to_string()))?;
-    Ok((img, None, None, 1, 0, "PSD".to_string()))
-}
-
-fn decode_psd_composite_fallback(
-    bytes: &[u8],
-    w: u32,
-    h: u32,
-    canvas: &mut [u8],
-) -> Result<(), DecodeError> {
-    if bytes.len() < 34 || &bytes[0..4] != b"8BPS" {
-        return Err(DecodeError::UnsupportedOrCorrupt(
-            "invalid psd header".to_string(),
-        ));
-    }
-    let channels = u16::from_be_bytes([bytes[12], bytes[13]]) as usize;
-    let mut pos = 26usize;
-    for _ in 0..3 {
-        if pos + 4 > bytes.len() {
+    pub(super) fn decode_cur_largest(
+        bytes: &[u8],
+        max_mp: u32,
+    ) -> Result<RawDecodeResult, DecodeError> {
+        if bytes.len() < 6 {
             return Err(DecodeError::UnsupportedOrCorrupt(
-                "truncated psd section".to_string(),
+                "truncated .cur".to_string(),
             ));
         }
-        let sec_len =
-            u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]])
-                as usize;
-        pos = pos
-            .checked_add(4 + sec_len)
-            .ok_or(DecodeError::DimensionOverflow)?;
-    }
-    if pos + 2 > bytes.len() {
-        return Err(DecodeError::UnsupportedOrCorrupt(
-            "missing psd image data".to_string(),
-        ));
-    }
-    let compression = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]);
-    pos += 2;
-    let plane_len = (w as usize) * (h as usize);
-    let mut planes = Vec::with_capacity(channels);
-    if compression == 0 {
-        for _ in 0..channels.min(4) {
-            let end = pos + plane_len;
-            if end > bytes.len() {
-                break;
-            }
-            planes.push(bytes[pos..end].to_vec());
-            pos = end;
+        let reserved = u16::from_le_bytes([bytes[0], bytes[1]]);
+        let img_type = u16::from_le_bytes([bytes[2], bytes[3]]);
+        let count = u16::from_le_bytes([bytes[4], bytes[5]]) as usize;
+        if reserved != 0 || img_type != 2 || count == 0 {
+            return Err(DecodeError::UnsupportedOrCorrupt(
+                "invalid .cur header".to_string(),
+            ));
         }
-    } else if compression == 1 {
-        let byte_count_table = channels * (h as usize) * 2;
-        pos = pos.saturating_add(byte_count_table);
-        for _ in 0..channels.min(4) {
-            let mut plane = Vec::with_capacity(plane_len);
-            while plane.len() < plane_len && pos < bytes.len() {
-                let n = bytes[pos] as i8;
-                pos += 1;
-                if n >= 0 {
-                    let count = (n as usize) + 1;
-                    let end = (pos + count).min(bytes.len());
-                    plane.extend_from_slice(&bytes[pos..end]);
-                    pos = end;
-                } else if n != -128 && pos < bytes.len() {
-                    let count = (1 - i16::from(n)) as usize;
-                    let val = bytes[pos];
-                    pos += 1;
-                    plane.resize((plane.len() + count).min(plane_len), val);
+        let dir_end = 6usize
+            .checked_add(count * 16)
+            .ok_or(DecodeError::DimensionOverflow)?;
+        if bytes.len() < dir_end {
+            return Err(DecodeError::UnsupportedOrCorrupt(
+                "truncated .cur directory".to_string(),
+            ));
+        }
+
+        let mut best: Option<(u32, usize, usize)> = None;
+        for i in 0..count {
+            let off = 6 + i * 16;
+            let w = if bytes[off] == 0 {
+                256u32
+            } else {
+                u32::from(bytes[off])
+            };
+            let h = if bytes[off + 1] == 0 {
+                256u32
+            } else {
+                u32::from(bytes[off + 1])
+            };
+            let size = u32::from_le_bytes([
+                bytes[off + 8],
+                bytes[off + 9],
+                bytes[off + 10],
+                bytes[off + 11],
+            ]) as usize;
+            let img_off = u32::from_le_bytes([
+                bytes[off + 12],
+                bytes[off + 13],
+                bytes[off + 14],
+                bytes[off + 15],
+            ]) as usize;
+            let Some(end) = img_off.checked_add(size) else {
+                continue;
+            };
+            if end <= bytes.len() {
+                let area = w.saturating_mul(h);
+                if best.is_none_or(|(b_area, _, _)| area > b_area) {
+                    best = Some((area, img_off, end));
                 }
             }
-            planes.push(plane);
+        }
+
+        let (_, start, end) = best
+            .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("no valid .cur frame".to_string()))?;
+        let payload = &bytes[start..end];
+        if payload.starts_with(&[0x89, b'P', b'N', b'G']) {
+            let mut res = decode_standard_image(payload, ImageFormat::Png, max_mp)?;
+            res.5 = "CUR".to_string();
+            Ok(res)
+        } else {
+            // Re-tag ICO type=1 so `image` ICO decoder parses DIB/XOR/AND masks cleanly
+            let mut ico_buf = Vec::with_capacity(22 + payload.len());
+            ico_buf.extend_from_slice(&0u16.to_le_bytes());
+            ico_buf.extend_from_slice(&1u16.to_le_bytes());
+            ico_buf.extend_from_slice(&1u16.to_le_bytes());
+            ico_buf.extend_from_slice(&bytes[6..22]);
+            ico_buf[18..22].copy_from_slice(&22u32.to_le_bytes());
+            ico_buf.extend_from_slice(payload);
+            let mut res = decode_standard_image(&ico_buf, ImageFormat::Ico, max_mp)?;
+            res.5 = "CUR".to_string();
+            Ok(res)
         }
     }
-    if planes.is_empty() {
-        return Err(DecodeError::UnsupportedOrCorrupt(
-            "empty psd composite".to_string(),
-        ));
-    }
-    for i in 0..plane_len {
-        let r = planes[0].get(i).copied().unwrap_or(0);
-        let g = planes.get(1).and_then(|p| p.get(i).copied()).unwrap_or(r);
-        let b = planes.get(2).and_then(|p| p.get(i).copied()).unwrap_or(r);
-        let a = planes.get(3).and_then(|p| p.get(i).copied()).unwrap_or(255);
-        canvas[i * 4..i * 4 + 4].copy_from_slice(&[r, g, b, a]);
-    }
-    Ok(())
-}
 
-fn decode_jxl(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
-    let jxl = jxl_oxide::JxlImage::builder()
-        .read(Cursor::new(bytes))
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    let w = jxl.width();
-    let h = jxl.height();
-    MediaDecoder::check_pixel_cap(w, h, max_mp)?;
-    let render = jxl
-        .render_frame(0)
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    let fb = render.image_all_channels();
-    let float_buf = fb.buf();
-    let channels = fb.channels();
-    let mut rgba = Vec::with_capacity((w as usize) * (h as usize) * 4);
-    for px in float_buf.chunks_exact(channels) {
-        let r = (px[0].clamp(0.0, 1.0) * 255.0).round() as u8;
-        let g = (px.get(1).copied().unwrap_or(px[0]).clamp(0.0, 1.0) * 255.0).round() as u8;
-        let b = (px.get(2).copied().unwrap_or(px[0]).clamp(0.0, 1.0) * 255.0).round() as u8;
-        let a = (px.get(3).copied().unwrap_or(1.0).clamp(0.0, 1.0) * 255.0).round() as u8;
-        rgba.extend_from_slice(&[r, g, b, a]);
+    pub(super) fn decode_pcx(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
+        let dec = image_extras::pcx::PCXDecoder::new(Cursor::new(bytes))
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        let (w, h) = dec.dimensions();
+        MediaDecoder::check_pixel_cap(w, h, max_mp)?;
+        let img = DynamicImage::from_decoder(dec)
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        Ok((img, None, None, 1, 0, "PCX".to_string()))
     }
-    let img = image::RgbaImage::from_raw(w, h, rgba)
-        .map(DynamicImage::ImageRgba8)
-        .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("invalid jxl buffer".to_string()))?;
-    Ok((img, None, None, 1, 0, "JXL".to_string()))
-}
 
-fn decode_exr(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
-    let mut reader = ImageReader::new(Cursor::new(bytes));
-    reader.set_format(ImageFormat::OpenExr);
-    let dec = reader
-        .into_decoder()
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    let (w, h) = dec.dimensions();
-    MediaDecoder::check_pixel_cap(w, h, max_mp)?;
-    let img = DynamicImage::from_decoder(dec)
-        .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
-    let f32_buf = img.into_rgba32f().into_raw();
-    let tonemapped = ColorHdrNormalizer::tonemap_rgba_f32_to_srgb(&f32_buf);
-    let ldr = image::RgbaImage::from_raw(w, h, tonemapped)
-        .map(DynamicImage::ImageRgba8)
-        .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("invalid exr buffer".to_string()))?;
-    Ok((ldr, None, None, 1, 0, "EXR".to_string()))
+    pub(super) fn decode_dds(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
+        let dds = image_dds::ddsfile::Dds::read(&mut Cursor::new(bytes))
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        MediaDecoder::check_pixel_cap(dds.get_width(), dds.get_height(), max_mp)?;
+        let rgba = image_dds::image_from_dds(&dds, 0)
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        Ok((
+            DynamicImage::ImageRgba8(rgba),
+            None,
+            None,
+            1,
+            0,
+            "DDS".to_string(),
+        ))
+    }
+
+    pub(super) fn decode_psd(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
+        let meta = rawpsd::parse_psd_metadata(bytes).map_err(DecodeError::UnsupportedOrCorrupt)?;
+        let w = meta.width;
+        let h = meta.height;
+        MediaDecoder::check_pixel_cap(w, h, max_mp)?;
+        let layers = rawpsd::parse_layer_records(bytes).unwrap_or_default();
+        let mut canvas = vec![0u8; (w as usize) * (h as usize) * 4];
+        let mut drew_layer = false;
+        for layer in layers {
+            if !layer.image_data_rgba.is_empty() {
+                let lw = layer.w;
+                let lh = layer.h;
+                let copy_w = lw.min(w);
+                let copy_h = lh.min(h);
+                for y in 0..copy_h as usize {
+                    let src_start = y * (lw as usize) * 4;
+                    let src_end = src_start + (copy_w as usize) * 4;
+                    if src_end <= layer.image_data_rgba.len() {
+                        let dst_start = y * (w as usize) * 4;
+                        canvas[dst_start..dst_start + (copy_w as usize) * 4]
+                            .copy_from_slice(&layer.image_data_rgba[src_start..src_end]);
+                    }
+                }
+                drew_layer = true;
+                break;
+            }
+        }
+        if !drew_layer {
+            decode_psd_composite_fallback(bytes, w, h, &mut canvas)?;
+        }
+        let img = image::RgbaImage::from_raw(w, h, canvas)
+            .map(DynamicImage::ImageRgba8)
+            .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("invalid psd rgba".to_string()))?;
+        Ok((img, None, None, 1, 0, "PSD".to_string()))
+    }
+
+    pub(super) fn decode_psd_composite_fallback(
+        bytes: &[u8],
+        w: u32,
+        h: u32,
+        canvas: &mut [u8],
+    ) -> Result<(), DecodeError> {
+        if bytes.len() < 34 || &bytes[0..4] != b"8BPS" {
+            return Err(DecodeError::UnsupportedOrCorrupt(
+                "invalid psd header".to_string(),
+            ));
+        }
+        let channels = u16::from_be_bytes([bytes[12], bytes[13]]) as usize;
+        let mut pos = 26usize;
+        for _ in 0..3 {
+            if pos + 4 > bytes.len() {
+                return Err(DecodeError::UnsupportedOrCorrupt(
+                    "truncated psd section".to_string(),
+                ));
+            }
+            let sec_len =
+                u32::from_be_bytes([bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]])
+                    as usize;
+            pos = pos
+                .checked_add(4 + sec_len)
+                .ok_or(DecodeError::DimensionOverflow)?;
+        }
+        if pos + 2 > bytes.len() {
+            return Err(DecodeError::UnsupportedOrCorrupt(
+                "missing psd image data".to_string(),
+            ));
+        }
+        let compression = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]);
+        pos += 2;
+        let plane_len = (w as usize) * (h as usize);
+        let mut planes = Vec::with_capacity(channels);
+        if compression == 0 {
+            for _ in 0..channels.min(4) {
+                let end = pos + plane_len;
+                if end > bytes.len() {
+                    break;
+                }
+                planes.push(bytes[pos..end].to_vec());
+                pos = end;
+            }
+        } else if compression == 1 {
+            let byte_count_table = channels * (h as usize) * 2;
+            pos = pos.saturating_add(byte_count_table);
+            for _ in 0..channels.min(4) {
+                let mut plane = Vec::with_capacity(plane_len);
+                while plane.len() < plane_len && pos < bytes.len() {
+                    let n = bytes[pos] as i8;
+                    pos += 1;
+                    if n >= 0 {
+                        let count = (n as usize) + 1;
+                        let end = (pos + count).min(bytes.len());
+                        plane.extend_from_slice(&bytes[pos..end]);
+                        pos = end;
+                    } else if n != -128 && pos < bytes.len() {
+                        let count = (1 - i16::from(n)) as usize;
+                        let val = bytes[pos];
+                        pos += 1;
+                        plane.resize((plane.len() + count).min(plane_len), val);
+                    }
+                }
+                planes.push(plane);
+            }
+        }
+        if planes.is_empty() {
+            return Err(DecodeError::UnsupportedOrCorrupt(
+                "empty psd composite".to_string(),
+            ));
+        }
+        for i in 0..plane_len {
+            let r = planes[0].get(i).copied().unwrap_or(0);
+            let g = planes.get(1).and_then(|p| p.get(i).copied()).unwrap_or(r);
+            let b = planes.get(2).and_then(|p| p.get(i).copied()).unwrap_or(r);
+            let a = planes.get(3).and_then(|p| p.get(i).copied()).unwrap_or(255);
+            canvas[i * 4..i * 4 + 4].copy_from_slice(&[r, g, b, a]);
+        }
+        Ok(())
+    }
+
+    pub(super) fn decode_jxl(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
+        let jxl = jxl_oxide::JxlImage::builder()
+            .read(Cursor::new(bytes))
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        let w = jxl.width();
+        let h = jxl.height();
+        MediaDecoder::check_pixel_cap(w, h, max_mp)?;
+        let render = jxl
+            .render_frame(0)
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        let fb = render.image_all_channels();
+        let float_buf = fb.buf();
+        let channels = fb.channels();
+        let mut rgba = Vec::with_capacity((w as usize) * (h as usize) * 4);
+        for px in float_buf.chunks_exact(channels) {
+            let r = (px[0].clamp(0.0, 1.0) * 255.0).round() as u8;
+            let g = (px.get(1).copied().unwrap_or(px[0]).clamp(0.0, 1.0) * 255.0).round() as u8;
+            let b = (px.get(2).copied().unwrap_or(px[0]).clamp(0.0, 1.0) * 255.0).round() as u8;
+            let a = (px.get(3).copied().unwrap_or(1.0).clamp(0.0, 1.0) * 255.0).round() as u8;
+            rgba.extend_from_slice(&[r, g, b, a]);
+        }
+        let img = image::RgbaImage::from_raw(w, h, rgba)
+            .map(DynamicImage::ImageRgba8)
+            .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("invalid jxl buffer".to_string()))?;
+        Ok((img, None, None, 1, 0, "JXL".to_string()))
+    }
+
+    pub(super) fn decode_exr(bytes: &[u8], max_mp: u32) -> Result<RawDecodeResult, DecodeError> {
+        let mut reader = ImageReader::new(Cursor::new(bytes));
+        reader.set_format(ImageFormat::OpenExr);
+        let dec = reader
+            .into_decoder()
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        let (w, h) = dec.dimensions();
+        MediaDecoder::check_pixel_cap(w, h, max_mp)?;
+        let img = DynamicImage::from_decoder(dec)
+            .map_err(|e| DecodeError::UnsupportedOrCorrupt(e.to_string()))?;
+        let f32_buf = img.into_rgba32f().into_raw();
+        let tonemapped = ColorHdrNormalizer::tonemap_rgba_f32_to_srgb(&f32_buf);
+        let ldr = image::RgbaImage::from_raw(w, h, tonemapped)
+            .map(DynamicImage::ImageRgba8)
+            .ok_or_else(|| DecodeError::UnsupportedOrCorrupt("invalid exr buffer".to_string()))?;
+        Ok((ldr, None, None, 1, 0, "EXR".to_string()))
+    }
+
+    /// Extension-based fallback for formats without a Core signature.
+    pub(super) fn decode_by_extension(
+        bytes: &[u8],
+        ext: &str,
+        opts: &DecodeOptions,
+    ) -> Result<RawDecodeResult, DecodeError> {
+        // Core extensions never fall back: unidentified content named `.jpg` stays refused.
+        if !crate::sources::is_extended_extension(ext) {
+            return Err(DecodeError::UnsupportedFormat);
+        }
+        match ext {
+            "cur" => decode_cur_largest(bytes, opts.max_megapixels),
+            "pcx" => decode_pcx(bytes, opts.max_megapixels),
+            "dds" => decode_dds(bytes, opts.max_megapixels),
+            "psd" => decode_psd(bytes, opts.max_megapixels),
+            "jxl" => decode_jxl(bytes, opts.max_megapixels),
+            "exr" => decode_exr(bytes, opts.max_megapixels),
+            _ => {
+                let format = image::guess_format(bytes)
+                    .ok()
+                    .or_else(|| ImageFormat::from_extension(ext))
+                    .ok_or(DecodeError::UnsupportedFormat)?;
+                decode_standard_image(bytes, format, opts.max_megapixels)
+            }
+        }
+    }
 }
 
 fn maybe_downscale_for_viewport(

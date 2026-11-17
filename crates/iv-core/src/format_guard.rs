@@ -129,3 +129,56 @@ impl FormatGuard {
         String::from_utf16_lossy(&units)
     }
 }
+
+/// Formats the shipped build decodes (specs/004 FR-021), identified by content only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoreFormat {
+    Jpeg,
+    Png,
+    Gif,
+    WebP,
+    Bmp,
+    Tiff,
+    Zip,
+}
+
+/// BITMAPINFOHEADER family sizes accepted after the `BM` file header.
+const BMP_DIB_HEADER_SIZES: [u32; 6] = [12, 40, 52, 56, 108, 124];
+
+impl FormatGuard {
+    /// Positively identifies a Core format from its leading bytes
+    /// (`contracts/input-acceptance-contract.md` §1). Returns `None` for anything else, whatever
+    /// the file is called; callers must then refuse to decode it.
+    pub fn identify(bytes: &[u8]) -> Option<CoreFormat> {
+        const PNG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+            return Some(CoreFormat::Jpeg);
+        }
+        if bytes.starts_with(&PNG) {
+            return Some(CoreFormat::Png);
+        }
+        if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+            return Some(CoreFormat::Gif);
+        }
+        if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+            return Some(CoreFormat::WebP);
+        }
+        if bytes.len() >= 26 && bytes.starts_with(b"BM") {
+            let dib = u32::from_le_bytes([bytes[14], bytes[15], bytes[16], bytes[17]]);
+            return BMP_DIB_HEADER_SIZES
+                .contains(&dib)
+                .then_some(CoreFormat::Bmp);
+        }
+        if bytes.starts_with(&[0x49, 0x49, 0x2A, 0x00])
+            || bytes.starts_with(&[0x4D, 0x4D, 0x00, 0x2A])
+        {
+            return Some(CoreFormat::Tiff);
+        }
+        if bytes.starts_with(&[0x50, 0x4B, 0x03, 0x04])
+            || bytes.starts_with(&[0x50, 0x4B, 0x05, 0x06])
+        {
+            return Some(CoreFormat::Zip);
+        }
+        None
+    }
+}

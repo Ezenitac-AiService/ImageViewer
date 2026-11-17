@@ -30,10 +30,10 @@ row of [input-acceptance-contract.md](./contracts/input-acceptance-contract.md) 
 **Shipped-component budget**:
 
 ```bash
-cargo tree -p iv-app -e normal --target all --prefix none | sed 's/ (\*)//' | sort -u | wc -l
+packaging/verify/component-count.sh
 ```
 
-**Expected**: ≤ 411 (baseline 514).
+**Expected**: ≤ 356 (baseline 446). The script counts the four shipped desktop targets.
 
 ## 2. Local Launch Check
 

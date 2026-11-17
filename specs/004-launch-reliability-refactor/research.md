@@ -280,11 +280,15 @@ Every decision below follows Constitution Principle V. Evidence is tagged:
 
 ## R13. Dependency budget and vulnerability gate
 
-- **Metric**: *shipped components* = unique packages in
-  `cargo tree -p iv-app -e normal --target all --prefix none`. Baseline on 2026-11-16:
-  **514** `[OBSERVED]`. (The 579 originally cited in the spec was the full `Cargo.lock`, which also counts dev,
-  build, and non-shipped crates; see the note on SC-010 below.)
-- **Target**: ≤ 411 (a 20 % reduction) with all Core capabilities present.
+- **Metric**: *shipped components* = unique packages (including the four workspace crates) in
+  `cargo tree -p iv-app -e normal --target <t>` unioned over the four shipped desktop targets
+  `x86_64-pc-windows-msvc`, `aarch64-apple-darwin`, `x86_64-apple-darwin`,
+  `x86_64-unknown-linux-gnu` (`packaging/verify/component-count.sh`).
+- **Baseline**: **446** `[OBSERVED]`, measured at commit `9f400dd` (before this feature) with the
+  same script. *Correction (2026-11-17)*: the first plan used `--target all`, which also counts
+  wasm-only packages that are never shipped (for example `tokio` via `wasm-bindgen-futures`) and
+  gave 514. The spec's original 579 was the whole `Cargo.lock`.
+- **Target**: ≤ 356 (a 20 % reduction) with all Core capabilities present.
 - **Expected removals from the shipped tree**: `tokio` (used only to wait on one dialog future;
   replaced by `pollster`, already a dependency), `reqwest` / `rustls` / `ring` / `hyper` family,
   `sha2`, `winreg`, `windows` (WIC), `objc2-image-io` / `objc2-core-graphics`, long-tail decoders,
@@ -298,7 +302,7 @@ Every decision below follows Constitution Principle V. Evidence is tagged:
   release run `cargo deny check` for all four sections (FR-035, finding D3).
 - **SC-010 note (resolved 2026-11-16, analysis finding I1)**: The spec originally cited 579, the
   full `Cargo.lock` count including packages the product does not ship. SC-010 now states the
-  shipped-components metric above (baseline 514, target ≤ 411).
+  shipped-components metric above (baseline 446, target ≤ 356).
 
 ## R14. Interaction rules testable without a screen
 
@@ -381,3 +385,20 @@ fix and **0/48** after moving the cleanup inside the lock `[OBSERVED]`.
 - The x86_64 slice could not be executed on this host (Rosetta not installed); it is unverified
   until the `macos-15-intel` CI job runs.
 - `assert-windows-exe.ps1` and `package-windows.ps1` were not run: no PowerShell or Windows host.
+
+### T098 result: shipped components 446 → 296 (−33.6 %)
+
+Measured with `packaging/verify/component-count.sh` `[OBSERVED]`:
+
+| Step | Count | Main removals |
+|------|-------|---------------|
+| Baseline (`9f400dd`) | 446 | — (includes `reqwest`, `hyper`, `rustls`, `tokio`) |
+| eframe shell, updater / OS codecs / shell registration / extended formats behind features | 364 | HTTP/TLS stack, `windows` WIC, `objc2-image-io`, `winreg`, `jxl-oxide`, `image_dds`, `rawpsd`, `image-extras`, `exr` |
+| Logger timestamps via `std` (RFC 3339 UTC) instead of `chrono` | 362 | `chrono`, `iana-time-zone` |
+| `rfd` GTK3 backend on Linux instead of xdg-portal + async-std | 296 | `ashpd`, `zbus` and the async-std stack (Linux only) |
+
+Decisions: `accesskit` stays excluded (eframe `default-features = false`); this is an accessibility
+gap recorded in the capability register. Log file names and timestamps are now UTC
+(`imageviewer-YYYY-MM-DD.log`, `…Z`). The Linux file dialog now needs the GTK3 runtime, which the
+experimental Linux tarball documents. Duplicate majors remain where upstream crates pin them (`objc2 0.5`/`0.6`; `windows-sys`
+0.52/0.59/0.61); they cannot be consolidated without forking dependencies `[OBSERVED]`.

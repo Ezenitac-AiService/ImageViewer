@@ -8,8 +8,6 @@ use std::path::PathBuf;
 pub enum CliCommand {
     OpenEmpty,
     OpenPath(PathBuf),
-    RegisterShell,
-    UnregisterShell,
 }
 
 /// Parsed CLI options and fail-closed diagnostic state.
@@ -24,8 +22,6 @@ pub struct CliOptions {
 impl CliOptions {
     /// Parses raw process `argv` (`args[0]` is executable name).
     pub fn parse(args: &[String], lang: Language, is_windows: bool) -> Self {
-        let mut register_shell = false;
-        let mut unregister_shell = false;
         let mut paths: Vec<String> = Vec::new();
 
         for raw_arg in args.iter().skip(1) {
@@ -35,23 +31,14 @@ impl CliOptions {
             }
 
             let trimmed = raw_arg.trim();
-            if trimmed.eq_ignore_ascii_case("--register-shell")
-                || trimmed.eq_ignore_ascii_case("/register-shell")
-            {
-                if register_shell {
-                    return Self::fail(I18n::tr(lang, "error.invalid_cli_args"));
-                }
-                register_shell = true;
-                continue;
-            }
-            if trimmed.eq_ignore_ascii_case("--unregister-shell")
-                || trimmed.eq_ignore_ascii_case("/unregister-shell")
-            {
-                if unregister_shell {
-                    return Self::fail(I18n::tr(lang, "error.invalid_cli_args"));
-                }
-                unregister_shell = true;
-                continue;
+            // Shell and file-association registration is Unavailable in this release
+            // (specs/004 FR-024); the switches are recognised only to explain that.
+            let switch = trimmed.to_ascii_lowercase();
+            if matches!(
+                switch.as_str(),
+                "--register-shell" | "/register-shell" | "--unregister-shell" | "/unregister-shell"
+            ) {
+                return Self::fail(I18n::tr(lang, "error.unsupported_switch"));
             }
 
             // Unknown switches starting with `-`, `--`, or `/` (except Unix paths when not Windows switch)
@@ -63,29 +50,6 @@ impl CliOptions {
             }
 
             paths.push(Self::repair_explorer_quoted_drive(trimmed));
-        }
-
-        if register_shell && unregister_shell {
-            return Self::fail(I18n::tr(lang, "error.invalid_cli_args"));
-        }
-
-        if register_shell || unregister_shell {
-            if !paths.is_empty() {
-                return Self::fail(I18n::tr(lang, "error.invalid_cli_args"));
-            }
-            if !is_windows {
-                return Self::fail(I18n::tr(lang, "error.unsupported_os_switch"));
-            }
-            return Self {
-                command: if register_shell {
-                    CliCommand::RegisterShell
-                } else {
-                    CliCommand::UnregisterShell
-                },
-                error: None,
-                is_path_not_found_error: false,
-                requested_path: None,
-            };
         }
 
         match paths.len() {

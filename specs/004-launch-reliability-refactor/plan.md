@@ -64,7 +64,7 @@ release (spec Assumptions).
 **Constraints**:
 
 - No network access in the shipped build (FR-025).
-- Shipped components ≤ 411, from a baseline of 514 measured with the research R13 metric.
+- Shipped components ≤ 356, from a baseline of 446 measured with the research R13 metric.
 - No test-only production flags (Principle IV).
 - `unsafe` only in the macOS delegate and any remaining FFI, each with `// SAFETY:` comments.
 

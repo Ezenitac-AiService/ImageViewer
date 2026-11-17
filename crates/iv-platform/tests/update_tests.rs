@@ -1,3 +1,4 @@
+#![cfg(feature = "updater")]
 #![allow(dead_code)]
 mod fixtures;
 

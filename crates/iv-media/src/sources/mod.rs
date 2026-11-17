@@ -58,47 +58,29 @@ pub trait MediaSource: Send + Sync {
     fn read_entry_bytes(&self, index: usize) -> Result<Vec<u8>, SourceError>;
 }
 
-/// Supported extensions across pure-Rust core decoders and host OS codecs.
+/// Extensions listed and offered in the shipped build: the Core formats (specs/004 FR-021).
+const CORE_EXTENSIONS: &[&str] = &[
+    "jpg", "jpeg", "jpe", "jfif", "png", "apng", "gif", "bmp", "dib", "tif", "tiff", "webp",
+];
+
+/// Extended-tier extensions, listed only when that tier is compiled in.
+#[cfg(feature = "extended-formats")]
+const EXTENDED_EXTENSIONS: &[&str] = &[
+    "ico", "cur", "jxl", "tga", "psd", "dds", "pcx", "qoi", "ppm", "pgm", "pbm", "pnm", "hdr",
+    "exr",
+];
+
+/// Whether `ext_lower` belongs to the extended tier (only meaningful when it is compiled in).
+#[cfg(feature = "extended-formats")]
+pub fn is_extended_extension(ext_lower: &str) -> bool {
+    EXTENDED_EXTENSIONS.contains(&ext_lower)
+}
+
+/// Whether files with this (lower-case) extension are listed as images.
 pub fn is_supported_image_extension(ext_lower: &str) -> bool {
-    matches!(
-        ext_lower,
-        "jpg"
-            | "jpeg"
-            | "jpe"
-            | "jfif"
-            | "png"
-            | "apng"
-            | "gif"
-            | "bmp"
-            | "dib"
-            | "tif"
-            | "tiff"
-            | "webp"
-            | "ico"
-            | "cur"
-            | "jxl"
-            | "tga"
-            | "psd"
-            | "dds"
-            | "pcx"
-            | "qoi"
-            | "ppm"
-            | "pgm"
-            | "pbm"
-            | "pnm"
-            | "hdr"
-            | "exr"
-            | "dng"
-            | "cr2"
-            | "cr3"
-            | "nef"
-            | "arw"
-            | "orf"
-            | "rw2"
-            | "raf"
-            | "heic"
-            | "heif"
-            | "avif"
-            | "jp2"
-    )
+    #[cfg(feature = "extended-formats")]
+    let extended = EXTENDED_EXTENSIONS.contains(&ext_lower);
+    #[cfg(not(feature = "extended-formats"))]
+    let extended = false;
+    CORE_EXTENSIONS.contains(&ext_lower) || extended
 }

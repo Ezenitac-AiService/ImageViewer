@@ -87,7 +87,7 @@ fn main() -> ExitCode {
     let cli = CliOptions::parse(&args, lang, cfg!(target_os = "windows"));
     let open_path = match cli.command {
         CliCommand::OpenPath(p) => Some(p),
-        CliCommand::OpenEmpty | CliCommand::RegisterShell | CliCommand::UnregisterShell => None,
+        CliCommand::OpenEmpty => None,
     };
     let initial_status = cli
         .error

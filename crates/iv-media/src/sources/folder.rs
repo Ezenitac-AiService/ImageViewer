@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::UNIX_EPOCH;
 
+/// Largest file read into memory (constitution v2.4.0 safety caps: 512 MB stream cap).
+pub const MAX_FILE_READ_BYTES: u64 = 512 * 1024 * 1024;
+
 pub struct FolderSource {
     entries: Vec<MediaEntry>,
     initial_index: usize,
@@ -187,6 +190,27 @@ impl MediaSource for FolderSource {
             .entries
             .get(index)
             .ok_or_else(|| SourceError::Archive("index out of bounds".to_string()))?;
-        Ok(std::fs::read(&entry.source_key)?)
+        read_capped(Path::new(&entry.source_key), MAX_FILE_READ_BYTES)
     }
+}
+
+/// Reads `path` only if it is at most `cap` bytes, checking the size before allocating and again
+/// while reading (the file may grow in between).
+fn read_capped(path: &Path, cap: u64) -> Result<Vec<u8>, SourceError> {
+    use std::io::Read;
+    let file = std::fs::File::open(path)?;
+    let len = file.metadata()?.len();
+    if len > cap {
+        return Err(SourceError::ArchiveLimitExceeded(format!(
+            "file is {len} bytes; limit is {cap}"
+        )));
+    }
+    let mut buf = Vec::with_capacity(usize::try_from(len).unwrap_or(0));
+    file.take(cap + 1).read_to_end(&mut buf)?;
+    if buf.len() as u64 > cap {
+        return Err(SourceError::ArchiveLimitExceeded(format!(
+            "file grew past the {cap}-byte limit while reading"
+        )));
+    }
+    Ok(buf)
 }

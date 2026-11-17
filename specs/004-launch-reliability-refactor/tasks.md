@@ -351,16 +351,16 @@ access. No placeholders (FR-020–FR-026, FR-037).
 
 ### Tests for User Story 5 (write first)
 
-- [ ] T079 [P] [US5] Add failing tests to `crates/iv-core/tests/cli_tests.rs`: `--register-shell`, `/register-shell`, `--unregister-shell` on every OS produce `CliCommand::OpenEmpty` with the localized `error.unsupported_switch` message ("not available in this version")
-- [ ] T080 [P] [US5] Add failing tests to `crates/iv-media/tests/decode_color_resize_tests.rs` under `#[cfg(not(feature = "extended-formats"))]`: valid QOI, JXL, PSD, DDS, PCX, and TGA fixtures produce `DecodeError::UnsupportedFormat`. Move the existing extended-format decode tests under `#[cfg(feature = "extended-formats")]` so they keep running with `--all-features`
-- [ ] T081 [P] [US5] Add a test to `crates/iv-media/tests/sources_tests.rs`: in the default build, `is_supported_image_extension` returns true only for `jpg jpeg jpe jfif png apng gif webp bmp dib tif tiff` and false for `jxl qoi psd dds pcx tga ppm pgm pbm pnm hdr exr cur ico dng cr2 cr3 nef arw orf rw2 raf heic heif avif jp2`
+- [X] T079 [P] [US5] Add failing tests to `crates/iv-core/tests/cli_tests.rs`: `--register-shell`, `/register-shell`, `--unregister-shell` on every OS produce `CliCommand::OpenEmpty` with the localized `error.unsupported_switch` message ("not available in this version")
+- [X] T080 [P] [US5] Add failing tests to `crates/iv-media/tests/decode_color_resize_tests.rs` under `#[cfg(not(feature = "extended-formats"))]`: valid QOI, JXL, PSD, DDS, PCX, and TGA fixtures produce `DecodeError::UnsupportedFormat`. Move the existing extended-format decode tests under `#[cfg(feature = "extended-formats")]` so they keep running with `--all-features`
+- [X] T081 [P] [US5] Add a test to `crates/iv-media/tests/sources_tests.rs`: in the default build, `is_supported_image_extension` returns true only for `jpg jpeg jpe jfif png apng gif webp bmp dib tif tiff` and false for `jxl qoi psd dds pcx tga ppm pgm pbm pnm hdr exr cur ico dng cr2 cr3 nef arw orf rw2 raf heic heif avif jp2`
 
 ### Implementation for User Story 5
 
-- [ ] T082 [US5] Add `[features] default = [] ; extended-formats = ["dep:jxl-oxide", "dep:image_dds", "dep:rawpsd", "dep:image-extras", "dep:exr"]` in `crates/iv-media/Cargo.toml`. Mark those dependencies `optional = true` and reduce `image` default features to Core codecs (`jpeg`, `png`, `gif`, `bmp`, `tiff`, `webp`), adding the others under the feature. Gate the extended decoders in `crates/iv-media/src/decode.rs` and the extension list in `crates/iv-media/src/sources/mod.rs`. Introduce `DecodeError::UnsupportedFormat` here (T095 later reuses it for content-based rejection). Pass until T080–T081 pass
-- [ ] T083 [US5] Add `[features] updater = ["dep:reqwest", "dep:rustls", "dep:sha2"]`, `os-codecs = ["dep:windows", "dep:objc2-image-io", "dep:objc2-core-graphics", "dep:objc2-core-foundation"]`, and `shell-registration = ["dep:winreg"]` in `crates/iv-platform/Cargo.toml` (all default-off). Gate `update.rs`, `codecs.rs`, and the register functions in `integration.rs` with `#[cfg(feature = …)]`, and put `#![cfg(feature = "…")]` at the top of `crates/iv-platform/tests/update_tests.rs` and `os_codec_tests.rs`
-- [ ] T084 [US5] Make `crates/iv-core/src/cli.rs` reject the shell switches with `error.unsupported_switch` (key added to `crates/iv-core/src/i18n.rs` in ko and en), and remove the `RegisterShell` / `UnregisterShell` handling from `crates/iv-app/src/main.rs`, until T079 passes
-- [ ] T085 [US5] Remove the Unavailable UI from `crates/iv-app/src/`:
+- [X] T082 [US5] Add `[features] default = [] ; extended-formats = ["dep:jxl-oxide", "dep:image_dds", "dep:rawpsd", "dep:image-extras", "dep:exr"]` in `crates/iv-media/Cargo.toml`. Mark those dependencies `optional = true` and reduce `image` default features to Core codecs (`jpeg`, `png`, `gif`, `bmp`, `tiff`, `webp`), adding the others under the feature. Gate the extended decoders in `crates/iv-media/src/decode.rs` and the extension list in `crates/iv-media/src/sources/mod.rs`. Introduce `DecodeError::UnsupportedFormat` here (T095 later reuses it for content-based rejection). Pass until T080–T081 pass
+- [X] T083 [US5] Add `[features] updater = ["dep:reqwest", "dep:rustls", "dep:sha2"]`, `os-codecs = ["dep:windows", "dep:objc2-image-io", "dep:objc2-core-graphics", "dep:objc2-core-foundation"]`, and `shell-registration = ["dep:winreg"]` in `crates/iv-platform/Cargo.toml` (all default-off). Gate `update.rs`, `codecs.rs`, and the register functions in `integration.rs` with `#[cfg(feature = …)]`, and put `#![cfg(feature = "…")]` at the top of `crates/iv-platform/tests/update_tests.rs` and `os_codec_tests.rs`
+- [X] T084 [US5] Make `crates/iv-core/src/cli.rs` reject the shell switches with `error.unsupported_switch` (key added to `crates/iv-core/src/i18n.rs` in ko and en), and remove the `RegisterShell` / `UnregisterShell` handling from `crates/iv-app/src/main.rs`, until T079 passes
+- [X] T085 [US5] Remove the Unavailable UI from `crates/iv-app/src/`:
   - delete `views/update_notice.rs` and the update-check dispatch;
   - remove the thumbnail strip;
   - remove the `HostOsCodecProvider` usage from `loader.rs` (decode with `os_provider = None`);
@@ -370,7 +370,7 @@ access. No placeholders (FR-020–FR-026, FR-037).
   - one row per capability with the data-model §4 fields `id`, `tier` (`core | extended | unavailable`), `user_visible` ("MUST be false when `tier = unavailable`"), `evidence` (links to tests and records), `verified_on`, and `components`;
   - the initial classification from data-model §4 as amended by T086.
 - [ ] T088 [US5] Align `README.md`, `README.en.md`, `SECURITY.md`, and `SECURITY.en.md` with `docs/CAPABILITIES*.md`: remove claims about auto-update, extended formats, OS codecs, shell registration, and thumbnails; label Linux experimental; state "performance parity with v1.0.6: unmeasured"
-- [ ] T089 [US5] Run `packaging/verify/component-count.sh`; it must report no `reqwest` / `hyper` / `rustls` / `tokio` (FR-025)
+- [X] T089 [US5] Run `packaging/verify/component-count.sh`; it must report no `reqwest` / `hyper` / `rustls` / `tokio` (FR-025)
 
 **Checkpoint**: Everything reachable is in the register. Nothing unverified is advertised.
 
@@ -382,11 +382,11 @@ access. No placeholders (FR-020–FR-026, FR-037).
 justified component inventory within budget (FR-031–FR-036).
 
 **Independent Test**: Every row of `contracts/input-acceptance-contract.md` §4 passes.
-`cargo deny check` passes. The component count is ≤ 411.
+`cargo deny check` passes. The component count is ≤ 356.
 
 ### Tests for User Story 6 (write first)
 
-- [ ] T090 [P] [US6] Add failing tests to `crates/iv-core/tests/format_guard_tests.rs` for `FormatGuard::identify`, covering each signature in input-acceptance contract §1:
+- [X] T090 [P] [US6] Add failing tests to `crates/iv-core/tests/format_guard_tests.rs` for `FormatGuard::identify`, covering each signature in input-acceptance contract §1:
   - `FF D8 FF` → `Jpeg`;
   - `89 50 4E 47 0D 0A 1A 0A` → `Png`;
   - `GIF87a` / `GIF89a` → `Gif`;
@@ -396,14 +396,14 @@ justified component inventory within budget (FR-031–FR-036).
   - `PK\x03\x04` / `PK\x05\x06` → `Zip`.
 
   Plus negatives: 1 KB of random bytes, a truncated BMP header, `RIFF` without `WEBP`, and empty input all give `None`.
-- [ ] T091 [P] [US6] Add a failing cross-check test to `crates/iv-media/tests/decode_color_resize_tests.rs`: for every Core fixture, `FormatGuard::identify` agrees with `image::guess_format`
-- [ ] T092 [P] [US6] Add failing tests to `crates/iv-media/tests/decode_color_resize_tests.rs` for input-acceptance contract §4:
+- [X] T091 [P] [US6] Add a failing cross-check test to `crates/iv-media/tests/decode_color_resize_tests.rs`: for every Core fixture, `FormatGuard::identify` agrees with `image::guess_format`
+- [X] T092 [P] [US6] Add failing tests to `crates/iv-media/tests/decode_color_resize_tests.rs` for input-acceptance contract §4:
   - row 1: SVG, HTML, PDF, and PS bytes named `.png` are refused by the denylist;
   - row 2: random bytes named `.jpg` give `UnsupportedFormat`;
   - row 4: a valid PNG named `.jpg` decodes as PNG;
   - row 6: a PNG header declaring 100000×100000 gives `ExceedsPixelLimit`;
   - row 11: BMP magic with a truncated header gives `UnsupportedFormat`.
-- [ ] T093 [P] [US6] Add failing tests to `crates/iv-media/tests/sources_tests.rs` for input-acceptance contract §4:
+- [X] T093 [P] [US6] Add failing tests to `crates/iv-media/tests/sources_tests.rs` for input-acceptance contract §4:
   - row 5: a sparse file `set_len(512 MB + 1)` is refused by `FolderSource::read_entry_bytes` with a size-limit error;
   - row 7: a ZIP containing `../evil.png` skips that entry and keeps the others readable;
   - row 8: a ZIP bomb entry over `max_zip_entry_megabytes` is refused;
@@ -412,11 +412,11 @@ justified component inventory within budget (FR-031–FR-036).
 
 ### Implementation for User Story 6
 
-- [ ] T094 [US6] Implement `CoreFormat` and `FormatGuard::identify` in `crates/iv-core/src/format_guard.rs`, until T090 passes
-- [ ] T095 [US6] In `crates/iv-media/src/decode.rs`, run `validate_header` then `identify`, and dispatch on `CoreFormat` instead of the extension. `None` gives `DecodeError::UnsupportedFormat`, mapped to `error.unsupported_format`. Pass until T091–T092 pass
-- [ ] T096 [US6] In `crates/iv-media/src/sources/folder.rs`, check `metadata.len() ≤ 512 MB` before reading in `read_entry_bytes`, then read through `File::take(cap + 1)` and refuse if more than `cap` bytes arrive, until T093 row 5 passes
-- [ ] T097 [US6] In `crates/iv-media/src/sources/zip.rs`, enforce ≤ 50,000 entries, ≤ 64 MB central directory, ≤ 4 GB container, and skip absolute or `..` entry names with a record line, until T093 rows 7–10 pass
-- [ ] T098 [US6] Bring the shipped-component count to ≤ 411:
+- [X] T094 [US6] Implement `CoreFormat` and `FormatGuard::identify` in `crates/iv-core/src/format_guard.rs`, until T090 passes
+- [X] T095 [US6] In `crates/iv-media/src/decode.rs`, run `validate_header` then `identify`, and dispatch on `CoreFormat` instead of the extension. `None` gives `DecodeError::UnsupportedFormat`, mapped to `error.unsupported_format`. Pass until T091–T092 pass
+- [X] T096 [US6] In `crates/iv-media/src/sources/folder.rs`, check `metadata.len() ≤ 512 MB` before reading in `read_entry_bytes`, then read through `File::take(cap + 1)` and refuse if more than `cap` bytes arrive, until T093 row 5 passes
+- [X] T097 [US6] In `crates/iv-media/src/sources/zip.rs`, enforce ≤ 50,000 entries, ≤ 64 MB central directory, ≤ 4 GB container, and skip absolute or `..` entry names with a record line, until T093 rows 7–10 pass
+- [X] T098 [US6] Bring the shipped-component count to ≤ 356:
   - run `packaging/verify/component-count.sh`;
   - consolidate duplicate `objc2` / `windows` majors where possible;
   - decide `accesskit` against the budget;

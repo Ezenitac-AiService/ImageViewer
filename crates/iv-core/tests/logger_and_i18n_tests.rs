@@ -64,3 +64,34 @@ fn startup_failure_and_status_keys_exist_in_both_languages_and_differ() {
         assert_ne!(en, ko, "untranslated {key}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T098: log timestamps without a date-time dependency (UTC, RFC 3339)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn utc_timestamps_and_log_dates_are_formatted_from_unix_time() {
+    use iv_core::logger::{utc_date, utc_timestamp};
+    use std::time::{Duration, UNIX_EPOCH};
+    let at = |secs: u64, millis: u64| UNIX_EPOCH + Duration::from_millis(secs * 1000 + millis);
+    assert_eq!(utc_timestamp(at(0, 0)), "1970-01-01T00:00:00.000Z");
+    assert_eq!(
+        utc_timestamp(at(1_794_918_896, 789)),
+        "2026-11-17T12:34:56.789Z"
+    );
+    assert_eq!(
+        utc_timestamp(at(1_709_251_199, 999)),
+        "2024-02-29T23:59:59.999Z"
+    );
+    assert_eq!(
+        utc_timestamp(at(946_684_800, 0)),
+        "2000-01-01T00:00:00.000Z"
+    );
+    assert_eq!(
+        utc_timestamp(at(4_107_542_400, 1)),
+        "2100-03-01T00:00:00.001Z"
+    );
+    assert_eq!(utc_date(at(1_794_918_896, 0)), "2026-11-17");
+    // Times before the epoch clamp to the epoch rather than panicking.
+    assert_eq!(utc_date(UNIX_EPOCH - Duration::from_secs(10)), "1970-01-01");
+}

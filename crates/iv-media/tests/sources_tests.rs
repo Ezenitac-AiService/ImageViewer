@@ -227,3 +227,92 @@ mod scan {
         assert_eq!(index, None);
     }
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T081 (US5): the shipped build lists Core extensions only
+// ---------------------------------------------------------------------------
+
+#[cfg(not(feature = "extended-formats"))]
+#[test]
+fn default_build_supports_core_extensions_only() {
+    use iv_media::sources::is_supported_image_extension;
+    for ext in [
+        "jpg", "jpeg", "jpe", "jfif", "png", "apng", "gif", "webp", "bmp", "dib", "tif", "tiff",
+    ] {
+        assert!(is_supported_image_extension(ext), "{ext}");
+    }
+    for ext in [
+        "jxl", "qoi", "psd", "dds", "pcx", "tga", "ppm", "pgm", "pbm", "pnm", "hdr", "exr", "cur",
+        "ico", "dng", "cr2", "cr3", "nef", "arw", "orf", "rw2", "raf", "heic", "heif", "avif",
+        "jp2",
+    ] {
+        assert!(!is_supported_image_extension(ext), "{ext}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// specs/004 T093 (US6): size caps before reading; ZIP bombs and encryption
+// ---------------------------------------------------------------------------
+
+#[test]
+fn oversized_file_is_refused_before_it_is_read() {
+    let dir = fixtures::TempTestDir::new("size_cap");
+    let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+    std::fs::write(dir.path().join("a.png"), &png).expect("write");
+    let big = std::fs::File::create(dir.path().join("b.png")).expect("create");
+    // Sparse on APFS/ext4/NTFS: no disk space is used and nothing is read.
+    big.set_len(iv_media::sources::folder::MAX_FILE_READ_BYTES + 1)
+        .expect("set_len");
+    drop(big);
+    let src = FolderSource::open(dir.path()).expect("open");
+    let idx = src
+        .entries()
+        .iter()
+        .position(|e| e.name == "b.png")
+        .expect("listed");
+    let err = src.read_entry_bytes(idx).expect_err("refused");
+    assert!(
+        matches!(err, iv_media::sources::SourceError::ArchiveLimitExceeded(_)),
+        "{err:?}"
+    );
+    assert!(src.read_entry_bytes(0).is_ok());
+}
+
+#[test]
+fn zip_entry_larger_than_the_cap_is_refused_when_read() {
+    let dir = fixtures::TempTestDir::new("zip_bomb");
+    let zip_path = dir.path().join("bomb.zip");
+    // 11 MB of zeros compresses to a few KB but exceeds the 10 MB minimum entry cap.
+    let zeros = vec![0u8; 11 * 1024 * 1024];
+    fixtures::write_zip_with_entries(&zip_path, &[("bomb.png", &zeros, 0o100644 << 16)]);
+    let src = ZipSource::open(&zip_path, 10).expect("open");
+    let err = src.read_entry_bytes(0).expect_err("refused");
+    assert!(
+        matches!(err, iv_media::sources::SourceError::ArchiveLimitExceeded(_)),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn encrypted_zip_entries_are_refused() {
+    let dir = fixtures::TempTestDir::new("zip_encrypted");
+    let zip_path = dir.path().join("locked.cbz");
+    let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+    fixtures::write_zip_with_entries(&zip_path, &[("01.png", &png, 0o100644 << 16)]);
+    // Set general-purpose bit 0 ("encrypted") in the local and central directory headers.
+    let mut bytes = std::fs::read(&zip_path).expect("read");
+    for sig in [[0x50u8, 0x4B, 0x03, 0x04], [0x50, 0x4B, 0x01, 0x02]] {
+        let pos = bytes.windows(4).position(|w| w == sig).expect("header");
+        let flag_offset = if sig[2] == 0x03 { pos + 6 } else { pos + 8 };
+        bytes[flag_offset] |= 1;
+    }
+    std::fs::write(&zip_path, &bytes).expect("write");
+    let result = ZipSource::open(&zip_path, 512).and_then(|src| src.read_entry_bytes(0));
+    assert!(
+        matches!(
+            result,
+            Err(iv_media::sources::SourceError::EncryptedArchive)
+        ),
+        "{result:?}"
+    );
+}
