@@ -39,7 +39,7 @@ impl OsIntegration {
     /// Registers HKCU Explorer verbs on Windows (`--register-shell`).
     pub fn register_windows_shell(exe_path: &str) -> Result<(), IntegrationError> {
         Self::validate_exe_path(exe_path)?;
-        #[cfg(all(target_os = "windows", feature = "shell-registration"))]
+        #[cfg(target_os = "windows")]
         {
             use winreg::RegKey;
             use winreg::enums::HKEY_CURRENT_USER;
@@ -61,7 +61,7 @@ impl OsIntegration {
 
     /// Unregisters HKCU Explorer verbs on Windows (`--unregister-shell`).
     pub fn unregister_windows_shell() -> Result<(), IntegrationError> {
-        #[cfg(all(target_os = "windows", feature = "shell-registration"))]
+        #[cfg(target_os = "windows")]
         {
             use winreg::RegKey;
             use winreg::enums::HKEY_CURRENT_USER;

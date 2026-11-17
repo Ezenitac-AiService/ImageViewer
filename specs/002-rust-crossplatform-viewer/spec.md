@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: Draft
+**Status**: Superseded for the next release by [specs/004](../004-launch-reliability-refactor/spec.md) (2026-11-17)
 
 **Input**: User description: "계획이 바뀌었어 rust기반 다중 플렛폼 앱으로 기존 기능과 사용성은 그대로 유지하면서, 성능은 기존과 동일하거나 더 뛰어나야 해, 리서치를 진행해서, 스펙을 작성해줘"
 

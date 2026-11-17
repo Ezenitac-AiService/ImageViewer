@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: Draft
+**Status**: Implemented on macOS; Windows, Intel macOS, and clean-machine verification pending (2026-11-17)
 
 **Input**: User description: "윈도우, 맥 둘다 실행되지 않아, 공격적인 비판론자의 관점에서 다중 페르소나 심층분석 기법을 사용해서 프로젝트의 기능, 요구사항, 사용한 프레임워크, 라이브러리에 대한, 타당성 검토를 진행하고 리펙토링 스펙을 작성해줘"
 

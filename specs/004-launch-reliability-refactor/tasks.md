@@ -433,15 +433,15 @@ justified component inventory within budget (FR-031–FR-036).
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T102 [P] Remove dead scaffolding (FR-037):
+- [X] T102 [P] Remove dead scaffolding (FR-037):
   - `SessionPhase`, `begin_open`, `begin_render`, `open_gen`, `render_gen` in `crates/iv-media/src/session.rs` (and their tests);
   - `register_linux_desktop` and `render_xdg_desktop_entry` in `crates/iv-platform/src/integration.rs`, unless a caller exists;
   - `crates/iv-app/src/resources/strings.json` if unused.
 - [X] T103 [P] Remove `install_cjk_fallback_fonts` hard-coded paths, or keep them through eframe font definitions in `crates/iv-app/src/app.rs`. Confirm Korean text renders on Windows (Malgun Gothic) and macOS (Apple SD Gothic Neo); record the result in T110
-- [ ] T104 Bump the workspace `version` to `1.1.0-alpha.2` in `Cargo.toml` (single source per FR-006) and confirm `packaging/macos/Info.plist.in` and `crates/iv-app/build.rs` pick it up
-- [ ] T105 [P] Add `1.1.0-alpha.2` entries to `CHANGELOG.md` and `CHANGELOG.en.md`: the console fix, responsiveness, macOS signing and universal build, diagnostics, scope changes, and Linux experimental
-- [ ] T106 [P] Update the `**Status**` lines: `specs/002-rust-crossplatform-viewer/spec.md` (superseded for the next release by 004) and `specs/004-launch-reliability-refactor/spec.md` (Implemented, pending clean-machine verification)
-- [ ] T107 Run [quickstart.md](./quickstart.md) §1 in full (`fmt`, `clippy --all-features`, `test --all-features`, `test`, `deny`, component budget) on the macOS host after the final edit, and report any target not run natively (constitution build gate)
+- [X] T104 Bump the workspace `version` to `1.1.0-alpha.2` in `Cargo.toml` (single source per FR-006) and confirm `packaging/macos/Info.plist.in` and `crates/iv-app/build.rs` pick it up
+- [X] T105 [P] Add `1.1.0-alpha.2` entries to `CHANGELOG.md` and `CHANGELOG.en.md`: the console fix, responsiveness, macOS signing and universal build, diagnostics, scope changes, and Linux experimental
+- [X] T106 [P] Update the `**Status**` lines: `specs/002-rust-crossplatform-viewer/spec.md` (superseded for the next release by 004) and `specs/004-launch-reliability-refactor/spec.md` (Implemented, pending clean-machine verification)
+- [X] T107 Run [quickstart.md](./quickstart.md) §1 in full (`fmt`, `clippy --all-features`, `test --all-features`, `test`, `deny`, component budget) on the macOS host after the final edit, and report any target not run natively (constitution build gate)
 - [ ] T108 Confirm all CI jobs from T075 are green on Windows, macOS, and Linux (Linux may be marked experimental). Link the run in `specs/004-launch-reliability-refactor/research.md`
 - [ ] T109 Re-run `/speckit-analyze` after implementation, and confirm that SC-010 (resolved to the 514 → ≤ 411 shipped-component metric) and the final count from T098 agree, in `specs/004-launch-reliability-refactor/spec.md` and `research.md`
 - [ ] T110 Clean-machine checklist ([quickstart.md](./quickstart.md) §4, steps 1–12) on clean Windows 10, clean Windows 11, a real Apple-Silicon Mac, and an Intel Mac if available, using the draft-release assets from T078/T076:

@@ -5,6 +5,7 @@
 #[cfg(feature = "os-codecs")]
 pub mod codecs;
 pub mod fatal_dialog;
+#[cfg(feature = "shell-registration")]
 pub mod integration;
 pub mod locale;
 #[cfg(target_os = "macos")]

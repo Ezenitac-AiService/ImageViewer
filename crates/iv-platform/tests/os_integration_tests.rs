@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 mod fixtures;
 
-use iv_platform::integration::OsIntegration;
-
+#[cfg(feature = "shell-registration")]
 #[test]
 fn validates_exe_paths_and_generates_xdg_and_info_plist_entries() {
+    use iv_platform::integration::OsIntegration;
     assert!(OsIntegration::validate_exe_path(r"C:\Apps\ImageViewer.exe").is_ok());
     assert!(OsIntegration::validate_exe_path("C:\\Apps\\bad\"quote.exe").is_err());
     assert!(OsIntegration::validate_exe_path("C:\\Apps\\bad\nctrl.exe").is_err());
