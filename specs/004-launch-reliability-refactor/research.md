@@ -402,3 +402,32 @@ gap recorded in the capability register. Log file names and timestamps are now U
 (`imageviewer-YYYY-MM-DD.log`, `…Z`). The Linux file dialog now needs the GTK3 runtime, which the
 experimental Linux tarball documents. Duplicate majors remain where upstream crates pin them (`objc2 0.5`/`0.6`; `windows-sys`
 0.52/0.59/0.61); they cannot be consolidated without forking dependencies `[OBSERVED]`.
+
+### US4 evidence (T068, T071)
+
+`packaging/verify/launch-check.sh` on this host `[OBSERVED]`:
+
+| Artifact | window | first_frame | navigated (Right Arrow) | clean_exit | result |
+|----------|--------|-------------|-------------------------|------------|--------|
+| Bundle from this branch | true | true | true | true (exit 0, `exit=clean`) | **pass** |
+| Bundle built from `9f400dd` (before this feature, same packaging as `v1.1.0-alpha.1`) | true | false | false | false | **fail** |
+
+The old build fails for the expected reason: it writes no launch record, so nothing can confirm
+it displayed the image or exited cleanly. In this run, synthetic keyboard input via System
+Events *was* permitted (earlier in the session it was refused), so the interaction step ran
+automatically.
+
+### T101 result: vulnerability gate found and fixed real advisories
+
+First run of `cargo deny check advisories bans licenses sources` with the extended `deny.toml`
+`[OBSERVED]`:
+
+| Finding | Crate (version) | Fix |
+|---------|-----------------|-----|
+| RUSTSEC-2026-0367 / 0368 / 0369 / 0429 (vulnerabilities in `ZipArchive::extract`; the viewer never calls `extract`, but the gate does not accept "not reachable" without a recorded reason) | `zip` 2.6.1 | upgraded to `zip` 9 (patched ≥ 9.0.0); entry names now come back as `Result` and invalid UTF-8 names are skipped |
+| RUSTSEC-2026-0002, RUSTSEC-2026-0253 (unsound `IterMut`, `pop` panic safety) | `lru` 0.13 | upgraded to `lru` 0.19 (patched ≥ 0.18.2) |
+| RUSTSEC-2024-0384 (`instant` unmaintained) | via `notify` 7 / `notify-types` 1 | upgraded to `notify` 8 and `notify-debouncer-mini` 0.7 |
+| License `bzip2-1.0.6` not in the allow list | `libbz2-rs-sys` via `zip` feature `bzip2` | dropped the `bzip2` feature: bzip2-compressed archive entries are refused with the archive error message; stored, deflate, and zstd entries are supported |
+| Path dependencies reported as wildcards | workspace crates | crates marked `publish = false` and `allow-wildcard-paths = true` |
+
+After the fixes all four sections pass, and shipped components are 298 (budget 356).

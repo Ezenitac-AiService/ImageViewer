@@ -285,8 +285,8 @@ yields no draft release.
 
 ### Tests for User Story 4 (verification tooling; write first, run red against `v1.1.0-alpha.1`)
 
-- [ ] T067 [P] [US4] Create `packaging/verify/window-probe.swift <pid>`. It prints `onscreen=<n>` for windows owned by `pid` via `CGWindowListCopyWindowInfo(.optionOnScreenOnly)` and exits 0 only if n ≥ 1
-- [ ] T068 [US4] Create `packaging/verify/launch-check.sh <app-or-binary> <image>` for macOS and Linux (Linux runs under `xvfb-run`, with no window probe):
+- [X] T067 [P] [US4] Create `packaging/verify/window-probe.swift <pid>`. It prints `onscreen=<n>` for windows owned by `pid` via `CGWindowListCopyWindowInfo(.optionOnScreenOnly)` and exits 0 only if n ≥ 1
+- [X] T068 [US4] Create `packaging/verify/launch-check.sh <app-or-binary> <image>` for macOS and Linux (Linux runs under `xvfb-run`, with no window probe):
   - start the artifact with `<image>`;
   - wait ≤ 30 s for `phase=first_frame source=<image name>` in the newest log under the OS log folder;
   - run `window-probe.swift` on macOS;
@@ -305,7 +305,7 @@ yields no draft release.
 
   It writes the JSON as in T068, with `responding` and `console_window` set.
 - [ ] T070 [US4] Add the interaction step from `contracts/release-verification-contract.md` §3 to both launch-check scripts: open `packaging/verify/fixtures/two-images/a.png`, send Right Arrow via `osascript` System Events / `SendKeys` (as permitted by spike T010), and expect `phase=navigate index=1` within 1 s. If input injection is not permitted, record `notes="interaction step moved to clean-machine"`
-- [ ] T071 [US4] Run `launch-check.sh` against the `v1.1.0-alpha.1` macOS asset to confirm it fails for the expected reason (no `first_frame` record), and against the T034 bundle to confirm it passes. Record both outputs in `specs/004-launch-reliability-refactor/research.md`
+- [X] T071 [US4] Run `launch-check.sh` against the `v1.1.0-alpha.1` macOS asset to confirm it fails for the expected reason (no `first_frame` record), and against the T034 bundle to confirm it passes. Record both outputs in `specs/004-launch-reliability-refactor/research.md`
 
 ### Implementation for User Story 4
 
@@ -314,7 +314,7 @@ yields no draft release.
   - the platform table from `contracts/release-verification-contract.md` §4, with `@WIN10@`, `@WIN11@`, `@MAC_ARM@`, `@MAC_X64@`, `@LINUX@` placeholders filled by the workflow;
   - known limitations: one-time trust confirmation, Smart App Control, and Unavailable capabilities linked to `docs/CAPABILITIES.md`;
   - the line "Performance parity with v1.0.6: unmeasured" (constitution v2.4.0).
-- [ ] T074 [P] [US4] Extend `deny.toml` (constitution License Gate and FR-035):
+- [X] T074 [P] [US4] Extend `deny.toml` (constitution License Gate and FR-035):
   - `[advisories]` with `version = 2`, an `ignore = []` list where each entry carries a `reason`;
   - `[bans]` with `multiple-versions = "warn"`;
   - `[sources]` with `unknown-registry = "deny"` and `unknown-git = "deny"`.
@@ -425,7 +425,7 @@ justified component inventory within budget (FR-031–FR-036).
   Record the final count and each decision in research.md R13 ("Result" sub-heading).
 - [ ] T099 [US6] Add a "Justification" column to the direct-dependency tables in `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_NOTICES.en.md`. Each entry links a capability id from `docs/CAPABILITIES.md` (data-model §5: "MUST reference a `core` or verified `extended` capability"). Remove entries for crates no longer shipped, and add eframe, glow, glutin, and sys-locale
 - [ ] T100 [US6] Map every safety property stated in `SECURITY.md` and `SECURITY.en.md` to a test name from T090–T093 or launch contract §6. Delete any property without one (FR-033)
-- [ ] T101 [US6] Run `cargo deny check advisories bans licenses sources`. Resolve or record (with a reason in `deny.toml`) every finding
+- [X] T101 [US6] Run `cargo deny check advisories bans licenses sources`. Resolve or record (with a reason in `deny.toml`) every finding
 
 **Checkpoint**: Safety claims equal tested behaviour. Dependencies are justified and within budget.
 
