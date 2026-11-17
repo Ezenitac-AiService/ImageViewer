@@ -5,7 +5,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    # Spec Kit feature branches (`NNN-name`) run CI on push, so a change can be verified on
+    # Windows and macOS without opening a pull request.
+    branches: [ main, master, '[0-9][0-9][0-9]-*' ]
   pull_request:
     branches: [ main, master ]
 
