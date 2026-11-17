@@ -42,7 +42,8 @@ function Wait-For([string]$Pattern, [int]$Seconds) {
 $windowShown = $false; $firstFrame = $false; $responding = $true; $consoleWindow = $false
 $navigated = $null; $cleanExit = $false; $exitCode = -1; $notes = ''
 
-$proc = Start-Process -FilePath $Exe -ArgumentList ('"{0}"' -f $Image) -PassThru
+$appOut = [System.IO.Path]::GetTempFileName()
+$proc = Start-Process -FilePath $Exe -ArgumentList ('"{0}"' -f $Image) -PassThru -RedirectStandardError $appOut
 
 # Window within 30 s.
 $deadline = (Get-Date).AddSeconds(30)
@@ -69,10 +70,14 @@ if ($children | Where-Object { $_.Name -ieq 'conhost.exe' }) { $consoleWindow = 
 try {
     Add-Type -AssemblyName Microsoft.VisualBasic
     Add-Type -AssemblyName System.Windows.Forms
-    [Microsoft.VisualBasic.Interaction]::AppActivate($proc.Id)
-    Start-Sleep -Milliseconds 300
-    [System.Windows.Forms.SendKeys]::SendWait('{RIGHT}')
-    $navigated = Wait-For 'phase=navigate index=1' 2
+    Start-Sleep -Seconds 1
+    foreach ($attempt in 1..2) {
+        [Microsoft.VisualBasic.Interaction]::AppActivate($proc.Id)
+        Start-Sleep -Milliseconds 500
+        [System.Windows.Forms.SendKeys]::SendWait('{RIGHT}')
+        $navigated = Wait-For 'phase=navigate index=1' 2
+        if ($navigated) { break }
+    }
 } catch {
     $notes = 'interaction step moved to clean-machine (synthetic input not permitted)'
 }
@@ -108,4 +113,10 @@ $result = [ordered]@{
 $json = $result | ConvertTo-Json -Depth 4
 Set-Content -Path $Record -Value $json -Encoding utf8
 Write-Output $json
-if (-not $pass) { exit 1 }
+if (-not $pass) {
+    Write-Output '---- application stderr (last 40 lines)'
+    Get-Content $appOut -Tail 40 -ErrorAction SilentlyContinue
+    Write-Output '---- diagnostic record lines from this run'
+    (New-LogText) -split "`n" | Select-Object -Last 40
+    exit 1
+}

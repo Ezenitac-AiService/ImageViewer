@@ -52,6 +52,8 @@ pub struct OsOpenQueue {
 }
 
 impl OsOpenQueue {
+    /// Called by the macOS "Open With" hook; other platforms receive files on the command line.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn push(&self, paths: Vec<PathBuf>) {
         if let Ok(mut queue) = self.paths.lock() {
             queue.extend(paths);

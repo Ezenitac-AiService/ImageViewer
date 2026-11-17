@@ -38,15 +38,16 @@ wait_for() {
 }
 
 window_shown=false first_frame=false clean_exit=false navigated=null notes=""
+APP_OUT="$(mktemp)"
 
 # --- start
 if [ "$OS" = "Darwin" ] && [ -d "$ARTIFACT" ]; then
     BIN="$ARTIFACT/Contents/MacOS/iv-app"
     BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ARTIFACT/Contents/Info.plist")"
-    "$BIN" "$IMAGE" >/dev/null 2>&1 &
+    "$BIN" "$IMAGE" >"$APP_OUT" 2>&1 &
 else
     BIN="$ARTIFACT"
-    "$BIN" "$IMAGE" >/dev/null 2>&1 &
+    "$BIN" "$IMAGE" >"$APP_OUT" 2>&1 &
 fi
 PID=$!
 
@@ -63,13 +64,19 @@ else
 fi
 
 # --- interaction step (§3): Right Arrow → navigate index=1
+# The folder scan finishes shortly after the first frame, and the window must have focus before
+# the key arrives, so wait a moment and allow one retry.
 if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
-    if osa -e "tell application id \"$BUNDLE_ID\" to activate" \
-        -e 'tell application "System Events" to key code 124' >/dev/null 2>&1; then
-        if wait_for "phase=navigate index=1" 2; then navigated=true; else navigated=false; fi
-    else
-        notes="interaction step moved to clean-machine (synthetic input not permitted)"
-    fi
+    sleep 1
+    for attempt in 1 2; do
+        if osa -e "tell application id \"$BUNDLE_ID\" to activate" -e 'delay 0.5' \
+            -e 'tell application "System Events" to key code 124' >/dev/null 2>&1; then
+            if wait_for "phase=navigate index=1" 2; then navigated=true; break; else navigated=false; fi
+        else
+            notes="interaction step moved to clean-machine (synthetic input not permitted)"
+            break
+        fi
+    done
 fi
 
 # --- quit the way the OS does
@@ -117,4 +124,11 @@ cat >"$RECORD" <<JSON
 }
 JSON
 cat "$RECORD"
+if [ "$result" != pass ]; then
+    echo "---- application stdout/stderr (last 40 lines)"
+    tail -n 40 "$APP_OUT"
+    echo "---- diagnostic record lines from this run"
+    new_log | tail -n 40
+fi
+rm -f "$APP_OUT"
 [ "$result" = pass ]

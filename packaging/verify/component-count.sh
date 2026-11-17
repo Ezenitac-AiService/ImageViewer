@@ -12,9 +12,14 @@ FORBIDDEN=(reqwest hyper rustls tokio)
 
 # Shipped desktop targets (wasm and other targets are not shipped and are excluded).
 TARGETS=(x86_64-pc-windows-msvc aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu)
-tree="$(for t in "${TARGETS[@]}"; do
-    cargo tree -p iv-app -e normal --target "$t" --prefix none
-done | sed 's/ (\*)//' | sort -u)"
+tree=""
+for t in "${TARGETS[@]}"; do
+    per_target="$(cargo tree --locked -p iv-app -e normal --target "$t" --prefix none | sed 's/ (\*)//' | sort -u)"
+    echo "target ${t}: $(printf '%s\n' "$per_target" | grep -c .)"
+    tree="$(printf '%s\n%s\n' "$tree" "$per_target")"
+done
+tree="$(printf '%s\n' "$tree" | grep . | sort -u)"
+if [ -n "${COMPONENT_LIST:-}" ]; then printf '%s\n' "$tree" >"$COMPONENT_LIST"; fi
 count="$(printf '%s\n' "$tree" | grep -c . || true)"
 
 echo "shipped_components=${count} budget=${BUDGET}"
