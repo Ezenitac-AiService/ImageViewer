@@ -122,3 +122,108 @@ fn every_decode_source_and_animation_error_has_localized_user_messages() {
         (e.user_message(Language::Ko), e.user_message(Language::En))
     }
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T052: folder scan off the UI thread, and rescans that keep the position
+// ---------------------------------------------------------------------------
+
+mod scan {
+    use super::fixtures;
+    use iv_media::sources::MediaSource;
+    use iv_media::sources::folder::{FolderSource, ScanEvent, rescan_keeping, scan_async};
+    use std::time::{Duration, Instant};
+
+    fn write_pngs(dir: &std::path::Path, names: &[&str]) {
+        let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+        for n in names {
+            std::fs::write(dir.join(n), &png).expect("write png");
+        }
+    }
+
+    #[test]
+    fn scan_async_reports_the_target_before_the_full_list() {
+        let dir = fixtures::TempTestDir::new("scan_target");
+        write_pngs(dir.path(), &["a.png", "b.png", "c.png"]);
+        let rx = scan_async(dir.path().join("b.png"));
+        let first = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("first event");
+        let ScanEvent::Partial(partial) = first else {
+            panic!("expected Partial first");
+        };
+        assert_eq!(partial.entries().len(), 1);
+        assert_eq!(partial.entries()[0].name, "b.png");
+        let ScanEvent::Complete(Ok(full)) =
+            rx.recv_timeout(Duration::from_secs(5)).expect("second")
+        else {
+            panic!("expected Complete");
+        };
+        let names: Vec<_> = full.entries().iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["a.png", "b.png", "c.png"]);
+        assert_eq!(full.initial_index(), 1);
+    }
+
+    #[test]
+    fn scan_async_of_a_directory_sends_only_complete() {
+        let dir = fixtures::TempTestDir::new("scan_dir");
+        write_pngs(dir.path(), &["x.png"]);
+        let rx = scan_async(dir.path().to_path_buf());
+        assert!(matches!(
+            rx.recv_timeout(Duration::from_secs(5)).expect("event"),
+            ScanEvent::Complete(Ok(_))
+        ));
+    }
+
+    #[test]
+    fn ten_thousand_files_first_entry_under_one_second() {
+        let dir = fixtures::TempTestDir::new("scan_10k");
+        let png = fixtures::build_rgba_png(1, 1, &[255; 4]);
+        for i in 0..10_000 {
+            std::fs::write(dir.path().join(format!("img{i:05}.png")), &png).expect("write");
+        }
+        let t0 = Instant::now();
+        let rx = scan_async(dir.path().join("img05000.png"));
+        let first = rx.recv_timeout(Duration::from_secs(5)).expect("first");
+        assert!(t0.elapsed() < Duration::from_secs(1), "{:?}", t0.elapsed());
+        assert!(matches!(first, ScanEvent::Partial(_)));
+        let ScanEvent::Complete(Ok(full)) = rx.recv_timeout(Duration::from_secs(30)).expect("full")
+        else {
+            panic!("expected Complete");
+        };
+        assert_eq!(full.entries().len(), 10_000);
+        assert_eq!(full.entries()[full.initial_index()].name, "img05000.png");
+    }
+
+    #[test]
+    fn rescan_rebinds_current_by_source_key() {
+        let dir = fixtures::TempTestDir::new("rescan_keep");
+        write_pngs(dir.path(), &["b.png", "c.png"]);
+        let before = FolderSource::open(dir.path()).expect("open");
+        let key = before.entries()[1].source_key.clone(); // c.png
+        write_pngs(dir.path(), &["a.png"]); // shifts c.png to index 2
+        let (after, index) = rescan_keeping(dir.path(), Some(&key), Some(1)).expect("rescan");
+        assert_eq!(index, Some(2));
+        assert_eq!(after.entries()[2].source_key, key);
+    }
+
+    #[test]
+    fn rescan_clamps_when_the_current_file_was_deleted() {
+        let dir = fixtures::TempTestDir::new("rescan_deleted");
+        write_pngs(dir.path(), &["a.png", "b.png", "c.png"]);
+        let before = FolderSource::open(dir.path()).expect("open");
+        let key = before.entries()[2].source_key.clone();
+        std::fs::remove_file(dir.path().join("c.png")).expect("rm");
+        let (after, index) = rescan_keeping(dir.path(), Some(&key), Some(2)).expect("rescan");
+        assert_eq!(after.entries().len(), 2);
+        assert_eq!(index, Some(1));
+        // A file target whose file vanished rescans its folder instead of failing.
+        let (after, index) =
+            rescan_keeping(&dir.path().join("c.png"), Some(&key), Some(2)).expect("rescan file");
+        assert_eq!((after.entries().len(), index), (2, Some(1)));
+        // Empty folder: no current entry.
+        std::fs::remove_file(dir.path().join("a.png")).expect("rm");
+        std::fs::remove_file(dir.path().join("b.png")).expect("rm");
+        let (_, index) = rescan_keeping(dir.path(), Some(&key), Some(1)).expect("rescan empty");
+        assert_eq!(index, None);
+    }
+}

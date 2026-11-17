@@ -215,3 +215,51 @@ mod load_outcome {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T053: first-launch language follows the OS locale only when unset
+// ---------------------------------------------------------------------------
+
+mod first_launch_language {
+    use super::fixtures::TempTestDir;
+    use iv_core::i18n::Language;
+    use iv_core::settings::SettingsStore;
+
+    #[test]
+    fn missing_language_key_follows_the_locale() {
+        let dir = TempTestDir::new("lang_missing");
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"version": 3}"#).expect("write");
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["ko-KR"]).0.language,
+            Language::Ko
+        );
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["en-US"]).0.language,
+            Language::En
+        );
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["fr-FR"]).0.language,
+            Language::En
+        );
+        // No settings file at all (first launch).
+        let fresh = dir.path().join("fresh").join("settings.json");
+        assert_eq!(
+            SettingsStore::load_for_locale(&fresh, &["ko-KR"])
+                .0
+                .language,
+            Language::Ko
+        );
+    }
+
+    #[test]
+    fn explicit_language_is_kept_regardless_of_locale() {
+        let dir = TempTestDir::new("lang_explicit");
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"version": 3, "language": "en"}"#).expect("write");
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["ko-KR"]).0.language,
+            Language::En
+        );
+    }
+}

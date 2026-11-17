@@ -175,9 +175,18 @@ Every decision below follows Constitution Principle V. Evidence is tagged:
   ([winit 0.30 platform/macos.rs](https://docs.rs/crate/winit/latest/source/src/platform/macos.rs)).
   Historical winit issue
   [#1751](https://github.com/rust-windowing/winit/issues/1751) confirms there is no built-in event.
-- **Spike S2** `[UNVERIFIED]`: confirm the delegate installs correctly when eframe owns
-  `NSApplication`, and that both cold launch (app not running) and warm launch (already running)
-  deliver the file. The `unsafe` blocks it needs MUST carry `// SAFETY:` comments (Principle IV).
+- **Spike S2** — **result (2026-11-17): the decision above did not hold and was changed.**
+  winit 0.30.13 *does* register its own `WinitApplicationDelegate` in `EventLoop::new` and panics
+  in `ApplicationDelegate::get` if the delegate is replaced `[SOURCE]`
+  (`winit-0.30.13/src/platform_impl/macos/event_loop.rs:240`, `app_state.rs:176-185`). The doc
+  comment quoted above contradicts the 0.30.13 code. A separate delegate installed before the loop
+  was overwritten (no files delivered) and made `quit` return "user cancelled (-128)" `[OBSERVED]`.
+  **Implemented instead**: `main` creates the winit event loop itself and passes it to
+  `eframe::create_native`; between creation and `run_app`, `iv_platform::macos_open_files::attach`
+  adds `application:openURLs:` to the class of winit's delegate with `class_addMethod`, which only
+  adds the method when the class lacks it. Result `[OBSERVED]` on the bundled app:
+  cold `open -a ImageViewer.app a.png` → `first_frame source=a.png`; warm `open -a … reference.png`
+  → `navigate … source=reference.png` in the same process; `quit` → `exit=clean`. The `unsafe` blocks it needs MUST carry `// SAFETY:` comments (Principle IV).
 - **Windows**: "Open with" passes the path as `argv[1]`; the existing CLI path covers it.
 
 ## R8. Input acceptance: content allowlist and pre-read size cap

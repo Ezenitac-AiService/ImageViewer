@@ -3,6 +3,7 @@
 use super::{ImageSourceType, MediaEntry, MediaSource, SourceError, is_supported_image_extension};
 use iv_core::natural_sort::NaturalSort;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::time::UNIX_EPOCH;
 
 pub struct FolderSource {
@@ -78,6 +79,98 @@ impl FolderSource {
             initial_index,
         })
     }
+}
+
+impl FolderSource {
+    /// A one-entry source for `file`, used to show a targeted image before its folder is scanned.
+    pub fn from_single_file(file: &Path) -> Result<Self, SourceError> {
+        let meta = std::fs::symlink_metadata(file)?;
+        if meta.file_type().is_symlink() || meta.is_dir() {
+            return Err(SourceError::SecurityViolation);
+        }
+        let name = file
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .ok_or(SourceError::SecurityViolation)?;
+        let ext = file
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_ascii_lowercase())
+            .unwrap_or_default();
+        let modified_utc = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64);
+        Ok(Self {
+            entries: vec![MediaEntry {
+                id: 1,
+                name,
+                source_key: file.to_string_lossy().to_string(),
+                source_type: ImageSourceType::File,
+                byte_size: meta.len(),
+                modified_utc,
+                is_supported: is_supported_image_extension(&ext),
+            }],
+            initial_index: 0,
+        })
+    }
+}
+
+/// Progress of [`scan_async`].
+pub enum ScanEvent {
+    /// The targeted file alone, available before the folder scan completes.
+    Partial(FolderSource),
+    /// The fully scanned, naturally sorted folder.
+    Complete(Result<FolderSource, SourceError>),
+}
+
+/// Scans `target` (a folder, or a file whose folder is scanned) on a worker thread so the UI
+/// never blocks on directory enumeration (FR-017). When `target` is a file, a
+/// [`ScanEvent::Partial`] with just that file is sent first.
+pub fn scan_async(target: PathBuf) -> mpsc::Receiver<ScanEvent> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let is_file = std::fs::metadata(&target).is_ok_and(|m| m.is_file());
+        if is_file
+            && let Ok(single) = FolderSource::from_single_file(&target)
+            && tx.send(ScanEvent::Partial(single)).is_err()
+        {
+            return;
+        }
+        // The receiver may already be gone (a newer open superseded this scan); nothing to do.
+        let _ = tx.send(ScanEvent::Complete(FolderSource::open(&target)));
+    });
+    rx
+}
+
+/// Rescans after a change, keeping the current entry when it still exists
+/// (`data-model.md` §8). Returns the new source and the index to show: the entry whose
+/// `source_key` equals `current_key`, else `old_index` clamped into range, else `None` when empty.
+pub fn rescan_keeping(
+    target: &Path,
+    current_key: Option<&str>,
+    old_index: Option<usize>,
+) -> Result<(FolderSource, Option<usize>), SourceError> {
+    let dir = if target.is_dir() {
+        target.to_path_buf()
+    } else {
+        target
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."))
+    };
+    let source = FolderSource::open(&dir)?;
+    let len = source.entries.len();
+    let index = if len == 0 {
+        None
+    } else {
+        current_key
+            .and_then(|key| source.entries.iter().position(|e| e.source_key == key))
+            .or_else(|| old_index.map(|i| i.min(len - 1)))
+            .or(Some(0))
+    };
+    Ok((source, index))
 }
 
 impl MediaSource for FolderSource {

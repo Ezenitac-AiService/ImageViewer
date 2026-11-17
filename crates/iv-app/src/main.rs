@@ -28,7 +28,7 @@ use iv_platform::fatal_dialog;
 use iv_platform::paths_dialogs::OsPaths;
 use std::process::ExitCode;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 /// UI language for the panic dialog, updated once settings are known.
 static PANIC_LANG: AtomicU8 = AtomicU8::new(0);
@@ -72,7 +72,9 @@ fn main() -> ExitCode {
 
     // 2. Settings (never fatal).
     let settings_path = OsPaths::settings_file();
-    let (settings, outcome) = SettingsStore::load_with_outcome(&settings_path);
+    let locale_tags = iv_platform::locale::system_locale_tags();
+    let tag_refs: Vec<&str> = locale_tags.iter().map(String::as_str).collect();
+    let (settings, outcome) = SettingsStore::load_for_locale(&settings_path, &tag_refs);
     let lang = settings.language;
     PANIC_LANG.store(u8::from(lang == Language::Ko), Ordering::SeqCst);
     write(
@@ -142,7 +144,11 @@ fn main() -> ExitCode {
         ..Default::default()
     };
 
+    // Files the OS asks to open after launch (macOS Finder "Open With", warm or cold start).
+    let os_open = app::OsOpenQueue::default();
+
     let init = AppInit {
+        os_open: os_open.clone(),
         settings,
         settings_path,
         logger: logger.clone(),
@@ -150,36 +156,82 @@ fn main() -> ExitCode {
         open_path,
         initial_status,
     };
+    let created = Arc::new(AtomicBool::new(false));
     let on_window = {
         let write = write.clone();
         let record = record.clone();
-        move || write("INFO", &record.phase(Phase::Window, &[]))
+        let created = Arc::clone(&created);
+        move || {
+            created.store(true, Ordering::SeqCst);
+            write("INFO", &record.phase(Phase::Window, &[]));
+        }
     };
-    let result = eframe::run_native(
+
+    // The event loop is created here (not inside eframe) so platform hooks can be attached to it
+    // before it runs.
+    let event_loop =
+        match winit::event_loop::EventLoop::<eframe::UserEvent>::with_user_event().build() {
+            Ok(el) => el,
+            Err(err) => {
+                return fatal_exit(
+                    &write,
+                    &record,
+                    lang,
+                    FatalCategory::WindowFailed,
+                    &err.to_string(),
+                );
+            }
+        };
+    #[cfg(target_os = "macos")]
+    {
+        let queue = os_open.clone();
+        if let Err(e) =
+            iv_platform::macos_open_files::attach(Box::new(move |paths| queue.push(paths)))
+        {
+            write(
+                "ERROR",
+                &format!(
+                    "launch={} open_with_unavailable reason={e:?}",
+                    record.id().as_str()
+                ),
+            );
+        }
+    }
+    let mut app = eframe::create_native(
         "ImageViewer",
         options,
         Box::new(move |cc| {
             on_window();
             Ok(Box::new(ViewerApp::new(cc, init)))
         }),
+        &event_loop,
     );
+    let result = event_loop.run_app(&mut app);
 
-    match result {
-        Ok(()) => ExitCode::from(exit_code(IvExit::Clean)),
-        Err(err) => {
-            let category = if matches!(choice, RendererChoice::Glow) {
-                FatalCategory::NoRenderer
-            } else {
-                FatalCategory::WindowFailed
-            };
-            write(
-                "ERROR",
-                &record.fatal(category, &[("detail", &err.to_string())]),
-            );
-            fatal_dialog::show_fatal(lang, category);
-            ExitCode::from(exit_code(IvExit::FatalStartup))
-        }
+    // eframe reports renderer/window creation failures by ending the loop before the app is
+    // created, so "never created" is treated as a failed window even when the loop returns Ok.
+    let category = if matches!(choice, RendererChoice::Glow) {
+        FatalCategory::NoRenderer
+    } else {
+        FatalCategory::WindowFailed
+    };
+    match (result, created.load(Ordering::SeqCst)) {
+        (Ok(()), true) => ExitCode::from(exit_code(IvExit::Clean)),
+        (Ok(()), false) => fatal_exit(&write, &record, lang, category, "window was never created"),
+        (Err(err), _) => fatal_exit(&write, &record, lang, category, &err.to_string()),
     }
+}
+
+fn fatal_exit(
+    write: &impl Fn(&str, &str),
+    record: &LaunchRecord,
+    lang: Language,
+    category: FatalCategory,
+    detail: &str,
+) -> ExitCode {
+    write("ERROR", &record.fatal(category, &[("detail", detail)]));
+    fatal_dialog::show_fatal(lang, category);
+    ExitCode::from(exit_code(IvExit::FatalStartup))
 }
 
 fn exit_code(code: IvExit) -> u8 {

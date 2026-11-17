@@ -15,6 +15,7 @@ iv-platform = { path = "../iv-platform" }
 thiserror.workspace = true
 eframe.workspace = true
 pollster.workspace = true
+winit.workspace = true
 
 [target.'cfg(windows)'.build-dependencies]
 winresource.workspace = true

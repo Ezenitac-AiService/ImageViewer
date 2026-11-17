@@ -24,7 +24,7 @@ use iv_core::slideshow::{SlideShowController, SystemClock};
 use iv_core::trackpad::TrackpadAccumulator;
 use iv_media::animation::AnimationPlayer;
 use iv_media::cache::DecodedFrame;
-use iv_media::sources::folder::FolderSource;
+use iv_media::sources::folder::{FolderSource, ScanEvent, rescan_keeping, scan_async};
 use iv_media::sources::watcher::FolderWatcher;
 use iv_media::sources::zip::ZipSource;
 use iv_media::sources::{MediaSource, SourceError};
@@ -41,8 +41,42 @@ pub const EXTENDED: ExtendedFeatures = ExtendedFeatures {
     slideshow: true,
 };
 
+/// Result of a background rescan: the new source and the index to show.
+type RescanResult = Result<(FolderSource, Option<usize>), SourceError>;
+
+/// Paths handed over by the OS while running, plus the context to wake the UI with.
+#[derive(Clone, Default)]
+pub struct OsOpenQueue {
+    paths: Arc<std::sync::Mutex<Vec<PathBuf>>>,
+    ctx: Arc<std::sync::OnceLock<egui::Context>>,
+}
+
+impl OsOpenQueue {
+    pub fn push(&self, paths: Vec<PathBuf>) {
+        if let Ok(mut queue) = self.paths.lock() {
+            queue.extend(paths);
+        }
+        if let Some(ctx) = self.ctx.get() {
+            ctx.request_repaint();
+        }
+    }
+
+    fn attach(&self, ctx: &egui::Context) {
+        // Only the first context matters; later calls are no-ops by design of `OnceLock`.
+        let _ = self.ctx.set(ctx.clone());
+    }
+
+    fn take(&self) -> Vec<PathBuf> {
+        self.paths
+            .lock()
+            .map(|mut q| std::mem::take(&mut *q))
+            .unwrap_or_default()
+    }
+}
+
 /// Startup inputs handed from `main` to the app.
 pub struct AppInit {
+    pub os_open: OsOpenQueue,
     pub settings: ViewerSettings,
     pub settings_path: PathBuf,
     pub logger: Option<Arc<AsyncFileLogger>>,
@@ -62,6 +96,8 @@ pub struct ViewerApp {
     source: Option<Arc<dyn MediaSource>>,
     source_path: Option<PathBuf>,
     watcher: Option<FolderWatcher>,
+    scan_rx: Option<mpsc::Receiver<ScanEvent>>,
+    rescan_rx: Option<mpsc::Receiver<RescanResult>>,
     frame: Option<Arc<DecodedFrame>>,
     animation: Option<AnimationPlayer>,
     anim_next_at: Option<Instant>,
@@ -70,6 +106,7 @@ pub struct ViewerApp {
     slideshow: SlideShowController,
     started: Instant,
     picks_tx: mpsc::Sender<PathBuf>,
+    os_open: OsOpenQueue,
     picks_rx: mpsc::Receiver<PathBuf>,
     settings_draft: Option<ViewerSettings>,
     sort_field: SortField,
@@ -93,6 +130,7 @@ impl ViewerApp {
             init.settings.slideshow.mode,
             init.settings.slideshow.repeat,
         );
+        init.os_open.attach(&cc.egui_ctx);
         let mut app = Self {
             sort_field: init.settings.navigation.sort_field,
             sort_dir: init.settings.navigation.sort_direction,
@@ -106,6 +144,8 @@ impl ViewerApp {
             source: None,
             source_path: None,
             watcher: None,
+            scan_rx: None,
+            rescan_rx: None,
             frame: None,
             animation: None,
             anim_next_at: None,
@@ -114,6 +154,7 @@ impl ViewerApp {
             slideshow,
             started: Instant::now(),
             picks_tx,
+            os_open: init.os_open,
             picks_rx,
             settings_draft: None,
             first_frame_logged: false,
@@ -123,9 +164,6 @@ impl ViewerApp {
         if let Some(path) = init.open_path {
             app.requested_first = Some(source_name(&path.to_string_lossy()));
             app.open_path(&path);
-        } else {
-            app.log_phase(Phase::FirstFrame, &[("source", "none")]);
-            app.first_frame_logged = true;
         }
         app
     }
@@ -153,67 +191,135 @@ impl ViewerApp {
             .extension()
             .and_then(|e| e.to_str())
             .is_some_and(|e| e.eq_ignore_ascii_case("zip") || e.eq_ignore_ascii_case("cbz"));
-        let opened: Result<Arc<dyn MediaSource>, SourceError> = if is_zip {
-            ZipSource::open(path, self.settings.limits.max_zip_entry_megabytes)
-                .map(|z| Arc::new(z) as Arc<dyn MediaSource>)
-        } else {
-            FolderSource::open(path).map(|f| Arc::new(f) as Arc<dyn MediaSource>)
-        };
-        match opened {
-            Ok(src) => {
-                let initial = src.initial_index();
-                self.model
-                    .set_source_len(src.entries().len(), Some(initial));
-                self.model.viewport.reset_transforms();
-                self.source = Some(src);
-                self.source_path = Some(path.to_path_buf());
-                self.loader.clear_cache();
-                self.status = None;
-                self.watcher = if !is_zip && self.settings.navigation.watch_folder {
-                    let dir = if path.is_dir() {
-                        path
-                    } else {
-                        path.parent().unwrap_or(path)
-                    };
-                    match FolderWatcher::watch(dir, Duration::from_millis(700)) {
-                        Ok(w) => Some(w),
-                        Err(e) => {
-                            self.log_error(&format!("watcher unavailable: {e}"));
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-                self.load_current(false);
+        self.source_path = Some(path.to_path_buf());
+        self.loader.clear_cache();
+        self.status = None;
+        self.rescan_rx = None;
+        self.watcher = None;
+        if is_zip {
+            match ZipSource::open(path, self.settings.limits.max_zip_entry_megabytes) {
+                Ok(zip) => self.install_source(Arc::new(zip), None),
+                Err(err) => self.show_source_error(&err),
             }
-            Err(err) => {
-                self.log_error(&format!("open failed: {err}"));
-                self.status = Some(StatusMessage::Error(err.user_message(self.lang())));
+            return;
+        }
+        // Folders are enumerated on a worker so the window never freezes (FR-017).
+        self.scan_rx = Some(scan_async(path.to_path_buf()));
+        self.loader.pending_since = Some(Instant::now());
+        if self.settings.navigation.watch_folder {
+            let dir = if path.is_dir() {
+                path
+            } else {
+                path.parent().unwrap_or(path)
+            };
+            match FolderWatcher::watch(dir, Duration::from_millis(700)) {
+                Ok(w) => self.watcher = Some(w),
+                Err(e) => self.log_error(&format!("watcher unavailable: {e}")),
             }
         }
     }
 
-    fn rescan_keeping_position(&mut self) {
+    /// Makes `src` current. With `keep`, the entry with that source key stays selected and is not
+    /// reloaded; otherwise the source's initial entry is shown.
+    fn install_source(&mut self, src: Arc<dyn MediaSource>, keep: Option<String>) {
+        let kept = keep
+            .as_deref()
+            .and_then(|key| src.entries().iter().position(|e| e.source_key == key));
+        let index = kept.unwrap_or_else(|| src.initial_index());
+        self.model.set_source_len(src.entries().len(), Some(index));
+        self.source = Some(src);
+        if kept.is_none() {
+            self.model.viewport.reset_transforms();
+            self.log_navigate();
+            self.load_current(false);
+        }
+    }
+
+    fn show_source_error(&mut self, err: &SourceError) {
+        self.log_error(&format!("open failed: {err}"));
+        self.status = Some(StatusMessage::Error(err.user_message(self.lang())));
+        self.loader.pending_since = None;
+    }
+
+    fn poll_scans(&mut self) {
+        if let Some(rx) = &self.scan_rx {
+            let mut events = Vec::new();
+            while let Ok(ev) = rx.try_recv() {
+                events.push(ev);
+            }
+            for ev in events {
+                match ev {
+                    ScanEvent::Partial(single) => self.install_source(Arc::new(single), None),
+                    ScanEvent::Complete(Ok(full)) => {
+                        let keep = self.current_entry_key();
+                        self.install_source(Arc::new(full), keep);
+                        self.scan_rx = None;
+                    }
+                    ScanEvent::Complete(Err(err)) => {
+                        self.show_source_error(&err);
+                        self.scan_rx = None;
+                    }
+                }
+            }
+        }
+        if let Some(rx) = &self.rescan_rx
+            && let Ok(result) = rx.try_recv()
+        {
+            self.rescan_rx = None;
+            match result {
+                Ok((src, index)) => {
+                    let before = self.current_entry_key();
+                    self.model.set_source_len(src.entries().len(), index);
+                    self.source = Some(Arc::new(src));
+                    if self.current_entry_key() != before {
+                        self.load_current(false);
+                    }
+                }
+                Err(err) => self.log_error(&format!("rescan failed: {err}")),
+            }
+        }
+    }
+
+    /// Re-reads the folder after a change without moving away from the image being shown
+    /// (FR-016), on a worker thread.
+    fn rescan_keeping_position(&mut self, ctx: &egui::Context) {
         let Some(path) = self.source_path.clone() else {
             return;
         };
-        let current_key = self.current_entry_key();
+        let key = self.current_entry_key();
         let old_index = self.model.current;
-        let Ok(src) = FolderSource::open(&path) else {
+        let (tx, rx) = mpsc::channel();
+        let repaint = ctx.clone();
+        std::thread::spawn(move || {
+            if tx
+                .send(rescan_keeping(&path, key.as_deref(), old_index))
+                .is_ok()
+            {
+                repaint.request_repaint();
+            }
+        });
+        self.rescan_rx = Some(rx);
+    }
+
+    fn log_navigate(&self) {
+        let Some(i) = self.model.current else {
             return;
         };
-        let src: Arc<dyn MediaSource> = Arc::new(src);
-        let rebound = current_key
-            .as_deref()
-            .and_then(|key| src.entries().iter().position(|e| e.source_key == key));
-        let changed_current = rebound.is_none();
-        self.model
-            .set_source_len(src.entries().len(), rebound.or(old_index));
-        self.source = Some(src);
-        if changed_current {
-            self.load_current(false);
-        }
+        let name = self
+            .source
+            .as_ref()
+            .and_then(|s| s.entries().get(i))
+            .map(|e| e.name.clone())
+            .unwrap_or_default();
+        let (index, total) = (i.to_string(), self.model.entries_len.to_string());
+        self.log_phase(
+            Phase::Navigate,
+            &[
+                ("index", index.as_str()),
+                ("total", total.as_str()),
+                ("source", name.as_str()),
+            ],
+        );
     }
 
     fn current_entry_key(&self) -> Option<String> {
@@ -224,6 +330,7 @@ impl ViewerApp {
 
     fn load_current(&mut self, full_resolution: bool) {
         let (Some(src), Some(index)) = (self.source.clone(), self.model.current) else {
+            self.loader.pending_since = None;
             self.frame = None;
             self.animation = None;
             self.canvas.clear();
@@ -335,13 +442,7 @@ impl ViewerApp {
         if before == self.model.current {
             return;
         }
-        if let (Some(i), total) = (self.model.current, self.model.entries_len) {
-            let (i, total) = (i.to_string(), total.to_string());
-            self.log_phase(
-                Phase::Navigate,
-                &[("index", i.as_str()), ("total", total.as_str())],
-            );
-        }
+        self.log_navigate();
         self.load_current(false);
     }
 
@@ -513,6 +614,29 @@ impl ViewerApp {
         while let Ok(path) = self.picks_rx.try_recv() {
             self.open_path(&path);
         }
+        // The OS may hand over several files; the viewer opens the first (its folder supplies
+        // the rest).
+        if let Some(path) = self.os_open.take().into_iter().next() {
+            if !self.first_frame_logged {
+                self.requested_first = Some(source_name(&path.to_string_lossy()));
+            }
+            self.open_path(&path);
+        }
+        self.poll_scans();
+        // With nothing to show, record the first frame as empty once the OS has had time to
+        // deliver an "Open With" file (macOS sends it shortly after launch).
+        if !self.first_frame_logged && self.source.is_none() && self.scan_rx.is_none() {
+            let grace = Duration::from_secs(2);
+            if self.started.elapsed() >= grace {
+                self.first_frame_logged = true;
+                self.log_phase(Phase::FirstFrame, &[("source", "none")]);
+            } else {
+                ctx.request_repaint_after(grace.saturating_sub(self.started.elapsed()));
+            }
+        }
+        if self.scan_rx.is_some() || self.rescan_rx.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(50));
+        }
         let loaded = self.loader.poll();
         self.handle_loaded(loaded);
 
@@ -521,7 +645,7 @@ impl ViewerApp {
             .as_ref()
             .is_some_and(|w| w.dirty.swap(false, Ordering::SeqCst))
         {
-            self.rescan_keeping_position();
+            self.rescan_keeping_position(ctx);
         }
 
         if let Some(next_at) = self.anim_next_at {

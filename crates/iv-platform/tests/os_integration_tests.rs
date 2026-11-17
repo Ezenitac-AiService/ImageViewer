@@ -47,3 +47,18 @@ fn redacted_log_folder_is_fixed_per_os_and_never_contains_a_user_name() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T054: OS locale tags → UI language
+// ---------------------------------------------------------------------------
+
+#[test]
+fn language_from_tags_picks_korean_only_for_ko_tags() {
+    use iv_core::i18n::Language;
+    use iv_platform::locale::language_from_tags;
+    assert_eq!(language_from_tags(&["ko-KR", "en-US"]), Language::Ko);
+    assert_eq!(language_from_tags(&["ko"]), Language::Ko);
+    assert_eq!(language_from_tags(&["en-US", "ko-KR"]), Language::En);
+    assert_eq!(language_from_tags(&["fr-FR"]), Language::En);
+    assert_eq!(language_from_tags(&[]), Language::En);
+}

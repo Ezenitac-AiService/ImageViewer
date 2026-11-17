@@ -18,7 +18,10 @@ fn embed_windows_resources() {
         .set("ProductName", "ImageViewer")
         .set("FileDescription", "ImageViewer")
         .set("CompanyName", "Ezenitac-AiService")
-        .set("LegalCopyright", "GPL-3.0-only; (C) edith2580, (C) 2026 Ezenitac-AiService")
+        .set(
+            "LegalCopyright",
+            "GPL-3.0-only; (C) edith2580, (C) 2026 Ezenitac-AiService",
+        )
         .set("OriginalFilename", "ImageViewer.exe")
         .set("ProductVersion", env!("CARGO_PKG_VERSION"));
     if let Err(e) = res.compile() {

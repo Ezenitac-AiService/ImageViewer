@@ -403,6 +403,31 @@ impl SettingsStore {
         }
     }
 
+    /// Like [`Self::load_with_outcome`], but when the user has never chosen a language (no
+    /// `language` key, or no usable file) the language follows the first OS locale tag
+    /// (`ko*` → Korean, anything else → English; FR-018).
+    pub fn load_for_locale(path: &Path, locale_tags: &[&str]) -> (ViewerSettings, LoadOutcome) {
+        let (mut settings, outcome) = Self::load_with_outcome(path);
+        let explicit = outcome == LoadOutcome::Loaded && Self::has_language_key(path);
+        if !explicit {
+            settings.language = locale_tags
+                .first()
+                .map_or(Language::En, |tag| Language::from_locale(tag));
+        }
+        (settings, outcome)
+    }
+
+    fn has_language_key(path: &Path) -> bool {
+        let Ok(raw) = std::fs::read_to_string(path) else {
+            return false;
+        };
+        let stripped = strip_json_comments_and_trailing_commas(&raw);
+        serde_json::from_str::<serde_json::Value>(&stripped)
+            .ok()
+            .and_then(|v| v.get("language").cloned())
+            .is_some_and(|v| v.is_string())
+    }
+
     /// Returns whether a settings file could be created next to `path` (creating the directory
     /// if needed). Probes with a uniquely named temp file that is removed immediately.
     fn directory_writable(path: &Path) -> bool {

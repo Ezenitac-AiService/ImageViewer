@@ -53,7 +53,7 @@ depend on this phase.
 
 - [ ] T007 Spike S0: Start the published `v1.1.0-alpha.1` `ImageViewer-windows-x64.exe` on clean Windows 10 and 11 VMs. Record the console window, whether the title bar shows "(Not Responding)", whether clicks act, and the import table (`dumpbin /dependents`) in `specs/004-launch-reliability-refactor/research.md`
 - [ ] T008 [P] Spike S1: In a throw-away binary under `target/spikes/`, enumerate `wgpu 30` adapters on a Windows VM with no GPU driver and over RDP. Record whether a `DeviceType::Cpu` (WARP) adapter appears, in `specs/004-launch-reliability-refactor/research.md`
-- [ ] T009 [P] Spike S2: In a throw-away bundled eframe app, install a custom `NSApplicationDelegate` implementing `application:openURLs:` before `run_native`. Record cold- and warm-launch delivery from Finder "Open With" in `specs/004-launch-reliability-refactor/research.md`
+- [X] T009 [P] Spike S2: In a throw-away bundled eframe app, install a custom `NSApplicationDelegate` implementing `application:openURLs:` before `run_native`. Record cold- and warm-launch delivery from Finder "Open With" in `specs/004-launch-reliability-refactor/research.md`
 - [ ] T010 [P] Spike S3: In the same throw-away eframe app, confirm `osascript -e 'tell application id "…" to quit'` triggers a clean `on_exit`. On a `windows-latest` runner, confirm `Process.MainWindowHandle` and `Process.Responding` are meaningful and that `SendKeys` or `osascript` System Events input is permitted. Record in `specs/004-launch-reliability-refactor/research.md`
 
 ### Diagnostics core (used by US2 and US4)
@@ -234,37 +234,37 @@ first. Native window behaviour. The folder keeps its position. Korean appears on
   - `Prev` on an empty source;
   - `NextPage` on a single-page image falls through to `Next`;
   - `CloseTopDialog` on an empty stack is a no-op.
-- [ ] T052 [P] [US3] Add failing tests to `crates/iv-media/tests/sources_tests.rs` using real temp directories:
+- [X] T052 [P] [US3] Add failing tests to `crates/iv-media/tests/sources_tests.rs` using real temp directories:
   - `FolderSource::scan_async(target_file)` reports the target entry before the full list completes;
   - for a 10,000-file folder, the first entry is available in < 1 s and the full natural-sorted list arrives later;
   - `rescan_keeping(current_key)` re-binds `current` by `source_key`;
   - when the current file is deleted, the index is clamped to `min(old_index, len - 1)` (data-model §8).
-- [ ] T053 [P] [US3] Add failing tests to `crates/iv-core/tests/settings_tests.rs`:
+- [X] T053 [P] [US3] Add failing tests to `crates/iv-core/tests/settings_tests.rs`:
   - a `settings.json` without a `language` key resolves the language from a supplied locale tag (`"ko-KR"` → `Ko`, `"en-US"` / `"fr-FR"` → `En`);
   - a file with `"language": "en"` keeps `En` even when the locale is `"ko-KR"`.
-- [ ] T054 [P] [US3] Add failing tests to `crates/iv-platform/tests/os_integration_tests.rs` for `locale::language_from_tags(&[&str]) -> Language` (first `ko*` tag → `Ko`, else `En`, empty → `En`)
+- [X] T054 [P] [US3] Add failing tests to `crates/iv-platform/tests/os_integration_tests.rs` for `locale::language_from_tags(&[&str]) -> Language` (first `ko*` tag → `Ko`, else `En`, empty → `En`)
 
 ### Implementation for User Story 3
 
 - [X] T055 [US3] Create `crates/iv-core/src/interaction.rs` with `InputEvent`, `InteractionContext`, `ViewerCommand`, `DialogKind`, `ViewerModel`, `map_input`, and `ViewerModel::apply` exactly as in data-model §7 and the interaction contract. Export it from `crates/iv-core/src/lib.rs`, until T049–T051 pass
-- [ ] T056 [US3] In `crates/iv-app/src/app.rs`, translate `egui` input (keys, modifiers, pointer, scroll, pinch, dropped files, `focused` widget state) into `InputEvent`, call `map_input`, apply the commands, and route `RequestOpenFile` / `RequestOpenFolder` to `iv_platform::paths_dialogs` with callbacks that push onto a channel and call `ctx.request_repaint()`
-- [ ] T057 [P] [US3] Create `crates/iv-app/src/views/toolbar.rs` with the Core-only toolbars of interaction contract §5. Every label goes through `I18n` (add the missing keys to `crates/iv-core/src/i18n.rs`). Delete `crates/iv-app/src/views/main_view.rs` and its custom titlebar
-- [ ] T058 [P] [US3] Rewrite `crates/iv-app/src/views/settings_view.rs` as an `egui::Window` driven by the `ViewerModel` dialog stack:
+- [X] T056 [US3] In `crates/iv-app/src/app.rs`, translate `egui` input (keys, modifiers, pointer, scroll, pinch, dropped files, `focused` widget state) into `InputEvent`, call `map_input`, apply the commands, and route `RequestOpenFile` / `RequestOpenFolder` to `iv_platform::paths_dialogs` with callbacks that push onto a channel and call `ctx.request_repaint()`
+- [X] T057 [P] [US3] Create `crates/iv-app/src/views/toolbar.rs` with the Core-only toolbars of interaction contract §5. Every label goes through `I18n` (add the missing keys to `crates/iv-core/src/i18n.rs`). Delete `crates/iv-app/src/views/main_view.rs` and its custom titlebar
+- [X] T058 [P] [US3] Rewrite `crates/iv-app/src/views/settings_view.rs` as an `egui::Window` driven by the `ViewerModel` dialog stack:
   - every label comes from `I18n` (add keys in both languages to `crates/iv-core/src/i18n.rs`);
   - add a Language selector (`Ko` / `En`);
   - remove the "Auto Check Updates" control;
   - OK normalizes, saves, and shows `settings.save_failed` on `Err`.
-- [ ] T059 [P] [US3] Rewrite `crates/iv-app/src/views/about_view.rs` as an `egui::Window`: remove "Check for Updates", and implement "Copy Info" with `ctx.copy_text` instead of `arboard`. Keep the existing `about_info_contains_license_origin_and_credits` test green, updating the library list to match the new stack
-- [ ] T060 [P] [US3] Rewrite `crates/iv-app/src/views/image_list_view.rs` as an `egui::Window` in the dialog stack. Selecting an entry issues the corresponding navigation command
-- [ ] T061 [US3] Implement `FolderSource::scan_async` and `rescan_keeping` in `crates/iv-media/src/sources/folder.rs`, using `DirEntry::file_type()` and lazy size/mtime (`metadata_loaded`). Wire the watcher event in `crates/iv-app/src/app.rs` to `rescan_keeping` instead of re-opening the original path (finding A10), until T052 passes
-- [ ] T062 [US3] Create `crates/iv-platform/src/locale.rs` (`language_from_tags`, `system_language()` via `sys_locale::get_locales()`), export it, and add `sys-locale.workspace = true` to `crates/iv-platform/Cargo.toml`, until T054 passes. Apply it in `crates/iv-core/src/settings.rs` only when the `language` key is absent, until T053 passes
-- [ ] T063 [US3] Create `crates/iv-platform/src/macos_open_files.rs` (`#[cfg(target_os = "macos")]`) per research R7 and the spike T009 result:
+- [X] T059 [P] [US3] Rewrite `crates/iv-app/src/views/about_view.rs` as an `egui::Window`: remove "Check for Updates", and implement "Copy Info" with `ctx.copy_text` instead of `arboard`. Keep the existing `about_info_contains_license_origin_and_credits` test green, updating the library list to match the new stack
+- [X] T060 [P] [US3] Rewrite `crates/iv-app/src/views/image_list_view.rs` as an `egui::Window` in the dialog stack. Selecting an entry issues the corresponding navigation command
+- [X] T061 [US3] Implement `FolderSource::scan_async` and `rescan_keeping` in `crates/iv-media/src/sources/folder.rs`, using `DirEntry::file_type()` and lazy size/mtime (`metadata_loaded`). Wire the watcher event in `crates/iv-app/src/app.rs` to `rescan_keeping` instead of re-opening the original path (finding A10), until T052 passes
+- [X] T062 [US3] Create `crates/iv-platform/src/locale.rs` (`language_from_tags`, `system_language()` via `sys_locale::get_locales()`), export it, and add `sys-locale.workspace = true` to `crates/iv-platform/Cargo.toml`, until T054 passes. Apply it in `crates/iv-core/src/settings.rs` only when the `language` key is absent, until T053 passes
+- [X] T063 [US3] Create `crates/iv-platform/src/macos_open_files.rs` (`#[cfg(target_os = "macos")]`) per research R7 and the spike T009 result:
   - an `NSApplicationDelegate` implementing `application:openURLs:`, forwarding file-URL paths to a `Box<dyn Fn(Vec<PathBuf>) + Send + Sync>`;
   - every `unsafe` block carries a `// SAFETY:` comment;
   - install it from `crates/iv-app/src/main.rs` before `run_native`;
   - `app.rs` opens the first received path.
-- [ ] T064 [US3] Animation in `crates/iv-app/src/app.rs` + `canvas.rs`: advance frames on the wall-clock delay, update the existing `TextureHandle` in place, and schedule `ctx.request_repaint_after(current_delay)`. No per-frame texture allocation (finding C5)
-- [ ] T065 [US3] Native window behaviour in `crates/iv-app/src/main.rs` / `app.rs`:
+- [X] T064 [US3] Animation in `crates/iv-app/src/app.rs` + `canvas.rs`: advance frames on the wall-clock delay, update the existing `TextureHandle` in place, and schedule `ctx.request_repaint_after(current_delay)`. No per-frame texture allocation (finding C5)
+- [X] T065 [US3] Native window behaviour in `crates/iv-app/src/main.rs` / `app.rs`:
   - `ViewportBuilder::with_decorations(true)` and `with_drag_and_drop(true)`;
   - restore size, maximized state, and position (size and maximized only on Wayland);
   - `ToggleFullscreen` via `ViewportCommand::Fullscreen`;
@@ -309,7 +309,7 @@ yields no draft release.
 
 ### Implementation for User Story 4
 
-- [ ] T072 [US4] Write `phase=navigate index=<n> total=<n>` at INFO on every image change in `crates/iv-app/src/app.rs` (launch contract §3); cover the formatter in `crates/iv-core/tests/diagnostics_tests.rs`
+- [X] T072 [US4] Write `phase=navigate index=<n> total=<n>` at INFO on every image change in `crates/iv-app/src/app.rs` (launch contract §3); cover the formatter in `crates/iv-core/tests/diagnostics_tests.rs`
 - [ ] T073 [P] [US4] Create `packaging/release-notes.md.in`:
   - the platform table from `contracts/release-verification-contract.md` §4, with `@WIN10@`, `@WIN11@`, `@MAC_ARM@`, `@MAC_X64@`, `@LINUX@` placeholders filled by the workflow;
   - known limitations: one-time trust confirmation, Smart App Control, and Unavailable capabilities linked to `docs/CAPABILITIES.md`;

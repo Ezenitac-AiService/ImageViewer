@@ -52,6 +52,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 sha2 = "0.10"
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "glow", "default_fonts", "clipboard", "x11", "wayland"] }
 pollster = "0.4"
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
 sys-locale = "0.3"
 winresource = "0.1"
 criterion = "0.5"
