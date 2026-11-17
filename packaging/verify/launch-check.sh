@@ -79,13 +79,27 @@ if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
     done
 fi
 
+# --- Linux (X11/Xvfb): keyboard interaction and close through the app's own Esc binding.
+# `xdotool windowclose` destroys the X window instead of asking the app to close, so it is not
+# used; without a window manager there is no WM_DELETE_WINDOW sender.
+X_WID=""
+if [ "$OS" != "Darwin" ] && command -v xdotool >/dev/null 2>&1; then
+    X_WID="$(xdotool search --pid "$PID" 2>/dev/null | tail -1)"
+    if [ -n "$X_WID" ]; then
+        sleep 1
+        xdotool windowfocus --sync "$X_WID" 2>/dev/null
+        xdotool key Right
+        if wait_for "phase=navigate index=1" 2; then navigated=true; else navigated=false; fi
+    fi
+fi
+
 # --- quit the way the OS does
 if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
     osa -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 ||
         notes="${notes:+$notes; }quit Apple Event was not delivered (Automation permission?)"
-elif command -v xdotool >/dev/null 2>&1; then
-    WID="$(xdotool search --pid "$PID" 2>/dev/null | head -1)"
-    [ -n "$WID" ] && xdotool windowclose "$WID"
+elif [ -n "$X_WID" ]; then
+    xdotool windowfocus --sync "$X_WID" 2>/dev/null
+    xdotool key Escape
 else
     notes="${notes:+$notes; }no OS close request available"
 fi

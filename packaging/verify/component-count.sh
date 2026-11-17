@@ -14,7 +14,7 @@ FORBIDDEN=(reqwest hyper rustls tokio)
 TARGETS=(x86_64-pc-windows-msvc aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu)
 tree=""
 for t in "${TARGETS[@]}"; do
-    per_target="$(cargo tree --locked -p iv-app -e normal --target "$t" --prefix none | sed 's/ (\*)//' | sort -u)"
+    per_target="$(cargo tree --locked --color never -p iv-app -e normal --target "$t" --prefix none | sed 's/ (\*)//' | sort -u)"
     echo "target ${t}: $(printf '%s\n' "$per_target" | grep -c .)"
     tree="$(printf '%s\n%s\n' "$tree" "$per_target")"
 done
