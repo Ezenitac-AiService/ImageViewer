@@ -135,7 +135,7 @@ jobs:
       - name: Start under Xvfb (experimental; never blocks the release)
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xdotool libgtk-3-0 mesa-vulkan-drivers
+          sudo apt-get install -y xvfb xdotool libgtk-3-0 libxkbcommon-x11-0 mesa-vulkan-drivers
           tar -xzf dist/ImageViewer-linux-x64.tar.gz -C dist
           xvfb-run -a packaging/verify/launch-check.sh dist/ImageViewer/imageviewer packaging/verify/fixtures/two-images/a.png launch-verification-linux-x64.json
       - uses: actions/upload-artifact@v4

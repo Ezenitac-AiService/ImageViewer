@@ -36,7 +36,7 @@ tar -xzf ImageViewer-linux-x64.tar.gz
 ./ImageViewer/imageviewer
 ```
 
-파일 대화상자를 쓰려면 GTK 3 런타임이 필요합니다.
+실행하려면 GTK 3(파일 대화상자)과 libxkbcommon-x11(X11 키보드) 런타임이 필요합니다. 예: Debian/Ubuntu에서 `sudo apt install libgtk-3-0 libxkbcommon-x11-0`.
 
 ## 시작이 안 될 때
 

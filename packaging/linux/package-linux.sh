@@ -21,6 +21,9 @@ It is built and passes automated checks, but it has not passed the launch verifi
 Windows and macOS releases must pass. Please report problems at
 https://github.com/Ezenitac-AiService/ImageViewer/issues
 
+Runtime libraries: GTK 3 (file dialogs) and libxkbcommon-x11 (keyboard on X11),
+for example on Debian/Ubuntu: sudo apt install libgtk-3-0 libxkbcommon-x11-0
+
 Run: ./imageviewer [image-or-folder]
 TXT
 

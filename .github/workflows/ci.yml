@@ -96,7 +96,7 @@ jobs:
       - name: Install Linux GUI dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev xvfb xdotool mesa-vulkan-drivers
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-x11-0 xvfb xdotool mesa-vulkan-drivers
       - name: Build
         run: cargo build --release --locked -p iv-app
       - name: Start under Xvfb and verify
@@ -114,4 +114,11 @@ jobs:
           command-arguments: advisories bans licenses sources
       - uses: dtolnay/rust-toolchain@stable
       - name: Shipped-component budget and no network clients
+        env:
+          COMPONENT_LIST: shipped-components.txt
         run: packaging/verify/component-count.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shipped-components
+          path: shipped-components.txt

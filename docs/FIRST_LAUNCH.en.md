@@ -36,7 +36,7 @@ tar -xzf ImageViewer-linux-x64.tar.gz
 ./ImageViewer/imageviewer
 ```
 
-The file dialogs need the GTK 3 runtime.
+It needs the GTK 3 (file dialogs) and libxkbcommon-x11 (X11 keyboard) runtimes, for example on Debian/Ubuntu: `sudo apt install libgtk-3-0 libxkbcommon-x11-0`.
 
 ## If it does not start
 
