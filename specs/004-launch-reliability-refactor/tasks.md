@@ -54,7 +54,7 @@ depend on this phase.
 - [ ] T007 Spike S0: Start the published `v1.1.0-alpha.1` `ImageViewer-windows-x64.exe` on clean Windows 10 and 11 VMs. Record the console window, whether the title bar shows "(Not Responding)", whether clicks act, and the import table (`dumpbin /dependents`) in `specs/004-launch-reliability-refactor/research.md`
 - [ ] T008 [P] Spike S1: In a throw-away binary under `target/spikes/`, enumerate `wgpu 30` adapters on a Windows VM with no GPU driver and over RDP. Record whether a `DeviceType::Cpu` (WARP) adapter appears, in `specs/004-launch-reliability-refactor/research.md`
 - [X] T009 [P] Spike S2: In a throw-away bundled eframe app, install a custom `NSApplicationDelegate` implementing `application:openURLs:` before `run_native`. Record cold- and warm-launch delivery from Finder "Open With" in `specs/004-launch-reliability-refactor/research.md`
-- [ ] T010 [P] Spike S3: In the same throw-away eframe app, confirm `osascript -e 'tell application id "…" to quit'` triggers a clean `on_exit`. On a `windows-latest` runner, confirm `Process.MainWindowHandle` and `Process.Responding` are meaningful and that `SendKeys` or `osascript` System Events input is permitted. Record in `specs/004-launch-reliability-refactor/research.md`
+- [X] T010 [P] Spike S3: In the same throw-away eframe app, confirm `osascript -e 'tell application id "…" to quit'` triggers a clean `on_exit`. On a `windows-latest` runner, confirm `Process.MainWindowHandle` and `Process.Responding` are meaningful and that `SendKeys` or `osascript` System Events input is permitted. Record in `specs/004-launch-reliability-refactor/research.md`
 
 ### Diagnostics core (used by US2 and US4)
 
@@ -114,7 +114,7 @@ and no "damaged" message (FR-001–FR-006).
   - `plutil -lint` passes;
   - `CFBundleShortVersionString` equals `cargo metadata` workspace version;
   - `Contents/Resources/AppIcon.icns` exists.
-- [ ] T024 [P] [US1] Write `packaging/verify/assert-windows-exe.ps1 <exe>`. It exits non-zero unless all of the following hold:
+- [X] T024 [P] [US1] Write `packaging/verify/assert-windows-exe.ps1 <exe>`. It exits non-zero unless all of the following hold:
   - the PE optional-header `Subsystem` = 2 (`WINDOWS_GUI`);
   - the import table has no DLL matching `VCRUNTIME*` or `api-ms-win-crt-*`;
   - `VersionInfo.FileVersion` starts with the workspace version;
@@ -133,7 +133,7 @@ and no "damaged" message (FR-001–FR-006).
   - the manifest from T026.
 
   Add `[target.'cfg(windows)'.build-dependencies] winresource.workspace = true` to `crates/iv-app/Cargo.toml`
-- [ ] T028 [US1] Rewrite `packaging/windows/package-windows.ps1`: build `--release --target x86_64-pc-windows-msvc -p iv-app`, copy to `dist/ImageViewer-windows-x64.exe`, then run `packaging/verify/assert-windows-exe.ps1` and fail on a non-zero result. Signing hook (FR-005):
+- [X] T028 [US1] Rewrite `packaging/windows/package-windows.ps1`: build `--release --target x86_64-pc-windows-msvc -p iv-app`, copy to `dist/ImageViewer-windows-x64.exe`, then run `packaging/verify/assert-windows-exe.ps1` and fail on a non-zero result. Signing hook (FR-005):
   - if `WINDOWS_SIGNING_CERT_BASE64` and `WINDOWS_SIGNING_PASSWORD` are set, decode the certificate to a temp `.pfx`, run `signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256`, verify with `signtool verify /pa`, fail on error, and delete the `.pfx`;
   - otherwise print `signature=none` and continue.
 
@@ -442,7 +442,7 @@ justified component inventory within budget (FR-031–FR-036).
 - [X] T105 [P] Add `1.1.0-alpha.2` entries to `CHANGELOG.md` and `CHANGELOG.en.md`: the console fix, responsiveness, macOS signing and universal build, diagnostics, scope changes, and Linux experimental
 - [X] T106 [P] Update the `**Status**` lines: `specs/002-rust-crossplatform-viewer/spec.md` (superseded for the next release by 004) and `specs/004-launch-reliability-refactor/spec.md` (Implemented, pending clean-machine verification)
 - [X] T107 Run [quickstart.md](./quickstart.md) §1 in full (`fmt`, `clippy --all-features`, `test --all-features`, `test`, `deny`, component budget) on the macOS host after the final edit, and report any target not run natively (constitution build gate)
-- [ ] T108 Confirm all CI jobs from T075 are green on Windows, macOS, and Linux (Linux may be marked experimental). Link the run in `specs/004-launch-reliability-refactor/research.md`
+- [X] T108 Confirm all CI jobs from T075 are green on Windows, macOS, and Linux (Linux may be marked experimental). Link the run in `specs/004-launch-reliability-refactor/research.md`
 - [ ] T109 Re-run `/speckit-analyze` after implementation, and confirm that SC-010 (resolved to the 514 → ≤ 411 shipped-component metric) and the final count from T098 agree, in `specs/004-launch-reliability-refactor/spec.md` and `research.md`
 - [ ] T110 Clean-machine checklist ([quickstart.md](./quickstart.md) §4, steps 1–12) on clean Windows 10, clean Windows 11, a real Apple-Silicon Mac, and an Intel Mac if available, using the draft-release assets from T078/T076:
   - on one clean Windows VM, also run the [quickstart.md](./quickstart.md) §3 rows the macOS host cannot provoke ("No GPU renderer", "Fatal path"), so every SC-003 failure condition has evidence;

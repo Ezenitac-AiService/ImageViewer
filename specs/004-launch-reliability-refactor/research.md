@@ -431,3 +431,16 @@ First run of `cargo deny check advisories bans licenses sources` with the extend
 | Path dependencies reported as wildcards | workspace crates | crates marked `publish = false` and `allow-wildcard-paths = true` |
 
 After the fixes all four sections pass, and shipped components are 298 (budget 356).
+
+### CI evidence (T108, T010, T024, T028) — branch `004-launch-reliability-refactor`
+
+| Run | Result | Findings |
+|-----|--------|----------|
+| 44016280755 | Windows and macOS launch checks **pass**; clippy fails on Ubuntu/Windows | First native Windows evidence (Windows Server 2025): window shown, first frame, Right Arrow navigates (SendKeys), `Responding` true for all 20 samples, no `conhost`, `CloseMainWindow` → exit 0 and `exit=clean`. `package-windows.ps1` + `assert-windows-exe.ps1` pass (GUI subsystem, no dynamic CRT imports, version, resources) and no manifest conflict. macOS runner accepts the `quit` Apple Event and System Events key input. Clippy: macOS-only `OsOpenQueue::push` was dead code elsewhere |
+| 44018006831 | all checks pass except Linux (experimental) and the component budget | Linux: `libxkbcommon-x11.so` missing on the runner → panic recorded as `fatal category=panic` (US2 working); the probe chose the CPU adapter `llvmpipe` (spike S1 evidence for software rendering on Linux) |
+| 44019715573 | same two failures | Component count 385 was an artifact: with `CARGO_TERM_COLOR=always`, `cargo tree` colours the `(*)` duplicate marker so de-duplication failed. Real count is 298. Linux: the harness's `xdotool windowclose` destroyed the X window, after which winit panicked on `GetGeometry` |
+| 44020284810 | **all 7 jobs pass** | Linux under Xvfb: window, first frame, Right Arrow, Esc → clean exit. `cargo deny` four sections ok; 298 shipped components (budget 356) |
+
+Still not covered by CI: clean machines (hosted runners carry developer runtimes), Windows 10/11
+client editions, SmartScreen / Gatekeeper first-launch dialogs, and the Intel-Mac slice
+(`macos-15-intel` runs only in `release.yml`). These remain for T078/T110.

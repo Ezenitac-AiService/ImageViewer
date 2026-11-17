@@ -17,7 +17,7 @@ Unavailable 기능을 Extended로 올리려면 네 가지가 모두 필요합니
 
 근거 하나라도 무효가 되면 그 기능은 즉시 Unavailable로 내려갑니다. 등급 규칙의 출처는 [프로젝트 헌법](../.specify/memory/constitution.md)의 Media Decoding Strategy이고, 자세한 정의는 [specs/004](../specs/004-launch-reliability-refactor/spec.md) FR-020–FR-024에 있습니다.
 
-> **현재 검증 상태 (2026-11-17)**: macOS Apple Silicon에서 자동 테스트와 실행 검사를 통과했습니다. **Windows 10/11과 Intel Mac은 아직 확인하지 않았습니다.** 깨끗한 환경 검증(릴리스 체크리스트)을 통과하기 전에는 릴리스를 게시하지 않습니다.
+> **현재 검증 상태 (2026-11-17)**: macOS Apple Silicon(로컬·CI), Windows Server 2025(CI), Linux Xvfb(CI, 실험적)에서 자동 테스트와 실행 검사를 통과했습니다. **깨끗한 Windows 10/11, Intel Mac, 첫 실행 확인 창은 아직 확인하지 않았습니다.** 깨끗한 환경 검증(릴리스 체크리스트)을 통과하기 전에는 릴리스를 게시하지 않습니다.
 
 ## Core
 

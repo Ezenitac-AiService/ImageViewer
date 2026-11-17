@@ -17,7 +17,7 @@ Moving an Unavailable capability to Extended requires all four of:
 
 A capability drops back to Unavailable as soon as any of that evidence becomes invalid. The tier rules come from the Media Decoding Strategy in the [project constitution](../.specify/memory/constitution.md); full definitions are in [specs/004](../specs/004-launch-reliability-refactor/spec.md) FR-020–FR-024.
 
-> **Verification status (2026-11-17)**: automated tests and the launch check pass on macOS Apple Silicon. **Windows 10/11 and Intel Macs have not been checked yet.** No release is published until the clean-machine checklist passes.
+> **Verification status (2026-11-17)**: automated tests and the launch check pass on macOS Apple Silicon (local and CI), Windows Server 2025 (CI), and Linux under Xvfb (CI, experimental). **Clean Windows 10/11 machines, Intel Macs, and the first-launch trust dialogs have not been checked yet.** No release is published until the clean-machine checklist passes.
 
 ## Core
 
