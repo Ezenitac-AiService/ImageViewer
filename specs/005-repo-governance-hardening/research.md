@@ -191,3 +191,15 @@ Every architectural, workflow, dependency, and repository-configuration decision
 - **Primary Evidence / Observed Output**:
   - `NOTICE` / `NOTICE.en.md` lines 22–33 list `2026-11-16` and mention `winit, wgpu, ... jxl-oxide` and `Isolated auto-update endpoints`.
   - `CHANGELOG.md` / `CHANGELOG.en.md` lines 9, 20 state `2026-11-16–17`, `eframe`, excluded extended formats, and no network connections.
+
+---
+
+## Final Implementation & Remote Verification Record (2026-11-23)
+
+- **PR #1 (`004-launch-reliability-refactor` → `main`)**: All 14 checks passed; merged into `main` (`f7c76a5`).
+- **PR #2 (`005-repo-governance-hardening` → `main`)**: All 14 checks passed under `Protect main` ruleset (`id: 27903505`); merged into `main` (`bbfc8c9`).
+- **Live Ruleset (`Protect main`, `id: 27903505`)**: `enforcement: "active"`, `bypass_actors: []`, `deletion`, `non_fast_forward`, `pull_request` (`required_approving_review_count: 0`), `required_status_checks` (`strict_required_status_checks_policy: true`, exact 6 non-experimental contexts pinning `integration_id: 15368`, excluding `Launch check (Linux, experimental)`).
+- **Live Intake & Supply Chain**: `private-vulnerability-reporting.enabled: true`, `hasIssuesEnabled: true`, `.github/ISSUE_TEMPLATE/config.yml` (`blank_issues_enabled: false` + bilingual PVR & upstream chooser links) live on `main`; `actions/permissions` enforces `sha_pinning_required: true`.
+- **Live Dependency Audit (`dependency-audit.yml` run `45191568190`)**: `Cargo Deny (all-features)` (`success`, 28s) and `Cargo Deny (shipped-default)` (`success`, 35s); `vulnerability-alerts` returns `HTTP/2.0 204`.
+- **Metadata, Surfaces & Branch Hygiene**: `description` trimmed with 0 trailing spaces; 8 topics (`cbz`, `comic-viewer`, `cross-platform`, `egui`, `image-viewer`, `rust`, `wgpu`, `zero-trust`); `hasWikiEnabled: false`; `hasProjectsEnabled: false`; `deleteBranchOnMerge: true`; remote branches `002-rust-crossplatform-viewer` and `004-launch-reliability-refactor` deleted (only `main` remains); `gh search code` returned 80 matching files.
+- **Host vs. CI Verification Scope**: `cargo deny` (default & `--all-features`), `cargo fmt`, `cargo clippy` (default & `--all-features`), `cargo test` (default & `--all-features`), `component-count.sh` (`298`, budget `356`), YAML parsing, and 40-char SHA pinning verified natively on macOS host; Windows and Linux builds/launch checks verified on GitHub Actions runners (`PR #1` & `PR #2`). `v1.1.0-alpha.2` draft release and clean-machine checklist (`004` `T110`) remain ready to execute from `main`.
