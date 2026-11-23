@@ -2,7 +2,7 @@
 
 **Feature Branch**: `005-repo-governance-hardening`  
 **Created**: 2026-11-23  
-**Status**: Draft  
+**Status**: Implemented  
 
 **Input**: User description: "Comparative post-separation review against EasyViewer identifying remaining repository governance, intake, branch protection, proactive dependency monitoring, metadata hygiene, and branch/release handoff tasks needed for ImageViewer."
 
