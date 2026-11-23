@@ -31,7 +31,7 @@ lru = "0.19"
 rayon = "1.10"
 zune-jpeg = "0.4"
 image = { version = "0.25.4", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp"] }
-image-extras = "0.1"
+image-extras = { version = "0.1", default-features = false, features = ["pcx"] }
 image_dds = { version = "0.7", default-features = false, features = ["ddsfile", "image"] }
 rawpsd = "0.1"
 jxl-oxide = "0.12"
