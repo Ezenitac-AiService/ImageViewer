@@ -8,9 +8,9 @@ members = [
 ]
 
 [workspace.package]
-version = "1.1.0-alpha.1"
+version = "1.1.0-alpha.2"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 license = "GPL-3.0-only"
 
 [workspace.lints.rust]
@@ -25,13 +25,12 @@ unwrap_used = "warn"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 fs4 = "0.13"
 rand = "0.9"
-lru = "0.13"
+lru = "0.19"
 rayon = "1.10"
 zune-jpeg = "0.4"
-image = { version = "0.25.4", default-features = false, features = ["jpeg", "png", "gif", "bmp", "ico", "tiff", "webp", "tga", "qoi", "pnm", "hdr", "exr"] }
+image = { version = "0.25.4", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "webp"] }
 image-extras = "0.1"
 image_dds = { version = "0.7", default-features = false, features = ["ddsfile", "image"] }
 rawpsd = "0.1"
@@ -42,20 +41,19 @@ tiff = "0.11"
 moxcms = "0.7"
 fast_image_resize = "5"
 kamadak-exif = "0.6"
-zip = { version = "2", default-features = false, features = ["deflate", "bzip2", "zstd"] }
-notify-debouncer-mini = "0.5"
-notify = "7"
+zip = { version = "9", default-features = false, features = ["deflate", "zstd"] }
+notify-debouncer-mini = "0.7"
+notify = "8"
 directories = "6"
-rfd = "0.15"
+rfd = { version = "0.15", default-features = false, features = ["gtk3"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "blocking"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 sha2 = "0.10"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
-winit = "0.30"
-wgpu = "24"
-egui = "0.31"
-egui-winit = "0.31"
-egui-wgpu = "0.31"
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "glow", "default_fonts", "clipboard", "x11", "wayland"] }
+pollster = "0.4"
+winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+sys-locale = "0.3"
+winresource = "0.1"
 criterion = "0.5"
 rcgen = "0.13"
 

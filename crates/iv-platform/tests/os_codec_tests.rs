@@ -1,3 +1,4 @@
+#![cfg(feature = "os-codecs")]
 use iv_core::codecs::{OsCodecError, OsCodecProvider};
 use iv_platform::codecs::HostOsCodecProvider;
 

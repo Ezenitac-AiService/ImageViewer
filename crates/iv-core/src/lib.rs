@@ -4,8 +4,10 @@
 pub mod chrome_state;
 pub mod cli;
 pub mod codecs;
+pub mod diagnostics;
 pub mod format_guard;
 pub mod i18n;
+pub mod interaction;
 pub mod layout;
 pub mod logger;
 pub mod natural_sort;

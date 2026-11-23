@@ -1,6 +1,7 @@
-//! Separate OS child-window Settings dialog (`T042`).
+//! Settings dialog (an in-window `egui::Window`). Every label is localized (FR-018).
 
-use iv_core::i18n::I18n;
+use eframe::egui;
+use iv_core::i18n::{I18n, Language};
 use iv_core::settings::{MouseWheelAction, ViewerBackground, ViewerSettings};
 
 pub enum SettingsDialogAction {
@@ -9,92 +10,117 @@ pub enum SettingsDialogAction {
     Cancel,
 }
 
+/// Draws the settings dialog over `draft`. The caller owns the draft so Cancel discards it.
 pub fn draw_settings_window(
     ctx: &egui::Context,
-    settings: &mut ViewerSettings,
+    draft: &mut ViewerSettings,
 ) -> SettingsDialogAction {
+    let lang = draft.language;
+    let tr = |key| I18n::tr(lang, key);
     let mut action = SettingsDialogAction::None;
-    let lang = settings.language;
-    egui::CentralPanel::default().show(ctx, |ui| {
-        ui.heading(I18n::tr(lang, "dialog.settings"));
-        ui.separator();
+    let mut open = true;
+    egui::Window::new(tr("dialog.settings"))
+        .id(egui::Id::unique("iv_settings"))
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            egui::Grid::new("iv_settings_grid")
+                .num_columns(2)
+                .spacing([16.0, 8.0])
+                .show(ui, |ui| {
+                    ui.label(tr("settings.language"));
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut draft.language, Language::Ko, "한국어");
+                        ui.radio_value(&mut draft.language, Language::En, "English");
+                    });
+                    ui.end_row();
 
-        ui.horizontal(|ui| {
-            ui.label("Background:");
-            egui::ComboBox::from_id_salt("bg_combo")
-                .selected_text(format!("{:?}", settings.display.background))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut settings.display.background,
-                        ViewerBackground::Black,
-                        "Black",
-                    );
-                    ui.selectable_value(
-                        &mut settings.display.background,
-                        ViewerBackground::DarkGray,
-                        "DarkGray",
-                    );
-                    ui.selectable_value(
-                        &mut settings.display.background,
-                        ViewerBackground::White,
-                        "White",
-                    );
-                    ui.selectable_value(
-                        &mut settings.display.background,
-                        ViewerBackground::Checkerboard,
-                        "Checkerboard",
-                    );
+                    ui.label(tr("settings.background"));
+                    egui::ComboBox::from_id_salt("iv_bg_combo")
+                        .selected_text(background_label(lang, draft.display.background))
+                        .show_ui(ui, |ui| {
+                            for bg in [
+                                ViewerBackground::Black,
+                                ViewerBackground::DarkGray,
+                                ViewerBackground::White,
+                                ViewerBackground::Checkerboard,
+                            ] {
+                                ui.selectable_value(
+                                    &mut draft.display.background,
+                                    bg,
+                                    background_label(lang, bg),
+                                );
+                            }
+                        });
+                    ui.end_row();
+
+                    ui.label(tr("settings.mouse_wheel"));
+                    ui.horizontal(|ui| {
+                        ui.radio_value(
+                            &mut draft.display.mouse_wheel,
+                            MouseWheelAction::Navigate,
+                            tr("settings.wheel_navigate"),
+                        );
+                        ui.radio_value(
+                            &mut draft.display.mouse_wheel,
+                            MouseWheelAction::Zoom,
+                            tr("settings.wheel_zoom"),
+                        );
+                    });
+                    ui.end_row();
+
+                    ui.label(tr("settings.slideshow_interval"));
+                    ui.add(egui::Slider::new(
+                        &mut draft.slideshow.interval_seconds,
+                        1..=60,
+                    ));
+                    ui.end_row();
+
+                    ui.label(tr("settings.max_megapixels"));
+                    ui.add(egui::Slider::new(
+                        &mut draft.limits.max_image_megapixels,
+                        10..=1000,
+                    ));
+                    ui.end_row();
                 });
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Mouse Wheel:");
-            ui.radio_value(
-                &mut settings.display.mouse_wheel,
-                MouseWheelAction::Navigate,
-                "Navigate",
+            ui.checkbox(
+                &mut draft.navigation.wrap_around,
+                tr("settings.wrap_around"),
             );
-            ui.radio_value(
-                &mut settings.display.mouse_wheel,
-                MouseWheelAction::Zoom,
-                "Zoom",
+            ui.checkbox(
+                &mut draft.navigation.watch_folder,
+                tr("settings.watch_folder"),
             );
-        });
+            ui.checkbox(
+                &mut draft.display.play_animations,
+                tr("settings.play_animations"),
+            );
+            ui.checkbox(&mut draft.slideshow.repeat, tr("settings.slideshow_repeat"));
 
-        ui.checkbox(&mut settings.navigation.wrap_around, "Wrap Around");
-        ui.checkbox(&mut settings.navigation.watch_folder, "Watch Folder");
-        ui.checkbox(&mut settings.slideshow.repeat, "Slideshow Repeat");
-        ui.checkbox(&mut settings.thumbnail.visible, "Show Thumbnails");
-        ui.checkbox(
-            &mut settings.thumbnail.show_scroll_bar,
-            "Thumbnail Scrollbar",
-        );
-        ui.add(egui::Slider::new(&mut settings.thumbnail.size, 48..=256).text("Thumbnail Size"));
-        ui.add(
-            egui::Slider::new(&mut settings.filter.smooth_sigma, 0.1..=2.0).text("Smooth Sigma"),
-        );
-        ui.add(
-            egui::Slider::new(&mut settings.filter.sharpen_sigma, 0.1..=3.0).text("Sharpen Sigma"),
-        );
-        ui.add(
-            egui::Slider::new(&mut settings.filter.sharpen_amount, 0.1..=3.0)
-                .text("Sharpen Amount"),
-        );
-        ui.add(
-            egui::Slider::new(&mut settings.limits.max_image_megapixels, 10..=500)
-                .text("Max Megapixels"),
-        );
-        ui.checkbox(&mut settings.update.auto_check, "Auto Check Updates");
-
-        ui.separator();
-        ui.horizontal(|ui| {
-            if ui.button(I18n::tr(lang, "settings.ok")).clicked() {
-                action = SettingsDialogAction::SaveAndClose;
-            }
-            if ui.button(I18n::tr(lang, "settings.cancel")).clicked() {
-                action = SettingsDialogAction::Cancel;
-            }
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button(tr("settings.ok")).clicked() {
+                    action = SettingsDialogAction::SaveAndClose;
+                }
+                if ui.button(tr("settings.cancel")).clicked() {
+                    action = SettingsDialogAction::Cancel;
+                }
+            });
         });
-    });
+    if !open {
+        action = SettingsDialogAction::Cancel;
+    }
     action
+}
+
+fn background_label(lang: Language, bg: ViewerBackground) -> &'static str {
+    let key = match bg {
+        ViewerBackground::Black => "settings.bg_black",
+        ViewerBackground::DarkGray => "settings.bg_dark_gray",
+        ViewerBackground::White => "settings.bg_white",
+        ViewerBackground::Checkerboard => "settings.bg_checkerboard",
+    };
+    I18n::tr(lang, key)
 }

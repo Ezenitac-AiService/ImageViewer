@@ -131,7 +131,11 @@ impl ZipSource {
             if PathSecurity::is_archive_symlink(ext_attr, false) {
                 continue;
             }
-            let Ok(clean_key) = PathSecurity::normalize_archive_entry_key(entry.name()) else {
+            // Entry names that are not valid UTF-8 are skipped (zip 9 reports them as errors).
+            let Ok(raw_name) = entry.name().map(|n| n.into_owned()) else {
+                continue;
+            };
+            let Ok(clean_key) = PathSecurity::normalize_archive_entry_key(&raw_name) else {
                 continue;
             };
             let ext = Path::new(&clean_key)
@@ -150,7 +154,7 @@ impl ZipSource {
             entries.push(MediaEntry {
                 id: next_id,
                 name,
-                source_key: entry.name().to_string(),
+                source_key: raw_name,
                 source_type: ImageSourceType::Zip,
                 byte_size: entry.size(),
                 modified_utc: None,

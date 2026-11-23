@@ -18,10 +18,30 @@ Before opening a pull request, verify all workspace checks pass locally:
 
 ```bash
 cargo fmt --all -- --check
-cargo check --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --all-features
 cargo test --workspace
+cargo deny check advisories bans licenses sources
+packaging/verify/component-count.sh
 ```
+
+Both the shipped configuration (default features) and the all-features configuration are tested. All features include work that is not shipped yet (updater, OS codecs, extended formats, shell registration); see the [capability register](docs/CAPABILITIES.en.md).
+
+## Definition of Done
+
+A task is done only when:
+
+1. A failing test was written first and now passes.
+2. The behaviour was **observed in the running application** on each supported OS (Windows, macOS), or the PR states which OS was not checked. Passing library tests alone is not done.
+3. Any capability newly visible in the app or the docs is listed in the [capability register](docs/CAPABILITIES.en.md) with its evidence.
+
+## Release Procedure
+
+1. Pushing a `v*` tag runs the release workflow: it builds the Windows, macOS (Apple Silicon and Intel), and Linux files and **starts each one on its OS**. If the Windows or macOS check, or `cargo deny`, fails, no release is created.
+2. On success it creates a **draft** release only.
+3. A maintainer runs the [manual checklist](specs/004-launch-reliability-refactor/quickstart.md) on clean Windows 10 and 11 VMs and a real Mac, and attaches the result as `launch-verification-manual.md` to the draft.
+4. Only then is it published.
 
 ### Coding Standards
 - Follow Test-Driven Development (write failing tests before production fixes).

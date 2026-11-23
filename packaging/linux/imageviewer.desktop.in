@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=ImageViewer
-Comment=Fast Cross-Platform Image & Comic Archive Viewer
+Comment=Image and comic archive viewer
 Exec=@EXEC_PATH@ %F
 Terminal=false
 Categories=Graphics;Viewer;
-MimeType=image/jpeg;image/png;image/gif;image/webp;image/bmp;image/tiff;image/x-icon;image/jxl;image/avif;image/heif;application/zip;application/vnd.comicbook+zip;
+MimeType=image/jpeg;image/png;image/gif;image/webp;image/bmp;image/tiff;application/zip;application/vnd.comicbook+zip;

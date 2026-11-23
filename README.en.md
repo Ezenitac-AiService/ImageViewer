@@ -6,18 +6,20 @@
 [![Release Build](https://github.com/Ezenitac-AiService/ImageViewer/actions/workflows/release.yml/badge.svg)](https://github.com/Ezenitac-AiService/ImageViewer/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/Ezenitac-AiService/ImageViewer?include_prereleases&sort=semver&label=release&logo=github)](https://github.com/Ezenitac-AiService/ImageViewer/releases)
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
-[![Rust: 1.85+ (Edition 2024)](https://img.shields.io/badge/rust-1.85%2B%20(2024)-orange.svg?logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/index.html)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#supported-platforms--releases)
+[![Rust: 1.95+ (Edition 2024)](https://img.shields.io/badge/rust-1.95%2B%20(2024)-orange.svg?logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/index.html)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20(experimental)-lightgrey.svg)](#supported-platforms--releases)
 [![Upstream Origin](https://img.shields.io/badge/upstream%20origin-edith2580%2FImageViewer%20(v1.0.6)-informational?logo=github)](https://github.com/edith2580/ImageViewer)
 
-A fast, GPU-accelerated, Zero-Trust cross-platform image and comic archive viewer written in Rust (`winit`, `wgpu`, `egui`), supporting **Windows**, **macOS**, and **Linux**.
+A viewer for images and comic archives (`.zip`/`.cbz`) on **Windows** and **macOS**, with an experimental Linux build. Written in Rust on top of `eframe`/`egui` and `wgpu`.
+
+> [!IMPORTANT]
+> **First launch**: releases are not signed with a publisher certificate yet, so the OS asks once after you download. Follow [First Launch](docs/FIRST_LAUNCH.en.md).
 
 > [!NOTE]
 > **Independent Cross-Platform Fork Notice & Etiquette**
 >
 > This repository (**[Ezenitac-AiService/ImageViewer](https://github.com/Ezenitac-AiService/ImageViewer)**) is an independent cross-platform Rust fork derived from **[edith2580/ImageViewer](https://github.com/edith2580/ImageViewer)** (`v1.0.6`, Windows C#/.NET), respectfully preserving the original `GPL-3.0-only` license and `edith2580` copyright.
 >
-> - **Why this fork exists**: Re-architected from the ground up in pure Rust (`iv-core`, `iv-media`, `iv-platform`, `iv-app`) to run natively across Windows, macOS, and Linux with GPU rendering and Zero-Trust path/archive/update hardening.
 > - **Legacy baseline**: The pre-cutover Windows C#/.NET `v1.0.6` baseline is preserved under tag [`legacy-v1.0.6`](https://github.com/Ezenitac-AiService/ImageViewer/tree/legacy-v1.0.6).
 > - **Issue routing etiquette**: **Please do NOT report cross-platform Rust fork issues to the upstream `edith2580/ImageViewer` maintainer.** Open all bug reports and feature requests here at [Ezenitac-AiService/ImageViewer/issues](https://github.com/Ezenitac-AiService/ImageViewer/issues).
 > - **Looking for the original Windows C#/.NET version?** Visit [edith2580/ImageViewer](https://github.com/edith2580/ImageViewer).
@@ -26,37 +28,44 @@ A fast, GPU-accelerated, Zero-Trust cross-platform image and comic archive viewe
 
 ## What's Different from Upstream (`v1.0.6`)
 
-| Area | Upstream (`edith2580/ImageViewer` `v1.0.6`) | Independent Fork (`Ezenitac-AiService/ImageViewer`) |
+| Area | Upstream (`edith2580/ImageViewer` `v1.0.6`) | Independent fork (`Ezenitac-AiService/ImageViewer`) |
 |---|---|---|
-| **Target OS** | Windows (`x64`) | **Windows**, **macOS** (`arm64`/`x64`), **Linux** (X11/Wayland) |
-| **Stack & Rendering** | C# / .NET WPF + WIC / GDI+ | **Rust (Edition 2024)** + `winit` / `wgpu` (Metal, DX12, Vulkan) / `egui` |
-| **Color & Resampling** | Windows WIC | Cross-platform ICC profiles (`moxcms`) + SIMD resampling (`fast_image_resize`) |
-| **Update & Security** | Windows installer updater | Isolated HTTPS-only feed (`Ezenitac-AiService/ImageViewer`), OS-matching asset selection, `SHA256SUMS.txt` verification |
-| **Settings Continuity** | `%LOCALAPPDATA%\ImageViewer\settings.json` | Preserves `ImageViewer/settings.json` with automatic `v1.0.6` camelCase migration |
+| **OS** | Windows (`x64`) | **Windows 10/11** (`x64`), **macOS** (one build for Apple Silicon and Intel), Linux `x64` (experimental) |
+| **Stack** | C# / .NET WPF + WIC | Rust (Edition 2024) + `eframe`/`egui` + `wgpu` (with an OpenGL fallback) |
+| **Formats** | Everything WIC supports | Only the verified core formats in this version ([capability register](docs/CAPABILITIES.en.md)) |
+| **Updates** | Automatic updates | Not in this version; the app makes no network connections |
+| **Settings** | `%LOCALAPPDATA%\ImageViewer\settings.json` | Same path and format; `v1.0.6` settings migrate automatically |
 
 ---
 
-## Key Features
+## What This Version Provides
 
-- **Wide Format Support**: JPEG (`zune-jpeg`), PNG, APNG, GIF, WebP, BMP, TIFF, ICO/CUR, JPEG XL (`jxl-oxide`), PSD, DDS, TGA, QOI, OpenEXR (`exr`), Radiance HDR, AVIF/HEIC, RAW previews, and `.zip` / `.cbz` archives.
-- **GPU Rendering & Color Management**: `wgpu` hardware-accelerated rendering, SIMD resampling (`fast_image_resize`), and ICC color profile conversion (`moxcms`).
-- **Two-Page Spread & Reading Modes**: Single page, two-page spread, RTL/LTR manga direction, fit-to-window / 1:1 / free zoom, slideshow, and borderless fullscreen.
-- **Zero-Trust Security**: Strict path-traversal and symlink/junction guards, bounded archive extraction and HTTP update payloads, HTTPS-only update checks with SHA-256 verification.
-- **Bilingual UI**: Korean (`ko`) and English (`en`).
+The [capability register](docs/CAPABILITIES.en.md) lists every capability with its evidence. In short:
+
+- **Images**: JPEG, PNG, GIF, WebP, BMP, TIFF. The format is identified from the content, not the file name.
+- **Animation**: GIF and WebP playback
+- **Archives**: read-only `.zip` / `.cbz`
+- **Opening**: file and folder dialogs, drag and drop, command-line path, macOS Finder "Open With"
+- **Viewing**: zoom, pan, fit modes, rotate, flip, fullscreen
+- **Slideshow, image info (EXIF), multi-page TIFF, image list**: Extended candidates that stay only if they pass the pre-release check
+- **Safety limits**: image size cap (150 MP by default), file size checked before reading (512 MB), archive path escapes, symlinks, zip bombs and encrypted entries refused
+- **Languages**: Korean and English; the first launch follows the OS language
+
+Update checks, extended formats (JPEG XL, PSD, HEIC, RAW, …), Explorer menu registration, and the thumbnail strip are **not included in this version.**
+
+Performance parity with v1.0.6 has not been measured yet.
 
 ---
 
 ## Supported Platforms & Releases
 
-Download pre-built binaries and verify checksums (`SHA256SUMS.txt`) on the [Releases page](https://github.com/Ezenitac-AiService/ImageViewer/releases).
+Executables and checksums (`SHA256SUMS.txt`) are on the [Releases page](https://github.com/Ezenitac-AiService/ImageViewer/releases). Every release is started and checked on each OS before it is published, and its notes show a table of verified platforms.
 
-| OS | Architecture | Release Artifact | Packaging Script |
+| OS | Architecture | File | Status |
 |---|---|---|---|
-| **Windows 10 / 11** | `x86_64` | `ImageViewer-windows-x64.exe` | `packaging/windows/package-windows.ps1` (`ImageViewer.nsi`) |
-| **macOS** | `aarch64` / `x86_64` | `ImageViewer-macos.dmg` | `packaging/macos/package-dmg.sh` |
-| **Linux (X11 / Wayland)** | `x86_64` | `ImageViewer-linux-x64.tar.gz` | `packaging/linux/package-appimage.sh` |
-
-### Verifying Release Integrity
+| **Windows 10 / 11** | `x64` | `ImageViewer-windows-x64.exe` (runs without installation) | supported |
+| **macOS 11 or later** | Apple Silicon · Intel | `ImageViewer-macos-universal.dmg` | supported |
+| **Linux** (X11 / Wayland) | `x64` | `ImageViewer-linux-x64.tar.gz` | experimental, unverified |
 
 ```bash
 sha256sum -c SHA256SUMS.txt --ignore-missing
@@ -64,40 +73,41 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 
 ---
 
-## Keyboard Shortcuts
+## Keyboard & Mouse
 
-| Action | Shortcut |
+`Primary` is `Cmd` on macOS and `Ctrl` on Windows and Linux.
+
+| Action | Input |
 |---|---|
-| Open File / Folder | `Ctrl+O` / `Cmd+O` |
-| Next / Previous Image | `Right` / `Left`, `PageDown` / `PageUp`, `Space` |
-| First / Last Image | `Home` / `End` |
-| Toggle Two-Page Spread | `D` |
-| Toggle Reading Direction (LTR / RTL) | `R` |
-| Toggle Fullscreen | `F11` / `Enter` |
-| Zoom In / Out / Reset (1:1 / Fit) | `+` / `-` / `0` / `F` |
-| Toggle Slideshow | `S` |
-| Settings / About | `F2` / `F1` |
+| Open file / open folder | `Primary+O` / `Primary+Shift+O`, drop onto the window |
+| Next / previous image | `→` `↓` / `←` `↑`, mouse wheel, mouse forward/back buttons |
+| First / last | `Home` / `End` |
+| Next / previous page (TIFF) | `PageDown` / `PageUp` |
+| Zoom in / out | `+` `=` / `-`, `Primary`+wheel, trackpad pinch |
+| Original / fit width / fit height / fit window | `0` / `7` / `8` / `9` |
+| Reset view | `Primary+0` |
+| Rotate / flip | `R` `L` / `H` `V` |
+| Pan (when zoomed) | drag, middle-button drag, `Shift`+wheel |
+| Fullscreen | `Alt+Enter`, double-click the canvas, macOS `Ctrl+Cmd+F` |
+| Slideshow / image info / image list | `Space` / `Tab` / `Enter` |
+| Settings | `Primary+,` |
+| Close | `Esc` (closes an open dialog first) |
 
 ---
 
 ## Build & Run from Source
 
 ### Prerequisites
-- Rust toolchain `1.85+` (Edition 2024)
-- On Linux: `libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev`
+- Rust toolchain `1.95+` (Edition 2024)
+- Linux: `libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev`
 
 ### Commands
 
 ```bash
-# Run the viewer in release mode
 cargo run -p iv-app --release
-
-# Run workspace checks, strict lints, and tests
-cargo fmt --all -- --check
-cargo check --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
 ```
+
+See [CONTRIBUTING.en.md](CONTRIBUTING.en.md) for the quality checks and the definition of done.
 
 ---
 

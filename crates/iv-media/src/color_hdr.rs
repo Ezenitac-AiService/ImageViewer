@@ -43,14 +43,19 @@ impl ColorHdrNormalizer {
                 TransformOptions::default(),
             ) && xform.transform(cmyk, &mut out).is_ok()
             {
-                for px in out.chunks_exact_mut(4) {
+                for px in out.as_chunks_mut::<4>().0 {
                     px[3] = 255;
                 }
                 return out;
             }
         }
         // Fallback standard subtractive CMYK -> sRGB conversion
-        for (src_px, dst_px) in cmyk.chunks_exact(4).zip(out.chunks_exact_mut(4)) {
+        for (src_px, dst_px) in cmyk
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(out.as_chunks_mut::<4>().0.iter_mut())
+        {
             let c = f32::from(src_px[0]) / 255.0;
             let m = f32::from(src_px[1]) / 255.0;
             let y = f32::from(src_px[2]) / 255.0;
@@ -66,7 +71,7 @@ impl ColorHdrNormalizer {
     /// Applies soft Reinhard tone mapping and sRGB gamma encoding to linear `f32` RGBA pixels.
     pub fn tonemap_rgba_f32_to_srgb(rgba_f32: &[f32]) -> Vec<u8> {
         let mut out = Vec::with_capacity(rgba_f32.len());
-        for px in rgba_f32.chunks_exact(4) {
+        for px in rgba_f32.as_chunks::<4>().0 {
             for &c in &px[0..3] {
                 let linear = c.max(0.0);
                 let mapped = linear / (1.0 + linear);

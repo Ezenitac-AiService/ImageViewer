@@ -1,4 +1,4 @@
-//! Monotonic generation cancellation, bounded `rayon` pool, placeholder timers, and prefetching.
+//! Load-generation cancellation, bounded `rayon` pool, placeholder timers, and prefetching.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -7,21 +7,9 @@ use std::time::Duration;
 pub const PLACEHOLDER_TIMER_MS: u64 = 250;
 pub const SPINNER_TIMER_MS: u64 = 500;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SessionPhase {
-    Idle,
-    Opening,
-    Loaded,
-    Rendering,
-    Closed,
-}
-
-/// Coordinates monotonic open/load/render generations and directional prefetch targets.
+/// Coordinates the monotonic load generation (stale-result cancellation) and directional prefetch.
 pub struct SessionCoordinator {
-    pub phase: SessionPhase,
-    pub open_gen: Arc<AtomicU64>,
     pub load_gen: Arc<AtomicU64>,
-    pub render_gen: Arc<AtomicU64>,
     pub current_index: usize,
     pub pool: Option<rayon::ThreadPool>,
 }
@@ -34,29 +22,15 @@ impl SessionCoordinator {
             .build()
             .ok();
         Self {
-            phase: SessionPhase::Idle,
-            open_gen: Arc::new(AtomicU64::new(0)),
             load_gen: Arc::new(AtomicU64::new(0)),
-            render_gen: Arc::new(AtomicU64::new(0)),
             current_index: 0,
             pool,
         }
     }
 
-    pub fn begin_open(&mut self) -> u64 {
-        self.phase = SessionPhase::Opening;
-        self.open_gen.fetch_add(1, Ordering::SeqCst) + 1
-    }
-
     pub fn begin_load(&mut self, index: usize) -> u64 {
-        self.phase = SessionPhase::Loaded;
         self.current_index = index;
         self.load_gen.fetch_add(1, Ordering::SeqCst) + 1
-    }
-
-    pub fn begin_render(&mut self) -> u64 {
-        self.phase = SessionPhase::Rendering;
-        self.render_gen.fetch_add(1, Ordering::SeqCst) + 1
     }
 
     pub fn is_load_current(&self, token: u64) -> bool {

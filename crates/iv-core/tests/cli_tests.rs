@@ -1,7 +1,7 @@
 mod fixtures;
 
 use iv_core::cli::{CliCommand, CliOptions};
-use iv_core::i18n::Language;
+use iv_core::i18n::{I18n, Language};
 
 #[test]
 fn empty_args_launches_empty_viewer() {
@@ -92,39 +92,32 @@ fn repairs_explorer_trailing_quote_on_windows_drive() {
 }
 
 #[test]
-fn shell_register_switches_work_on_windows_and_fail_closed_on_non_windows() {
-    let win_reg = CliOptions::parse(
+fn shell_registration_switches_are_unavailable_on_every_os() {
+    // specs/004 FR-024: shell and file-association registration is Unavailable in this release.
+    let expected = I18n::tr(Language::En, "error.unsupported_switch");
+    for is_windows in [true, false] {
+        for switch in ["--register-shell", "/register-shell", "--unregister-shell"] {
+            let parsed = CliOptions::parse(
+                &["ImageViewer".to_string(), switch.to_string()],
+                Language::En,
+                is_windows,
+            );
+            assert_eq!(
+                parsed.command,
+                CliCommand::OpenEmpty,
+                "{switch} windows={is_windows}"
+            );
+            assert_eq!(parsed.error.as_deref(), Some(expected), "{switch}");
+            assert!(!parsed.is_path_not_found_error);
+        }
+    }
+    let ko = CliOptions::parse(
         &["ImageViewer".to_string(), "--register-shell".to_string()],
-        Language::En,
+        Language::Ko,
         true,
     );
-    assert!(win_reg.error.is_none());
-    assert_eq!(win_reg.command, CliCommand::RegisterShell);
-
-    let win_unreg = CliOptions::parse(
-        &["ImageViewer".to_string(), "/unregister-shell".to_string()],
-        Language::En,
-        true,
+    assert_eq!(
+        ko.error.as_deref(),
+        Some(I18n::tr(Language::Ko, "error.unsupported_switch"))
     );
-    assert!(win_unreg.error.is_none());
-    assert_eq!(win_unreg.command, CliCommand::UnregisterShell);
-
-    let non_win = CliOptions::parse(
-        &["ImageViewer".to_string(), "--register-shell".to_string()],
-        Language::En,
-        false,
-    );
-    assert!(non_win.error.is_some());
-    assert!(!non_win.is_path_not_found_error);
-
-    let combined = CliOptions::parse(
-        &[
-            "ImageViewer".to_string(),
-            "--register-shell".to_string(),
-            "--unregister-shell".to_string(),
-        ],
-        Language::En,
-        true,
-    );
-    assert!(combined.error.is_some());
 }

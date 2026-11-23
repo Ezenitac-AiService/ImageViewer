@@ -98,3 +98,168 @@ fn selective_merge_save_prevents_multi_instance_lost_updates() {
     );
     assert_eq!(final_disk.window.height, 900.0);
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T035: settings load outcome and failure modes
+// ---------------------------------------------------------------------------
+
+mod load_outcome {
+    use super::fixtures::TempTestDir;
+    use iv_core::i18n::Language;
+    use iv_core::settings::{LoadOutcome, SettingsStore, ViewerSettings};
+
+    #[test]
+    fn absent_file_creates_defaults() {
+        let dir = TempTestDir::new("outcome_absent");
+        let (s, outcome) = SettingsStore::load_with_outcome(&dir.path().join("settings.json"));
+        assert_eq!(outcome, LoadOutcome::CreatedDefaults);
+        assert_eq!(s, ViewerSettings::default());
+    }
+
+    #[test]
+    fn valid_file_is_loaded() {
+        let dir = TempTestDir::new("outcome_valid");
+        let path = dir.path().join("settings.json");
+        let prefs = ViewerSettings {
+            language: Language::Ko,
+            ..ViewerSettings::default()
+        };
+        SettingsStore::save_preferences(&path, &prefs).expect("save");
+        let (s, outcome) = SettingsStore::load_with_outcome(&path);
+        assert_eq!(outcome, LoadOutcome::Loaded);
+        assert_eq!(s.language, Language::Ko);
+    }
+
+    #[test]
+    fn oversized_file_is_recovered_from_damage() {
+        let dir = TempTestDir::new("outcome_big");
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "x".repeat(70 * 1024)).expect("write");
+        let (s, outcome) = SettingsStore::load_with_outcome(&path);
+        assert_eq!(outcome, LoadOutcome::RecoveredFromDamage);
+        assert_eq!(s, ViewerSettings::default());
+    }
+
+    #[test]
+    fn malformed_json_is_recovered_from_damage() {
+        let dir = TempTestDir::new("outcome_malformed");
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{ \"display\": [1, 2,").expect("write");
+        let (_, outcome) = SettingsStore::load_with_outcome(&path);
+        assert_eq!(outcome, LoadOutcome::RecoveredFromDamage);
+    }
+
+    #[test]
+    fn out_of_range_values_are_normalized_and_reported() {
+        let dir = TempTestDir::new("outcome_range");
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"version": 3, "limits": {"maxImageMegapixels": 999999}}"#,
+        )
+        .expect("write");
+        let (s, outcome) = SettingsStore::load_with_outcome(&path);
+        assert_eq!(outcome, LoadOutcome::RecoveredFromDamage);
+        assert_eq!(s.limits.max_image_megapixels, 1000);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_only_directory_is_unreadable() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempTestDir::new("outcome_readonly");
+        let locked = dir.path().join("cfg");
+        std::fs::create_dir_all(&locked).expect("mkdir");
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).expect("chmod");
+        let path = locked.join("settings.json");
+        let (s, outcome) = SettingsStore::load_with_outcome(&path);
+        let save = SettingsStore::save_preferences(&path, &ViewerSettings::default());
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod back");
+        assert_eq!(outcome, LoadOutcome::Unreadable);
+        assert_eq!(s, ViewerSettings::default());
+        assert!(save.is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_settings_file_is_unreadable() {
+        let dir = TempTestDir::new("outcome_symlink");
+        let target = dir.path().join("elsewhere.json");
+        std::fs::write(&target, "{}").expect("write");
+        let link = dir.path().join("settings.json");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink");
+        let (_, outcome) = SettingsStore::load_with_outcome(&link);
+        assert_eq!(outcome, LoadOutcome::Unreadable);
+    }
+
+    #[test]
+    fn concurrent_saves_from_two_instances_never_corrupt_the_file() {
+        let dir = TempTestDir::new("outcome_concurrent");
+        let path = dir.path().join("settings.json");
+        for _ in 0..200 {
+            let ko = ViewerSettings {
+                language: Language::Ko,
+                ..ViewerSettings::default()
+            };
+            let en = ViewerSettings::default();
+            let (p1, p2) = (path.clone(), path.clone());
+            let t1 = std::thread::spawn(move || SettingsStore::save_preferences(&p1, &ko));
+            let t2 = std::thread::spawn(move || SettingsStore::save_preferences(&p2, &en));
+            assert!(t1.join().expect("join").is_ok());
+            assert!(t2.join().expect("join").is_ok());
+            let raw = std::fs::read_to_string(&path).expect("read");
+            let parsed: serde_json::Value = serde_json::from_str(&raw).expect("valid json");
+            let lang = parsed["language"].as_str().expect("language");
+            assert!(lang == "ko" || lang == "en", "{lang}");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// specs/004 T053: first-launch language follows the OS locale only when unset
+// ---------------------------------------------------------------------------
+
+mod first_launch_language {
+    use super::fixtures::TempTestDir;
+    use iv_core::i18n::Language;
+    use iv_core::settings::SettingsStore;
+
+    #[test]
+    fn missing_language_key_follows_the_locale() {
+        let dir = TempTestDir::new("lang_missing");
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"version": 3}"#).expect("write");
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["ko-KR"]).0.language,
+            Language::Ko
+        );
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["en-US"]).0.language,
+            Language::En
+        );
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["fr-FR"]).0.language,
+            Language::En
+        );
+        // No settings file at all (first launch).
+        let fresh = dir.path().join("fresh").join("settings.json");
+        assert_eq!(
+            SettingsStore::load_for_locale(&fresh, &["ko-KR"])
+                .0
+                .language,
+            Language::Ko
+        );
+    }
+
+    #[test]
+    fn explicit_language_is_kept_regardless_of_locale() {
+        let dir = TempTestDir::new("lang_explicit");
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"version": 3, "language": "en"}"#).expect("write");
+        assert_eq!(
+            SettingsStore::load_for_locale(&path, &["ko-KR"]).0.language,
+            Language::En
+        );
+    }
+}

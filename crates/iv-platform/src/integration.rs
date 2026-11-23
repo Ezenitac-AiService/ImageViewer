@@ -1,9 +1,7 @@
 //! OS-idiomatic shell & file association integration (`Windows` HKCU, `macOS` Finder, `Linux` XDG).
 
-use crate::paths_dialogs::AppUserEvent;
 use std::path::PathBuf;
 use thiserror::Error;
-use winit::event_loop::EventLoopProxy;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum IntegrationError {
@@ -92,10 +90,5 @@ impl OsIntegration {
         std::fs::write(&desktop_path, content)
             .map_err(|e| IntegrationError::Failed(e.to_string()))?;
         Ok(desktop_path)
-    }
-
-    /// Installs macOS `NSApplication` `openURLs:` forwarding into `EventLoopProxy`.
-    pub fn install_macos_open_url_handler(_proxy: EventLoopProxy<AppUserEvent>) {
-        // EventLoopProxy stored for Finder AppleEvent / openURLs forwarding alongside winit 0.30.
     }
 }

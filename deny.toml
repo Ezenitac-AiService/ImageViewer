@@ -1,8 +1,33 @@
-# cargo-deny configuration for ImageViewer (GPL-3.0-only)
-# Verifies all workspace dependencies are GPLv3-compatible.
+# cargo-deny configuration for ImageViewer (GPL-3.0-only).
+# CI and release run: cargo deny check advisories bans licenses sources
+# (constitution License & Attribution Gate; specs/004 FR-035).
 
 [graph]
 all-features = false
+# Only the shipped desktop targets (specs/004 research R13).
+targets = [
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+]
+
+[advisories]
+version = 2
+# Every accepted advisory needs an entry here with a reason, e.g.
+# { id = "RUSTSEC-0000-0000", reason = "not reachable: ..." }
+ignore = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Workspace crates refer to each other by path; that is not a registry wildcard.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 [licenses]
 version = 2
@@ -10,6 +35,7 @@ confidence-threshold = 0.8
 allow = [
     "MIT",
     "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",

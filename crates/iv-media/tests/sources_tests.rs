@@ -76,3 +76,243 @@ fn zip_source_enforces_preflight_eocd_caps_traversal_and_symlinks() {
     zip64.extend_from_slice(&fixtures::build_forged_eocd_zip(0xFFFF, 1024));
     assert!(ZipSource::preflight_eocd_check(&zip64).is_err());
 }
+
+// ---------------------------------------------------------------------------
+// specs/004 T038 (FR-018): every user-visible error has a Korean and an English message
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_decode_source_and_animation_error_has_localized_user_messages() {
+    use iv_core::codecs::OsCodecError;
+    use iv_core::i18n::Language;
+    use iv_media::animation::AnimationError;
+    use iv_media::decode::DecodeError;
+    use iv_media::sources::SourceError;
+
+    let host_path = "/Users/bob/Private/secret-folder/photo.jpg";
+    let messages: Vec<(String, String)> = vec![
+        pair(&DecodeError::SecurityRejected(host_path.into())),
+        pair(&DecodeError::ExceedsPixelLimit),
+        pair(&DecodeError::DimensionOverflow),
+        pair(&DecodeError::UnsupportedOrCorrupt(host_path.into())),
+        pair(&DecodeError::OsCodec(OsCodecError::MissingCodec)),
+        pair_s(&SourceError::Io(std::io::Error::other(host_path))),
+        pair_s(&SourceError::Archive(host_path.into())),
+        pair_s(&SourceError::EncryptedArchive),
+        pair_s(&SourceError::ArchiveLimitExceeded(host_path.into())),
+        pair_s(&SourceError::SecurityViolation),
+        (
+            AnimationError::Decode(host_path.into()).user_message(Language::Ko),
+            AnimationError::Decode(host_path.into()).user_message(Language::En),
+        ),
+    ];
+    for (ko, en) in messages {
+        assert!(!ko.is_empty() && !en.is_empty());
+        assert_ne!(ko, en);
+        assert!(
+            !ko.contains("/Users/bob") && !en.contains("/Users/bob"),
+            "{en}"
+        );
+    }
+
+    fn pair(e: &DecodeError) -> (String, String) {
+        (e.user_message(Language::Ko), e.user_message(Language::En))
+    }
+    fn pair_s(e: &SourceError) -> (String, String) {
+        (e.user_message(Language::Ko), e.user_message(Language::En))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// specs/004 T052: folder scan off the UI thread, and rescans that keep the position
+// ---------------------------------------------------------------------------
+
+mod scan {
+    use super::fixtures;
+    use iv_media::sources::MediaSource;
+    use iv_media::sources::folder::{FolderSource, ScanEvent, rescan_keeping, scan_async};
+    use std::time::{Duration, Instant};
+
+    fn write_pngs(dir: &std::path::Path, names: &[&str]) {
+        let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+        for n in names {
+            std::fs::write(dir.join(n), &png).expect("write png");
+        }
+    }
+
+    #[test]
+    fn scan_async_reports_the_target_before_the_full_list() {
+        let dir = fixtures::TempTestDir::new("scan_target");
+        write_pngs(dir.path(), &["a.png", "b.png", "c.png"]);
+        let rx = scan_async(dir.path().join("b.png"));
+        let first = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("first event");
+        let ScanEvent::Partial(partial) = first else {
+            panic!("expected Partial first");
+        };
+        assert_eq!(partial.entries().len(), 1);
+        assert_eq!(partial.entries()[0].name, "b.png");
+        let ScanEvent::Complete(Ok(full)) =
+            rx.recv_timeout(Duration::from_secs(5)).expect("second")
+        else {
+            panic!("expected Complete");
+        };
+        let names: Vec<_> = full.entries().iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["a.png", "b.png", "c.png"]);
+        assert_eq!(full.initial_index(), 1);
+    }
+
+    #[test]
+    fn scan_async_of_a_directory_sends_only_complete() {
+        let dir = fixtures::TempTestDir::new("scan_dir");
+        write_pngs(dir.path(), &["x.png"]);
+        let rx = scan_async(dir.path().to_path_buf());
+        assert!(matches!(
+            rx.recv_timeout(Duration::from_secs(5)).expect("event"),
+            ScanEvent::Complete(Ok(_))
+        ));
+    }
+
+    #[test]
+    fn ten_thousand_files_first_entry_under_one_second() {
+        let dir = fixtures::TempTestDir::new("scan_10k");
+        let png = fixtures::build_rgba_png(1, 1, &[255; 4]);
+        for i in 0..10_000 {
+            std::fs::write(dir.path().join(format!("img{i:05}.png")), &png).expect("write");
+        }
+        let t0 = Instant::now();
+        let rx = scan_async(dir.path().join("img05000.png"));
+        let first = rx.recv_timeout(Duration::from_secs(5)).expect("first");
+        assert!(t0.elapsed() < Duration::from_secs(1), "{:?}", t0.elapsed());
+        assert!(matches!(first, ScanEvent::Partial(_)));
+        let ScanEvent::Complete(Ok(full)) = rx.recv_timeout(Duration::from_secs(30)).expect("full")
+        else {
+            panic!("expected Complete");
+        };
+        assert_eq!(full.entries().len(), 10_000);
+        assert_eq!(full.entries()[full.initial_index()].name, "img05000.png");
+    }
+
+    #[test]
+    fn rescan_rebinds_current_by_source_key() {
+        let dir = fixtures::TempTestDir::new("rescan_keep");
+        write_pngs(dir.path(), &["b.png", "c.png"]);
+        let before = FolderSource::open(dir.path()).expect("open");
+        let key = before.entries()[1].source_key.clone(); // c.png
+        write_pngs(dir.path(), &["a.png"]); // shifts c.png to index 2
+        let (after, index) = rescan_keeping(dir.path(), Some(&key), Some(1)).expect("rescan");
+        assert_eq!(index, Some(2));
+        assert_eq!(after.entries()[2].source_key, key);
+    }
+
+    #[test]
+    fn rescan_clamps_when_the_current_file_was_deleted() {
+        let dir = fixtures::TempTestDir::new("rescan_deleted");
+        write_pngs(dir.path(), &["a.png", "b.png", "c.png"]);
+        let before = FolderSource::open(dir.path()).expect("open");
+        let key = before.entries()[2].source_key.clone();
+        std::fs::remove_file(dir.path().join("c.png")).expect("rm");
+        let (after, index) = rescan_keeping(dir.path(), Some(&key), Some(2)).expect("rescan");
+        assert_eq!(after.entries().len(), 2);
+        assert_eq!(index, Some(1));
+        // A file target whose file vanished rescans its folder instead of failing.
+        let (after, index) =
+            rescan_keeping(&dir.path().join("c.png"), Some(&key), Some(2)).expect("rescan file");
+        assert_eq!((after.entries().len(), index), (2, Some(1)));
+        // Empty folder: no current entry.
+        std::fs::remove_file(dir.path().join("a.png")).expect("rm");
+        std::fs::remove_file(dir.path().join("b.png")).expect("rm");
+        let (_, index) = rescan_keeping(dir.path(), Some(&key), Some(1)).expect("rescan empty");
+        assert_eq!(index, None);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// specs/004 T081 (US5): the shipped build lists Core extensions only
+// ---------------------------------------------------------------------------
+
+#[cfg(not(feature = "extended-formats"))]
+#[test]
+fn default_build_supports_core_extensions_only() {
+    use iv_media::sources::is_supported_image_extension;
+    for ext in [
+        "jpg", "jpeg", "jpe", "jfif", "png", "apng", "gif", "webp", "bmp", "dib", "tif", "tiff",
+    ] {
+        assert!(is_supported_image_extension(ext), "{ext}");
+    }
+    for ext in [
+        "jxl", "qoi", "psd", "dds", "pcx", "tga", "ppm", "pgm", "pbm", "pnm", "hdr", "exr", "cur",
+        "ico", "dng", "cr2", "cr3", "nef", "arw", "orf", "rw2", "raf", "heic", "heif", "avif",
+        "jp2",
+    ] {
+        assert!(!is_supported_image_extension(ext), "{ext}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// specs/004 T093 (US6): size caps before reading; ZIP bombs and encryption
+// ---------------------------------------------------------------------------
+
+#[test]
+fn oversized_file_is_refused_before_it_is_read() {
+    let dir = fixtures::TempTestDir::new("size_cap");
+    let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+    std::fs::write(dir.path().join("a.png"), &png).expect("write");
+    let big = std::fs::File::create(dir.path().join("b.png")).expect("create");
+    // Sparse on APFS/ext4/NTFS: no disk space is used and nothing is read.
+    big.set_len(iv_media::sources::folder::MAX_FILE_READ_BYTES + 1)
+        .expect("set_len");
+    drop(big);
+    let src = FolderSource::open(dir.path()).expect("open");
+    let idx = src
+        .entries()
+        .iter()
+        .position(|e| e.name == "b.png")
+        .expect("listed");
+    let err = src.read_entry_bytes(idx).expect_err("refused");
+    assert!(
+        matches!(err, iv_media::sources::SourceError::ArchiveLimitExceeded(_)),
+        "{err:?}"
+    );
+    assert!(src.read_entry_bytes(0).is_ok());
+}
+
+#[test]
+fn zip_entry_larger_than_the_cap_is_refused_when_read() {
+    let dir = fixtures::TempTestDir::new("zip_bomb");
+    let zip_path = dir.path().join("bomb.zip");
+    // 11 MB of zeros compresses to a few KB but exceeds the 10 MB minimum entry cap.
+    let zeros = vec![0u8; 11 * 1024 * 1024];
+    fixtures::write_zip_with_entries(&zip_path, &[("bomb.png", &zeros, 0o100644 << 16)]);
+    let src = ZipSource::open(&zip_path, 10).expect("open");
+    let err = src.read_entry_bytes(0).expect_err("refused");
+    assert!(
+        matches!(err, iv_media::sources::SourceError::ArchiveLimitExceeded(_)),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn encrypted_zip_entries_are_refused() {
+    let dir = fixtures::TempTestDir::new("zip_encrypted");
+    let zip_path = dir.path().join("locked.cbz");
+    let png = fixtures::build_rgba_png(2, 2, &[255; 16]);
+    fixtures::write_zip_with_entries(&zip_path, &[("01.png", &png, 0o100644 << 16)]);
+    // Set general-purpose bit 0 ("encrypted") in the local and central directory headers.
+    let mut bytes = std::fs::read(&zip_path).expect("read");
+    for sig in [[0x50u8, 0x4B, 0x03, 0x04], [0x50, 0x4B, 0x01, 0x02]] {
+        let pos = bytes.windows(4).position(|w| w == sig).expect("header");
+        let flag_offset = if sig[2] == 0x03 { pos + 6 } else { pos + 8 };
+        bytes[flag_offset] |= 1;
+    }
+    std::fs::write(&zip_path, &bytes).expect("write");
+    let result = ZipSource::open(&zip_path, 512).and_then(|src| src.read_entry_bytes(0));
+    assert!(
+        matches!(
+            result,
+            Err(iv_media::sources::SourceError::EncryptedArchive)
+        ),
+        "{result:?}"
+    );
+}

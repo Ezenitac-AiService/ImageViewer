@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+publish = false
 
 [lints]
 workspace = true
@@ -13,30 +14,39 @@ iv-core = { path = "../iv-core" }
 thiserror.workspace = true
 directories.workspace = true
 rfd.workspace = true
-reqwest.workspace = true
-rustls.workspace = true
-sha2.workspace = true
-tokio.workspace = true
-winit.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+pollster.workspace = true
+sys-locale.workspace = true
+# `updater` feature (Unavailable in the shipped build; specs/004 FR-024/FR-025)
+reqwest = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.59", features = [
+windows = { version = "0.59", optional = true, features = [
     "Win32_Foundation",
     "Win32_Graphics_Imaging",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
 ] }
-winreg = "0.55"
+winreg = { version = "0.55", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSURL", "NSString"] }
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder"] }
-objc2-image-io = { version = "0.3", features = ["CGImageSource", "CGImageProperties"] }
-objc2-core-graphics = { version = "0.3", features = ["CGImage", "CGColorSpace", "CGDataProvider", "CGBitmapContext", "CGContext"] }
-objc2-core-foundation = { version = "0.3", features = ["CFData", "CFDictionary", "CFString", "CFNumber", "CFBase"] }
+objc2-image-io = { version = "0.3", optional = true, features = ["CGImageSource", "CGImageProperties"] }
+objc2-core-graphics = { version = "0.3", optional = true, features = ["CGImage", "CGColorSpace", "CGDataProvider", "CGBitmapContext", "CGContext"] }
+objc2-core-foundation = { version = "0.3", optional = true, features = ["CFData", "CFDictionary", "CFString", "CFNumber", "CFBase"] }
+
+[features]
+default = []
+# Each feature holds work that is Unavailable in the shipped build and is re-admitted only
+# under specs/004 FR-023. CI builds and tests them with `--all-features`.
+updater = ["dep:reqwest", "dep:rustls", "dep:sha2", "dep:serde", "dep:serde_json"]
+os-codecs = ["dep:windows", "dep:objc2-image-io", "dep:objc2-core-graphics", "dep:objc2-core-foundation"]
+shell-registration = ["dep:winreg"]
 
 [dev-dependencies]
 rcgen.workspace = true

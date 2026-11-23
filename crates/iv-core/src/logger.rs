@@ -1,14 +1,13 @@
 //! Non-blocking bounded channel logger with path redaction, 7-day rotation, and bounded shutdown flush.
 
 use crate::path_security::{PathRedactor, PathSecurity};
-use chrono::Local;
 use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Threshold above which slow render diagnostics are emitted.
 pub const SLOW_RENDER_THRESHOLD_MS: u128 = 300;
@@ -45,7 +44,7 @@ impl AsyncFileLogger {
             ));
         }
         cleanup_old_logs(log_dir);
-        let date_str = Local::now().format("%Y-%m-%d").to_string();
+        let date_str = utc_date(SystemTime::now());
         let file_path = log_dir.join(format!("imageviewer-{date_str}.log"));
 
         let queue = Arc::new((
@@ -85,8 +84,17 @@ impl AsyncFileLogger {
         }
     }
 
+    /// Writes one line and waits (up to 2 s) until it has reached disk.
+    ///
+    /// Used for launch records that must survive an immediate process exit
+    /// (`contracts/launch-and-diagnostics-contract.md` §1).
+    pub fn write_sync(&self, level: &str, raw_message: &str) {
+        self.push_line(level, raw_message);
+        self.flush_bounded(Duration::from_secs(2));
+    }
+
     fn push_line(&self, level: &str, raw_message: &str) {
-        let ts = Local::now().format("%Y-%m-%dT%H:%M:%S%.3f");
+        let ts = utc_timestamp(SystemTime::now());
         let redacted = PathRedactor::redact(raw_message);
         let line = format!("[{ts}] [{level}] {redacted}\n");
         let (lock, cv) = &*self.queue;
@@ -228,4 +236,41 @@ fn cleanup_old_logs(dir: &Path) {
             }
         }
     }
+}
+
+/// RFC 3339 UTC timestamp with milliseconds, e.g. `2026-11-17T12:34:56.789Z`.
+pub fn utc_timestamp(at: SystemTime) -> String {
+    let since = at.duration_since(UNIX_EPOCH).unwrap_or_default();
+    let secs = since.as_secs();
+    let (y, m, d) = civil_from_days(secs / 86_400);
+    let rem = secs % 86_400;
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{:03}Z",
+        rem / 3600,
+        (rem / 60) % 60,
+        rem % 60,
+        since.subsec_millis()
+    )
+}
+
+/// UTC calendar date `YYYY-MM-DD`, used for the daily log file name.
+pub fn utc_date(at: SystemTime) -> String {
+    let days = at.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() / 86_400;
+    let (y, m, d) = civil_from_days(days);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// Days since 1970-01-01 → proleptic Gregorian (year, month, day).
+/// Howard Hinnant's `civil_from_days` algorithm (public domain).
+fn civil_from_days(days: u64) -> (u64, u64, u64) {
+    let z = days + 719_468;
+    let era = z / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + u64::from(m <= 2);
+    (y, m, d)
 }

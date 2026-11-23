@@ -1,5 +1,10 @@
 name: Release
 
+# Builds every release file, starts each one on its target OS, checks dependencies, and creates a
+# DRAFT release. A maintainer publishes it only after the clean-machine checklist
+# (specs/004 contracts/release-verification-contract.md §4; constitution Launch Verification Gate).
+# No path in this workflow publishes a non-draft release.
+
 on:
   push:
     tags:
@@ -7,108 +12,184 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.1.0; leave empty for artifact-only build)'
-        required: false
+        description: 'Release tag (e.g. v1.1.0-rc.1)'
+        required: true
         type: string
 
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Package (signs when WINDOWS_SIGNING_* secrets exist)
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+        run: packaging/windows/package-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-windows
+          path: dist/ImageViewer-windows-x64.exe
+          if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Package universal bundle (ad-hoc unless MACOS_SIGNING_IDENTITY is set)
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: packaging/macos/package-macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-macos
+          path: target/release/ImageViewer-macos-universal.dmg
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+      - name: Package experimental tarball
+        run: packaging/linux/package-linux.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-linux
+          path: dist/ImageViewer-linux-x64.tar.gz
+          if-no-files-found: error
+
+  verify-windows:
+    needs: build-windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: asset-windows
+          path: dist
+      - name: Start the release executable
+        shell: pwsh
+        run: packaging/verify/launch-check.ps1 dist/ImageViewer-windows-x64.exe packaging/verify/fixtures/two-images/a.png launch-verification-windows-x64.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: record-windows-x64
+          path: launch-verification-windows-x64.json
+
+  verify-macos:
+    needs: build-macos
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            artifact_name: ImageViewer-windows-x64.exe
-          - os: macos-latest
-            artifact_name: ImageViewer-macos.dmg
-          - os: ubuntu-latest
-            artifact_name: ImageViewer-linux-x64.tar.gz
-
+          - runner: macos-latest
+            record: macos-arm64
+          - runner: macos-15-intel
+            record: macos-x64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: asset-macos
+          path: dist
+      - name: Mount the DMG and start the app from it
+        run: |
+          hdiutil attach dist/ImageViewer-macos-universal.dmg -mountpoint /Volumes/ImageViewer -nobrowse
+          packaging/verify/launch-check.sh /Volumes/ImageViewer/ImageViewer.app packaging/verify/fixtures/two-images/a.png launch-verification-${{ matrix.record }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: record-${{ matrix.record }}
+          path: launch-verification-${{ matrix.record }}.json
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo registry & build
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install Linux GUI/Wayland dependencies
-        if: matrix.os == 'ubuntu-latest'
+  verify-linux:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: asset-linux
+          path: dist
+      - name: Start under Xvfb (experimental; never blocks the release)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
-
-      - name: Build Windows binary
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          cargo build --release -p iv-app
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target/release/iv-app.exe dist/ImageViewer-windows-x64.exe -Force
-
-      - name: Build macOS DMG
-        if: matrix.os == 'macos-latest'
-        run: |
-          chmod +x packaging/macos/package-dmg.sh
-          ./packaging/macos/package-dmg.sh
-          mkdir -p dist
-          cp target/release/ImageViewer-macos.dmg dist/ImageViewer-macos.dmg
-
-      - name: Build Linux tarball
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          chmod +x packaging/linux/package-appimage.sh
-          ./packaging/linux/package-appimage.sh
-          mkdir -p dist
-          tar -czf dist/ImageViewer-linux-x64.tar.gz -C target/release ImageViewer.AppDir
-
-      - name: Upload OS release asset
-        uses: actions/upload-artifact@v4
+          sudo apt-get install -y xvfb xdotool libgtk-3-0 libxkbcommon-x11-0 mesa-vulkan-drivers
+          tar -xzf dist/ImageViewer-linux-x64.tar.gz -C dist
+          xvfb-run -a packaging/verify/launch-check.sh dist/ImageViewer/imageviewer packaging/verify/fixtures/two-images/a.png launch-verification-linux-x64.json
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: release-${{ matrix.os }}
-          path: dist/${{ matrix.artifact_name }}
-          if-no-files-found: error
+          name: record-linux-x64
+          path: launch-verification-linux-x64.json
 
-  publish:
-    name: Generate SHA256SUMS & Publish Release
-    needs: build
+  deny:
     runs-on: ubuntu-latest
     steps:
-      - name: Download all OS release assets
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
+          command: check
+          arguments: ""
+          command-arguments: advisories bans licenses sources
+
+  publish-draft:
+    # Blocking: Windows, both macOS slices, and the dependency gate. Linux is experimental.
+    needs: [verify-windows, verify-macos, deny]
+    if: always() && needs.verify-windows.result == 'success' && needs.verify-macos.result == 'success' && needs.deny.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: asset-*
           path: release-assets
           merge-multiple: true
-
-      - name: Generate SHA256SUMS.txt
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: record-*
+          path: release-assets
+          merge-multiple: true
+      - name: Checksums and release notes
         run: |
           cd release-assets
-          sha256sum ImageViewer-windows-x64.exe ImageViewer-macos.dmg ImageViewer-linux-x64.tar.gz > SHA256SUMS.txt
+          sha256sum ImageViewer-windows-x64.exe ImageViewer-macos-universal.dmg ImageViewer-linux-x64.tar.gz > SHA256SUMS.txt
           cat SHA256SUMS.txt
-
-      - name: Upload combined release bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: ImageViewer-release-bundle
-          path: release-assets/*
-          if-no-files-found: error
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
+          cd ..
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          python3 packaging/verify/render-release-notes.py "${TAG#v}" release-assets release-notes.md
+      - name: Create DRAFT release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
-          name: ImageViewer ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
-          prerelease: ${{ contains(github.ref_name, '-') || contains(github.event.inputs.tag, '-') }}
-          generate_release_notes: true
+          draft: true
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ImageViewer ${{ github.event.inputs.tag || github.ref_name }}
+          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
+          body_path: release-notes.md
           files: |
             release-assets/ImageViewer-windows-x64.exe
-            release-assets/ImageViewer-macos.dmg
+            release-assets/ImageViewer-macos-universal.dmg
             release-assets/ImageViewer-linux-x64.tar.gz
             release-assets/SHA256SUMS.txt
+            release-assets/launch-verification-*.json
