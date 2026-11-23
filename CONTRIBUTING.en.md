@@ -23,6 +23,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-features
 cargo test --workspace
 cargo deny check advisories bans licenses sources
+cargo deny --all-features check advisories bans licenses sources
 packaging/verify/component-count.sh
 ```
 

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 보안 취약점 비공개 제보 / Report a Security Vulnerability (Private)
+    url: https://github.com/Ezenitac-AiService/ImageViewer/security/advisories/new
+    about: 보안 취약점은 공개 이슈 대신 비공개 제보(Private Vulnerability Reporting)를 이용해 주세요. / Please report security vulnerabilities privately rather than opening a public issue.
+  - name: ↗️ 원본 프로젝트(Windows C#/.NET v1.0.6) 문의 / Upstream Project (edith2580/ImageViewer)
+    url: https://github.com/edith2580/ImageViewer/issues
+    about: 크로스 플랫폼 Rust 포크가 아닌 원본 Windows C#/.NET 버전에 관한 이슈는 원작자 저장소에 등록해 주세요. / For issues specific to the original Windows C#/.NET version, please open an issue upstream.

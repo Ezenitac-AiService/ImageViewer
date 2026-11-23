@@ -1,0 +1,30 @@
+name: Dependency Audit
+
+on:
+  schedule:
+    # Weekly on Monday at 03:17 UTC (active while repository has activity within 60 days).
+    - cron: '17 3 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-deny:
+    name: Cargo Deny (${{ matrix.scope }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scope: shipped-default
+            cargo-deny-args: ""
+          - scope: all-features
+            cargo-deny-args: "--all-features"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: EmbarkStudios/cargo-deny-action@17aeb3c839e42274e2b8adf721c8c65edfdc74dd # v2
+        with:
+          command: check
+          arguments: ${{ matrix.cargo-deny-args }}
+          command-arguments: advisories bans licenses sources
