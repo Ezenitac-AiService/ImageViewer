@@ -3,22 +3,20 @@ mod fixtures;
 
 #[cfg(feature = "shell-registration")]
 #[test]
-fn validates_exe_paths_and_generates_xdg_and_info_plist_entries() {
+fn validates_exe_paths_and_generates_xdg_entries() {
     use iv_platform::integration::OsIntegration;
-    assert!(OsIntegration::validate_exe_path(r"C:\Apps\ImageViewer.exe").is_ok());
-    assert!(OsIntegration::validate_exe_path("C:\\Apps\\bad\"quote.exe").is_err());
-    assert!(OsIntegration::validate_exe_path("C:\\Apps\\bad\nctrl.exe").is_err());
+    assert!(OsIntegration::validate_exe_path("/usr/local/bin/imageviewer").is_ok());
+    assert!(OsIntegration::validate_exe_path("/usr/local/bin/bad\"quote").is_err());
+    assert!(OsIntegration::validate_exe_path("/usr/local/bin/bad\nctrl").is_err());
 
     let desktop = OsIntegration::render_xdg_desktop_entry("/usr/local/bin/imageviewer");
     assert!(desktop.contains("Exec=/usr/local/bin/imageviewer %F"));
     assert!(desktop.contains("MimeType="));
     assert!(desktop.contains("image/jpeg"));
 
-    let cmd_line = OsIntegration::format_windows_open_command(r"C:\Apps\ImageViewer.exe");
-    assert_eq!(cmd_line, "\"C:\\Apps\\ImageViewer.exe\" \"%1\"");
     assert!(OsIntegration::commands_match_normalized(
-        "  \"C:\\Apps\\ImageViewer.exe\" \"%1\"  ",
-        &cmd_line
+        "  /usr/local/bin/imageviewer  ",
+        "/usr/local/bin/imageviewer"
     ));
 }
 
@@ -30,10 +28,6 @@ fn validates_exe_paths_and_generates_xdg_and_info_plist_entries() {
 fn redacted_log_folder_is_fixed_per_os_and_never_contains_a_user_name() {
     use iv_platform::fatal_dialog::redacted_log_folder;
     assert_eq!(
-        redacted_log_folder("windows"),
-        r"%LOCALAPPDATA%\ImageViewer\logs"
-    );
-    assert_eq!(
         redacted_log_folder("macos"),
         "~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs"
     );
@@ -41,7 +35,7 @@ fn redacted_log_folder_is_fixed_per_os_and_never_contains_a_user_name() {
     let user = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_default();
-    for os in ["windows", "macos", "linux"] {
+    for os in ["macos", "linux"] {
         if !user.is_empty() {
             assert!(!redacted_log_folder(os).contains(&user));
         }

@@ -33,17 +33,7 @@ impl PathSecurity {
         }
         let cand_str = canon_cand.to_string_lossy().to_string();
 
-        #[cfg(target_os = "windows")]
-        {
-            Ok(cand_str
-                .to_ascii_lowercase()
-                .starts_with(&root_str.to_ascii_lowercase())
-                || canon_cand == canon_root)
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Ok(cand_str.starts_with(&root_str) || canon_cand == canon_root)
-        }
+        Ok(cand_str.starts_with(&root_str) || canon_cand == canon_root)
     }
 
     /// Checks `symlink_metadata` strictly on the immediate path (never rejecting ancestor enterprise junctions).

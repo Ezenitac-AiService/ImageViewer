@@ -112,7 +112,6 @@ fn update_client_enforces_https_stream_caps_and_sha256_verification() {
 
 #[test]
 fn update_client_selects_os_matching_release_asset() {
-    let win_digest = "a".repeat(64);
     let mac_digest = "b".repeat(64);
     let linux_digest = "c".repeat(64);
 
@@ -135,18 +134,13 @@ fn update_client_selects_os_matching_release_asset() {
                 {
                     "name": "ImageViewer-macos.dmg",
                     "browser_download_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/download/v1.2.0/ImageViewer-macos.dmg"
-                },
-                {
-                    "name": "ImageViewer-windows-x64.exe",
-                    "browser_download_url": "https://github.com/Ezenitac-AiService/ImageViewer/releases/download/v1.2.0/ImageViewer-windows-x64.exe"
                 }
             ]
         })
         .to_string()
         .into_bytes(),
         sums_body: format!(
-            "{win_digest}  ImageViewer-windows-x64.exe\n\
-             {mac_digest}  ImageViewer-macos.dmg\n\
+            "{mac_digest}  ImageViewer-macos.dmg\n\
              {linux_digest}  ImageViewer-linux-x64.tar.gz\n"
         )
         .into_bytes(),
@@ -154,12 +148,6 @@ fn update_client_selects_os_matching_release_asset() {
     };
 
     let feed = "https://api.github.com/repos/Ezenitac-AiService/ImageViewer/releases/latest";
-
-    let win =
-        UpdateClient::check_latest_with_transport_for_os(&transport, feed, "1.1.0", "windows")
-            .expect("windows asset");
-    assert_eq!(win.asset_name, "ImageViewer-windows-x64.exe");
-    assert_eq!(win.sha256.as_deref(), Some(win_digest.as_str()));
 
     let mac = UpdateClient::check_latest_with_transport_for_os(&transport, feed, "1.1.0", "macos")
         .expect("macos asset");

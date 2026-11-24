@@ -7,13 +7,13 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Ezenitac-AiService/ImageViewer?include_prereleases&sort=semver&label=release&logo=github)](https://github.com/Ezenitac-AiService/ImageViewer/releases)
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 [![Rust: 1.95+ (Edition 2024)](https://img.shields.io/badge/rust-1.95%2B%20(2024)-orange.svg?logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/index.html)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20(experimental)-lightgrey.svg)](#supported-platforms--releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20(Top%20Priority)%20%7C%20Linux%20(Build--Only)-lightgrey.svg)](#supported-platforms--releases)
 [![Upstream Origin](https://img.shields.io/badge/upstream%20origin-edith2580%2FImageViewer%20(v1.0.6)-informational?logo=github)](https://github.com/edith2580/ImageViewer)
 
-A viewer for images and comic archives (`.zip`/`.cbz`) on **Windows** and **macOS**, with an experimental Linux build. Written in Rust on top of `eframe`/`egui` and `wgpu`.
+An image and comic archive (`.zip`/`.cbz`) viewer targeting **macOS** (top priority, verified) and **Linux** (lower priority, build-only, unverified). **iOS** (planned top priority) and **Android** (planned build-only) follow in feature `007` (not yet built), while **Windows is excluded under Constitution v3.0.0** (see [`legacy-v1.0.6`](https://github.com/Ezenitac-AiService/ImageViewer/tree/legacy-v1.0.6)). Written in Rust on top of `eframe`/`egui` and `wgpu`.
 
 > [!IMPORTANT]
-> **First launch**: releases are not signed with a publisher certificate yet, so the OS asks once after you download. Follow [First Launch](docs/FIRST_LAUNCH.en.md).
+> **First launch**: releases are not notarized by Apple yet, so macOS Gatekeeper asks once after you download. Follow [First Launch](docs/FIRST_LAUNCH.en.md).
 
 > [!NOTE]
 > **Independent Cross-Platform Fork Notice & Etiquette**
@@ -30,11 +30,11 @@ A viewer for images and comic archives (`.zip`/`.cbz`) on **Windows** and **macO
 
 | Area | Upstream (`edith2580/ImageViewer` `v1.0.6`) | Independent fork (`Ezenitac-AiService/ImageViewer`) |
 |---|---|---|
-| **OS** | Windows (`x64`) | **Windows 10/11** (`x64`), **macOS** (one build for Apple Silicon and Intel), Linux `x64` (experimental) |
+| **OS** | Windows (`x64`) | **macOS** (universal Apple Silicon & Intel, top priority verified), Linux `x64` (lower priority, build-only, unverified); `iOS`/`Android` planned (`007`), **Windows excluded** |
 | **Stack** | C# / .NET WPF + WIC | Rust (Edition 2024) + `eframe`/`egui` + `wgpu` (with an OpenGL fallback) |
 | **Formats** | Everything WIC supports | Only the verified core formats in this version ([capability register](docs/CAPABILITIES.en.md)) |
 | **Updates** | Automatic updates | Not in this version; the app makes no network connections |
-| **Settings** | `%LOCALAPPDATA%\ImageViewer\settings.json` | Same path and format; `v1.0.6` settings migrate automatically |
+| **Settings** | `%LOCALAPPDATA%\ImageViewer\settings.json` | macOS `~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/settings.json`, Linux `~/.config/imageviewer/settings.json` (`v1.0.6` JSON schema compatible) |
 
 ---
 
@@ -47,11 +47,11 @@ The [capability register](docs/CAPABILITIES.en.md) lists every capability with i
 - **Archives**: read-only `.zip` / `.cbz`
 - **Opening**: file and folder dialogs, drag and drop, command-line path, macOS Finder "Open With"
 - **Viewing**: zoom, pan, fit modes, rotate, flip, fullscreen
-- **Slideshow, image info (EXIF), multi-page TIFF, image list**: Extended candidates that stay only if they pass the pre-release check
+- **Slideshow, image info (EXIF), multi-page TIFF, image list**: Extended candidates that stay only if they pass the pre-release top-priority check
 - **Safety limits**: image size cap (150 MP by default), file size checked before reading (512 MB), archive path escapes, symlinks, zip bombs and encrypted entries refused
 - **Languages**: Korean and English; the first launch follows the OS language
 
-Update checks, extended formats (JPEG XL, PSD, HEIC, RAW, …), Explorer menu registration, and the thumbnail strip are **not included in this version.**
+Update checks, extended formats (JPEG XL, PSD, HEIC, RAW, …), shell registration, and the thumbnail strip are **not included in this version.**
 
 Performance parity with v1.0.6 has not been measured yet.
 
@@ -59,13 +59,15 @@ Performance parity with v1.0.6 has not been measured yet.
 
 ## Supported Platforms & Releases
 
-Executables and checksums (`SHA256SUMS.txt`) are on the [Releases page](https://github.com/Ezenitac-AiService/ImageViewer/releases). Every release is started and checked on each OS before it is published, and its notes show a table of verified platforms.
+Executables and checksums (`SHA256SUMS.txt`) are on the [Releases page](https://github.com/Ezenitac-AiService/ImageViewer/releases). Under Constitution v3.0.0, **build-result and launch verification runs strictly on top-priority targets (`macOS`, and planned `iOS` in feature `007`)**; `Linux` (and planned `Android`) are shipped as **lower-priority build-only artifacts with no runtime verification**, and `Windows` is excluded.
 
-| OS | Architecture | File | Status |
-|---|---|---|---|
-| **Windows 10 / 11** | `x64` | `ImageViewer-windows-x64.exe` (runs without installation) | supported |
-| **macOS 11 or later** | Apple Silicon · Intel | `ImageViewer-macos-universal.dmg` | supported |
-| **Linux** (X11 / Wayland) | `x64` | `ImageViewer-linux-x64.tar.gz` | experimental, unverified |
+| OS | Architecture | Tier | File | Status |
+|---|---|---|---|---|
+| **macOS 11 or later** | Apple Silicon · Intel | Top Priority | `ImageViewer-macos-universal.dmg` | supported (automated + manual verification) |
+| **iOS** | `arm64` | Top Priority (planned — `007`) | — | not yet built or released |
+| **Linux** (X11 / Wayland) | `x86_64` | Lower Priority | `ImageViewer-linux-x64.tar.gz` | build-only, runtime-unverified |
+| **Android** | `arm64` | Lower Priority (planned — `007`) | — | planned build-only (not yet built) |
+| **Windows** | — | Excluded (`v3.0.0`) | — | excluded (archive: [`legacy-v1.0.6`](https://github.com/Ezenitac-AiService/ImageViewer/tree/legacy-v1.0.6)) |
 
 ```bash
 sha256sum -c SHA256SUMS.txt --ignore-missing
@@ -75,7 +77,7 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 
 ## Keyboard & Mouse
 
-`Primary` is `Cmd` on macOS and `Ctrl` on Windows and Linux.
+`Primary` is `Cmd` on macOS and `Ctrl` on Linux.
 
 | Action | Input |
 |---|---|

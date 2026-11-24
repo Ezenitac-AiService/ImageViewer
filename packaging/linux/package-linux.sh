@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the experimental Linux tarball (specs/004 FR-026; Linux is not a supported target yet).
+# Builds the lower-priority build-only Linux tarball under Constitution v3.0.0
+# (Linux is build-only and undergoes zero automated launch or runtime verification).
 #
 # Usage: packaging/linux/package-linux.sh
 # Output: dist/ImageViewer-linux-x64.tar.gz
@@ -14,11 +15,12 @@ STAGE="$(mktemp -d)/ImageViewer"
 mkdir -p "$STAGE"
 cp target/release/iv-app "$STAGE/imageviewer"
 sed 's|@EXEC_PATH@|imageviewer|g' packaging/linux/imageviewer.desktop.in >"$STAGE/imageviewer.desktop"
-cat >"$STAGE/README-EXPERIMENTAL.txt" <<'TXT'
-ImageViewer for Linux is EXPERIMENTAL and UNVERIFIED.
+cat >"$STAGE/README-BUILD-ONLY.txt" <<'TXT'
+ImageViewer for Linux is a LOWER-PRIORITY, BUILD-ONLY, UNVERIFIED release artifact.
 
-It is built and passes automated checks, but it has not passed the launch verification that
-Windows and macOS releases must pass. Please report problems at
+Under Constitution v3.0.0, only macOS (and planned iOS in feature 007) receive build-result and
+launch verification. Linux compiles cleanly in CI but undergoes NO launch or runtime verification.
+Windows builds are excluded (see legacy-v1.0.6 for historical archive). Please report issues at
 https://github.com/Ezenitac-AiService/ImageViewer/issues
 
 Runtime libraries: GTK 3 (file dialogs) and libxkbcommon-x11 (keyboard on X11),

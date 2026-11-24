@@ -92,9 +92,10 @@ inspection.
 
 - **Mandatory Source Hierarchy**: Every architectural choice, Rust crate selection (GUI/GPU
   rendering, SIMD scaling, core image/archive decoders, EXIF, async runtimes, OS bindings),
-  platform codec integration (`WIC` on Windows, `ImageIO` on macOS, Linux fallback codecs),
-  security control, and performance claim MUST cite primary evidence from official crate/OS
-  documentation, authoritative benchmarks, peer-reviewed guidance, or industry standards.
+  platform codec integration (`ImageIO` on macOS and iOS, and optional fallback codecs on
+  build-only Linux and Android targets), security control, and performance claim MUST cite
+  primary evidence from official crate/OS documentation, authoritative benchmarks,
+  peer-reviewed guidance, or industry standards.
 - **Traceable Reporting**: Research artifacts (`research.md`), design plans (`plan.md`), and
   review evaluations MUST cite exact sources or measured tool outputs and MUST separate
   directly observed facts on the current host OS from inferences or unverified target-OS gaps.
@@ -112,16 +113,17 @@ fallible hypothesis subject to adversarial scrutiny and defense-in-depth safegua
 - **Reliability & Concurrency Scrutiny**: Contributors MUST actively seek counter-examples
   across async task cancellation races, out-of-order decode completions, deterministic RAII
   `Drop` resource/GPU-texture cleanup, bounded-channel/LRU eviction edges, high-DPI scaling,
-  Wayland/X11/macOS/Windows drag-and-drop and window lifecycle differences, and missing OS
-  platform codecs rather than validating happy paths alone.
+  macOS/iOS app and window lifecycle, pointer/touch, and drag-and-drop differences, and
+  missing OS platform codecs rather than validating happy paths alone.
 - **Defense in Depth & Fail-Safe Defaults**: Critical invariants (cancellation versioning,
   pixel/memory budgets, settings recovery, bounded channels, graceful shutdown flushes) MUST
   enforce fail-safe defaults and independent guards instead of assuming upstream callers or
   external libraries behave safely.
 - **No False Confidence from Green Runs**: Passing tests on a single developer host OS MUST
-  NOT be cited as proof that Windows, macOS, and Linux targets are all verified, and passing
-  library tests MUST NOT be cited as proof that a packaged artifact launches; unverified
-  OS targets, hardware rendering paths, and residual risks MUST be disclosed explicitly.
+  NOT be cited as proof that all top-priority targets (`macOS`, `iOS`) are verified, and
+  passing library tests MUST NOT be cited as proof that a packaged artifact launches;
+  build-only lower-priority targets (`Linux`, `Android`), unverified hardware rendering paths,
+  and residual risks MUST be disclosed explicitly as unverified.
 - **Compliance Check**: Specifications, plans, and reviews document explicit failure-mode
   analyses, negative/boundary test coverage, and residual cross-OS risks.
 
@@ -142,7 +144,7 @@ potentially malformed, hostile, or compromised.
   overflow-safe checked dimension/stride arithmetic (CWE-190) and enforce pre-allocation
   pixel-count and streaming uncompressed/HTTP byte caps (CWE-400 / CWE-409 decompression bombs).
   Path canonicalization MUST enforce root-boundary delimiter checks and reject symlinks or
-  NTFS `ReparsePoint` escapes in archives and app-managed config/log/temp dirs while safely
+  filesystem link/reparse escapes in archives and app-managed config/log/temp dirs while safely
   skipping symlinks during folder enumeration (CWE-22 / Zip Slip). OS command/shell/bundle
   integrations MUST reject injection characters and perform exact command matching (CWE-88),
   remote updates MUST enforce unconditional `https://` + SHA-256 verification (CWE-494), and
@@ -179,46 +181,57 @@ third-party attribution, and courteous upstream boundaries at all times.
 
 ## Technical Stack & Architectural Constraints
 
-- **Target Platforms (Tiered)**: Desktop targets are classified into two tiers with
-  OS-idiomatic packaging, file associations, and update delivery:
-  - **Supported**: **Windows 10 / 11 (x64)** and **macOS (Apple Silicon `aarch64` & Intel
-    `x86_64`)**. Every release artifact for a supported target MUST pass launch verification on
-    that target (the packaged artifact is started, shows its window, displays a reference image,
-    and exits cleanly) before publication; any failure MUST block the release.
-  - **Experimental**: **Linux (`x86_64`, X11 & Wayland)**. Experimental targets MUST keep building
-    and passing the full automated check suite, and their release artifacts MAY be published only
-    when labelled experimental and unverified in release notes and documentation. A launch
-    verification failure on an experimental target MUST be reported but MUST NOT block publication.
-  - **Promotion**: An experimental target is promoted to supported only after it passes the same
-    launch verification required of supported targets, recorded as evidence, and only through an
-    amendment of this section.
-  - **Rationale**: `v1.1.0-alpha.1` shipped to all three OS families without launching on any of
-    them (`specs/004-launch-reliability-refactor/`). Concentrating release-blocking verification
-    on the platforms users reported failing keeps that gate enforceable, while the tier labels keep
-    the Linux status honest per Principle VI.
+- **Target Platforms (Tiered)**: Desktop and mobile targets are classified strictly into three
+  governance categories:
+  - **Top Priority (Supported — Build & Verification)**: **`macOS` (Apple Silicon `aarch64` &
+    Intel `x86_64`)** and **`iOS` (`aarch64`)**. Every release artifact for a top-priority target
+    MUST be built AND pass build-result / launch verification on that target (the packaged
+    artifact starts, displays its UI window, renders a reference image, and exits cleanly)
+    before publication; any failure MUST block publication. Build-result verification is
+    performed **exclusively** for this tier.
+  - **Lower Priority (Build-Only — No Verification)**: **`Linux` (`x86_64`, X11 & Wayland)**
+    and **`Android` (`aarch64` / configured Android ABIs)**. Lower-priority targets provide
+    **build artifacts only**; CI and release pipelines MUST NOT perform build-result or launch
+    verification on them, MUST NOT block publication on their runtime behavior, and MUST label
+    them as build-only and unverified in release notes and documentation (Principle VI).
+  - **Excluded**: **`Windows`** is excluded from both supported and build-only targets. Active
+    development, packaging, and verification pipelines MUST NOT require Windows support
+    (historical Windows C#/.NET `v1.0.6` source remains preserved solely under `legacy-v1.0.6`
+    and `specs/001-*`).
+  - **Promotion**: A lower-priority target may be promoted to top priority only after passing
+    the full build-result and launch verification required of top-priority targets, recorded as
+    evidence, and only through a formal amendment of this section.
+  - **Rationale**: Concentrating build-result verification exclusively on top-priority Apple
+    platforms (`macOS`, `iOS`) keeps release-blocking quality gates enforceable and focused,
+    while continuing to supply `Linux` and `Android` as build-only artifacts with honest
+    unverified disclosure (Principle VI) and retiring `Windows` from active maintenance.
 - **Language & Workspace Architecture**: Stable **Rust** Cargo workspace separating
   UI-independent core logic (domain models, path/format/stream security guards, layout/zoom
   math, session/prefetch/slideshow orchestration, decoder pipeline, settings/logging) from
   cross-platform GPU-accelerated UI presentation (`wgpu` / native-feeling UI framework) and
-  narrow OS adapter modules (`windows` / Cocoa / XDG).
+  narrow OS adapter modules (Apple AppKit/UIKit/Foundation for `macOS`/`iOS`, and build-only
+  adapters for `Linux`/`Android`).
 - **Media Decoding Strategy (Target, Delivered by Capability Tier)**: The **end-state target** is
   built-in memory-safe pure-Rust/SIMD core decoders for standard raster, animated, layered,
   multi-page, and HDR formats (JPEG with fast viewport-scaled decoding, PNG/APNG, GIF, BMP, TIFF,
   WebP, ICO/CUR, JXL, TGA, PSD, DDS, PCX, QOI, PNM, HDR, EXR) plus read-only `.zip`/`.cbz`
-  streaming, and host OS platform imaging codecs (`WIC` on Windows, `ImageIO` on macOS, optional
-  system codecs on Linux with graceful missing-codec messages) for camera RAW (8 extensions),
-  `.heic`/`.heif`, `.avif`, and `.jp2`. Delivery is governed by capability tiers:
+  streaming, and host OS platform imaging codecs (`ImageIO` on `macOS` and `iOS`, with graceful
+  fallback or unsupported-format messages on build-only `Linux` and `Android` targets) for
+  camera RAW (8 extensions), `.heic`/`.heif`, `.avif`, and `.jp2`. Delivery is governed by
+  capability tiers:
   - **Tiers**: Every user-facing capability, including each format family and the OS-codec
-    bridge, is classified **Core** (verified on all supported targets), **Extended** (verified
-    individually), or **Unavailable**, in a published bilingual capability register.
+    bridge, is classified **Core** (verified on all top-priority targets: `macOS`, `iOS`),
+    **Extended** (verified individually), or **Unavailable**, in a published bilingual capability
+    register.
   - **Shipped artifact**: A release MUST ship only Core and verified Extended capabilities.
     Unavailable decoders MUST remain in the workspace behind default-off build features, MUST
     compile and pass the full test suite in CI with all features enabled, and MUST NOT be
     reachable or advertised in the shipped product.
   - **Promotion to Extended**: A capability is promoted only with (a) automated tests on real
     sample fixtures, (b) automated hostile/malformed-input tests meeting Principle VII, (c) a
-    passing launch-verification record on every supported target, and (d) user documentation in
-    Korean and English. Demotion is immediate when any of that evidence is invalidated.
+    passing launch-verification record on every top-priority target (`macOS`, `iOS`), and (d)
+    user documentation in Korean and English. Demotion is immediate when any of that evidence is
+    invalidated.
   - **Principle IV boundary**: Capability-tier build features are product-scope controls, not
     test bypasses. They MUST NOT weaken, skip, or alter any security check in any configuration,
     and the shipped (default) configuration MUST itself be fully tested.
@@ -235,11 +248,11 @@ third-party attribution, and courteous upstream boundaries at all times.
     `<= 22 ms` rapid navigation, `<= 16 ms` slideshow transition, `<= 470 MB` RAM and `<= 5%` CPU
     on high-frame `1080x1920` animated WebP).
   - **Not release-blocking until measurable**: Until an automated end-to-end measurement harness
-    runs these scenarios against a packaged artifact on a supported target, the figures MUST NOT
-    block a release. They also MUST NOT be claimed as met in documentation or release notes;
+    runs these scenarios against a packaged artifact on a top-priority target, the figures MUST
+    NOT block a release. They also MUST NOT be claimed as met in documentation or release notes;
     claims require harness output (Principle V).
   - **Becomes a regression gate**: Once the harness exists and has recorded a baseline on a
-    supported target, a release MUST NOT regress any figure beyond that recorded baseline (or
+    top-priority target, a release MUST NOT regress any figure beyond that recorded baseline (or
     beyond the `v1.0.6` target, whichever is stricter) without a recorded, reviewed justification.
   - **Interim responsiveness floor**: Until then, releases MUST meet the responsiveness criteria
     of the active feature specification (for `specs/004`: on-screen controls respond within
@@ -268,21 +281,26 @@ third-party attribution, and courteous upstream boundaries at all times.
   include negative security tests (Principle VII).
 - **Cross-Platform Build, Lint & Test Verification Gate**: `cargo check --workspace`,
   `cargo clippy --workspace --all-targets`, and `cargo test --workspace` MUST pass cleanly on
-  the active host after the final edit; any OS target (`Windows`, `macOS`, `Linux`) not
-  executed natively on the local machine MUST be reported explicitly until verified on that
-  OS or multi-OS CI runner.
-- **Launch Verification Gate (Release)**: Before any release is published, each artifact for a
-  supported target MUST pass launch verification as defined under Target Platforms; a failure
-  blocks publication. Experimental-target results MUST be recorded and disclosed in the release
-  notes without blocking. Release notes MUST list verified, unverified, and experimental targets.
+  the active host after the final edit; any top-priority target (`macOS`, `iOS`) not executed
+  natively on the local machine MUST be disclosed explicitly until verified on that OS or CI
+  runner. Lower-priority targets (`Linux`, `Android`) require build checks only with zero runtime
+  verification; `Windows` is excluded from build and verification gates.
+- **Launch Verification Gate (Release)**: Before any release is published, build-result and
+  launch verification MUST execute **only** for top-priority targets (`macOS`, `iOS`) as
+  defined under Target Platforms; any failure MUST block publication. Lower-priority targets
+  (`Linux`, `Android`) deliver build artifacts only without build-result verification, MUST NOT
+  run launch verification checks, and MUST be disclosed as build-only/unverified in release
+  notes. `Windows` is excluded from release builds and verification. Release notes MUST list
+  verified top-priority targets, any unverified top-priority slice, and build-only lower-priority
+  targets.
 - **Capability Tier Gate (`/speckit-plan`, `/speckit-analyze`, Release)**: Every capability that is
   reachable in the shipped product or claimed in documentation MUST appear in the capability
   register as Core or verified Extended, with links to its evidence. CI MUST build and test both
   the shipped (default) configuration and the all-features configuration.
 - **Performance Regression Gate (activates with the measurement harness)**: Once an end-to-end
-  performance harness exists, release CI MUST run it on at least one supported target and fail on
-  regressions as defined under Safety Caps & Performance Parity Baseline. Until then, plans and
-  release notes MUST state that performance parity is unmeasured.
+  performance harness exists, release CI MUST run it on at least one top-priority target and
+  fail on regressions as defined under Safety Caps & Performance Parity Baseline. Until then,
+  plans and release notes MUST state that performance parity is unmeasured.
 - **Language & GitHub Documentation Gate**: User-facing Q&A and Git commit messages MUST be
   Korean, and root GitHub documents (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`,
   `THIRD_PARTY_NOTICES.md`, `NOTICE`) MUST maintain Korean default (`*.md`) and synchronized
@@ -312,4 +330,4 @@ third-party attribution, and courteous upstream boundaries at all times.
   `/speckit-tasks`, `/speckit-analyze`, `/speckit-implement`) and code review MUST verify
   adherence to Principles I–VIII and record verification evidence explicitly.
 
-**Version**: 2.4.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-16
+**Version**: 3.0.0 | **Ratified**: 2026-11-15 | **Last Amended**: 2026-11-24

@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
-# Automated launch check for macOS and (experimental) Linux
-# (specs/004-launch-reliability-refactor/contracts/release-verification-contract.md §2–§3).
+# Automated launch check exclusively for top-priority macOS (`ImageViewer.app`) under
+# Constitution v3.0.0 and `specs/006-platform-tier-realignment/data-model.md` §2.
+# Linux and Android are build-only (no runtime/launch verification); Windows is excluded.
 #
-# Usage: launch-check.sh <ImageViewer.app | binary> <reference-image> [record.json]
+# Usage: launch-check.sh <ImageViewer.app> <reference-image> [record.json]
 #
-# Starts the artifact exactly as a user would, waits for the `first_frame` diagnostic record,
-# checks that a window is on screen (macOS), optionally steps to the next image, asks the app to
-# quit the way the OS does, and requires a clean exit. Writes a Launch Verification Record
-# (data-model.md §2). Uses only production behaviour: no test-only flags.
+# Starts `ImageViewer.app` via production behavior, requires `first_frame` + `window_shown` +
+# `clean_exit` (`result == "pass"`), optionally verifies navigation (`navigated`), and writes a
+# `launch-verification-macos-*.json` record. Zero test-only flags.
 set -uo pipefail
 
-ARTIFACT="${1:?usage: launch-check.sh <app-or-binary> <image> [record.json]}"
+ARTIFACT="${1:?usage: launch-check.sh <ImageViewer.app> <image> [record.json]}"
 IMAGE="$(cd "$(dirname "${2:?image}")" && pwd)/$(basename "$2")"
-RECORD="${3:-launch-verification-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).json}"
+RECORD="${3:-launch-verification-macos-$(uname -m).json}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 OS="$(uname -s)"
 TIMEOUT=30
 
-case "$OS" in
-    Darwin) LOG_DIR="$HOME/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs" ;;
-    *) LOG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/imageviewer/logs" ;;
-esac
+if [ "$OS" != "Darwin" ]; then
+    echo "launch-check.sh verifies top-priority macOS bundles only (Constitution v3.0.0)." >&2
+    exit 2
+fi
+
+LOG_DIR="$HOME/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs"
 LOG="$LOG_DIR/imageviewer-$(date -u +%F).log"
 mkdir -p "$LOG_DIR"
 OFFSET=$( [ -f "$LOG" ] && wc -c <"$LOG" | tr -d ' ' || echo 0 )

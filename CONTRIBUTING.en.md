@@ -34,14 +34,14 @@ Both the shipped configuration (default features) and the all-features configura
 A task is done only when:
 
 1. A failing test was written first and now passes.
-2. The behaviour was **observed in the running application** on each supported OS (Windows, macOS), or the PR states which OS was not checked. Passing library tests alone is not done.
+2. The behaviour was **observed in the running application** on active top-priority targets (`macOS`, and `iOS` after feature `007`). Under Constitution `v3.0.0`, `Linux` (and planned `Android`) are lower-priority **build-only, unverified** targets (no runtime verification required), and `Windows` is excluded; the PR states which target checks ran and what remains unverified. Passing library tests alone is not done.
 3. Any capability newly visible in the app or the docs is listed in the [capability register](docs/CAPABILITIES.en.md) with its evidence.
 
 ## Release Procedure
 
-1. Pushing a `v*` tag runs the release workflow: it builds the Windows, macOS (Apple Silicon and Intel), and Linux files and **starts each one on its OS**. If the Windows or macOS check, or `cargo deny`, fails, no release is created.
+1. Pushing a `v*` tag runs the release workflow: it builds the universal **macOS** bundle and the lower-priority build-only **Linux** (`x86_64`) tarball, runs `cargo deny`, and executes launch verification strictly on **macOS** (Apple Silicon and Intel; zero Linux runtime checks; Windows excluded). If `verify-macos`, `build-linux`, or `deny` fails, no draft release is created.
 2. On success it creates a **draft** release only.
-3. A maintainer runs the [manual checklist](specs/004-launch-reliability-refactor/quickstart.md) on clean Windows 10 and 11 VMs and a real Mac, and attaches the result as `launch-verification-manual.md` to the draft.
+3. A maintainer runs the [manual checklist](specs/006-platform-tier-realignment/quickstart.md) on clean **macOS (Apple Silicon and Intel)** devices and attaches `launch-verification-manual.md` to the draft.
 4. Only then is it published.
 
 ### Coding Standards

@@ -4,7 +4,7 @@
 
 `ImageViewer`(`Ezenitac-AiService/ImageViewer`, 라이선스: `GPL-3.0-only`)의 **배포본**은 아래 오픈소스 Rust 라이브러리를 직접 사용합니다. 각 라이브러리는 [기능 목록](docs/CAPABILITIES.md)의 기능 id로 사용 근거를 밝힙니다(specs/004 FR-034). 이를 포함한 모든 의존성의 라이선스 호환성, 알려진 취약점, 출처는 CI와 릴리스에서 `cargo deny check advisories bans licenses sources`([`deny.toml`](deny.toml))로 자동 검증합니다.
 
-배포본에 포함되는 패키지 수(간접 의존 포함)는 `packaging/verify/component-count.sh`로 측정하며 2026-11-17 기준 298개입니다(변경 전 446개).
+배포본에 포함되는 패키지 수(간접 의존 포함)는 `packaging/verify/component-count.sh`로 측정하며 2026-11-24 기준 활성 3개 타깃(`aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`) 통합 고유 패키지는 277개입니다(이전 4타깃 298개 / 변경 전 446개).
 
 ## 배포본에 포함되는 직접 의존성
 
@@ -14,7 +14,7 @@
 | `egui` | UI(툴바, 대화상자, 상태 표시) | 모든 UI | `MIT OR Apache-2.0` | https://github.com/emilk/egui |
 | `epaint_default_fonts` | 내장 기본 UI 글꼴 (*Ubuntu Light*, *Hack*, *Noto Emoji*) | 모든 UI | `(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0` | https://github.com/emilk/egui |
 | `winit` | 창 생성과 이벤트 루프 | `launch`, `open-with-os` | `Apache-2.0` | https://github.com/rust-windowing/winit |
-| `wgpu` | GPU 렌더링 (Metal / DX12 / Vulkan, CPU 렌더러 포함) | `launch` | `MIT OR Apache-2.0` | https://github.com/gfx-rs/wgpu |
+| `wgpu` | GPU 렌더링 (Metal / Vulkan, CPU 렌더러 포함) | `launch` | `MIT OR Apache-2.0` | https://github.com/gfx-rs/wgpu |
 | `glow` | OpenGL 대체 렌더링 경로 | `launch` | `MIT OR Apache-2.0 OR Zlib` | https://github.com/grovesNL/glow |
 | `pollster` | 파일 대화상자·어댑터 조회의 비동기 대기 | `open-file-dialog`, `launch` | `Apache-2.0 OR MIT` | https://github.com/zesterer/pollster |
 | `rfd` | OS 기본 파일·폴더 대화상자, 치명 오류 대화상자 | `open-file-dialog`, `open-folder-dialog`, `launch` | `MIT` | https://github.com/PolyMeilex/rfd |
@@ -44,8 +44,8 @@
 | 기능 | 라이브러리 |
 |---|---|
 | `iv-platform` `updater` | `reqwest`, `rustls`, `sha2` |
-| `iv-platform` `os-codecs` | `windows` (WIC), `objc2-image-io`, `objc2-core-graphics`, `objc2-core-foundation` |
-| `iv-platform` `shell-registration` | `winreg` |
+| `iv-platform` `os-codecs` | `objc2-image-io`, `objc2-core-graphics`, `objc2-core-foundation` |
+| `iv-platform` `shell-registration` | Linux XDG 도우미만 유지 (추가 외부 크레이트 없음) |
 | `iv-media` `extended-formats` | `jxl-oxide`, `image_dds`, `rawpsd`, `image-extras`, `exr` |
 
 전체 의존성 트리는 `cargo tree -p iv-app -e normal`로 확인할 수 있습니다.

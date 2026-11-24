@@ -34,14 +34,14 @@ packaging/verify/component-count.sh
 작업은 다음을 모두 만족해야 완료입니다.
 
 1. 실패하는 테스트를 먼저 작성하고, 구현 후 통과합니다.
-2. 동작을 **실행한 앱에서 직접 확인**했습니다. 지원 대상 OS(Windows, macOS)마다 확인하거나, 확인하지 못한 OS를 PR에 명시합니다. 라이브러리 테스트 통과만으로는 완료가 아닙니다.
+2. 동작을 **실행한 앱에서 직접 확인**했습니다. 헌법 `v3.0.0`에 따라 **실행 검증은 최우선 지원 대상(`macOS`, `007` 이후 `iOS`)에만** 적용되며, `Linux`(`007` 이후 `Android` 포함)는 **빌드 전용·미검증** 계층으로 컴파일·단위 테스트만 확인합니다(`Windows` 제외). 확인한 환경과 미확인 환경을 PR에 명시합니다. 라이브러리 테스트 통과만으로는 완료가 아닙니다.
 3. 화면이나 문서에 새로 노출되는 기능은 [기능 목록](docs/CAPABILITIES.md)에 근거와 함께 등록되어 있습니다.
 
 ## 릴리스 절차
 
-1. `v*` 태그를 올리면 릴리스 워크플로가 Windows·macOS(Apple Silicon·Intel)·Linux 파일을 빌드하고, 각 OS에서 **실제로 실행해 검사**합니다. Windows·macOS 검사나 `cargo deny`가 실패하면 릴리스가 만들어지지 않습니다.
+1. `v*` 태그를 올리면 릴리스 워크플로가 최우선 **macOS**(Apple Silicon·Intel) 번들과 하위 우선순위 빌드 전용 **Linux**(`x86_64`) 아카이브를 빌드하고, **macOS에서만 실행 검증**을 수행합니다(`Linux` 런타임 검사 없음, `Windows` 제외). `macOS` 검증·`Linux` 빌드·`cargo deny` 중 하나라도 실패하면 초안이 만들어지지 않습니다.
 2. 통과하면 **초안(draft) 릴리스**만 만들어집니다.
-3. 관리자가 깨끗한 Windows 10·11 VM과 실제 Mac에서 [수동 체크리스트](specs/004-launch-reliability-refactor/quickstart.md)를 실행하고, 결과를 `launch-verification-manual.md`로 초안에 첨부합니다.
+3. 관리자가 실제 깨끗한 **macOS (Apple Silicon · Intel)** 기기에서 [수동 체크리스트](specs/006-platform-tier-realignment/quickstart.md)를 실행하고, 결과를 `launch-verification-manual.md`로 초안에 첨부합니다.
 4. 그 다음에만 게시합니다.
 
 ### 코딩 표준

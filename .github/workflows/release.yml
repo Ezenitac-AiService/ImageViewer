@@ -1,8 +1,8 @@
 name: Release
 
-# Builds every release file, starts each one on its target OS, checks dependencies, and creates a
-# DRAFT release. A maintainer publishes it only after the clean-machine checklist
-# (specs/004 contracts/release-verification-contract.md §4; constitution Launch Verification Gate).
+# Builds the top-priority macOS bundle and build-only Linux tarball, runs launch verification
+# on macOS, checks dependencies, and creates a DRAFT release. A maintainer publishes it only
+# after the clean-device checklist (constitution v3.0.0 Launch Verification Gate).
 # No path in this workflow publishes a non-draft release.
 
 on:
@@ -23,24 +23,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - name: Package (signs when WINDOWS_SIGNING_* secrets exist)
-        shell: pwsh
-        env:
-          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
-          WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
-        run: packaging/windows/package-windows.ps1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: asset-windows
-          path: dist/ImageViewer-windows-x64.exe
-          if-no-files-found: error
-
   build-macos:
     runs-on: macos-latest
     steps:
@@ -69,31 +51,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
-      - name: Package experimental tarball
+      - name: Package build-only unverified tarball
         run: packaging/linux/package-linux.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: asset-linux
           path: dist/ImageViewer-linux-x64.tar.gz
           if-no-files-found: error
-
-  verify-windows:
-    needs: build-windows
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: asset-windows
-          path: dist
-      - name: Start the release executable
-        shell: pwsh
-        run: packaging/verify/launch-check.ps1 dist/ImageViewer-windows-x64.exe packaging/verify/fixtures/two-images/a.png launch-verification-windows-x64.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: record-windows-x64
-          path: launch-verification-windows-x64.json
 
   verify-macos:
     needs: build-macos
@@ -122,28 +86,6 @@ jobs:
           name: record-${{ matrix.record }}
           path: launch-verification-${{ matrix.record }}.json
 
-  verify-linux:
-    needs: build-linux
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: asset-linux
-          path: dist
-      - name: Start under Xvfb (experimental; never blocks the release)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb xdotool libgtk-3-0 libxkbcommon-x11-0 mesa-vulkan-drivers
-          tar -xzf dist/ImageViewer-linux-x64.tar.gz -C dist
-          xvfb-run -a packaging/verify/launch-check.sh dist/ImageViewer/imageviewer packaging/verify/fixtures/two-images/a.png launch-verification-linux-x64.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: record-linux-x64
-          path: launch-verification-linux-x64.json
-
   deny:
     runs-on: ubuntu-latest
     steps:
@@ -155,9 +97,9 @@ jobs:
           command-arguments: advisories bans licenses sources
 
   publish-draft:
-    # Blocking: Windows, both macOS slices, and the dependency gate. Linux is experimental.
-    needs: [verify-windows, verify-macos, deny]
-    if: always() && needs.verify-windows.result == 'success' && needs.verify-macos.result == 'success' && needs.deny.result == 'success'
+    # Blocking: both macOS slices, lower-priority build-only Linux package, and the dependency gate.
+    needs: [verify-macos, build-linux, deny]
+    if: always() && needs.verify-macos.result == 'success' && needs.build-linux.result == 'success' && needs.deny.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -182,7 +124,7 @@ jobs:
             exit 1
           fi
           cd release-assets
-          sha256sum ImageViewer-windows-x64.exe ImageViewer-macos-universal.dmg ImageViewer-linux-x64.tar.gz > SHA256SUMS.txt
+          sha256sum ImageViewer-macos-universal.dmg ImageViewer-linux-x64.tar.gz > SHA256SUMS.txt
           cat SHA256SUMS.txt
           cd ..
           python3 packaging/verify/render-release-notes.py "${TAG#v}" release-assets release-notes.md
@@ -195,8 +137,7 @@ jobs:
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           body_path: release-notes.md
           files: |
-            release-assets/ImageViewer-windows-x64.exe
             release-assets/ImageViewer-macos-universal.dmg
             release-assets/ImageViewer-linux-x64.tar.gz
             release-assets/SHA256SUMS.txt
-            release-assets/launch-verification-*.json
+            release-assets/launch-verification-macos-*.json

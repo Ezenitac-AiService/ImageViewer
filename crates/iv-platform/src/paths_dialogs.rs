@@ -18,12 +18,8 @@ pub const CORE_PICKER_EXTENSIONS: &[&str] = &[
 pub struct OsPaths;
 
 impl OsPaths {
-    /// Returns the OS-idiomatic configuration directory (`%LOCALAPPDATA%\ImageViewer` on Windows).
+    /// Returns the OS-idiomatic configuration directory.
     pub fn config_dir() -> PathBuf {
-        #[cfg(target_os = "windows")]
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            return PathBuf::from(local).join("ImageViewer");
-        }
         ProjectDirs::from("com", "Ezenitac-AiService", "ImageViewer")
             .map(|p| p.config_dir().to_path_buf())
             .unwrap_or_else(|| std::env::temp_dir().join("ImageViewer"))

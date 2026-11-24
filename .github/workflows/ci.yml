@@ -1,12 +1,12 @@
 name: CI
 
-# Every proposed change: lint, test both build configurations, start the real application on
-# Windows and macOS, and check dependencies (specs/004 contracts/release-verification-contract.md §5).
+# Every proposed change: lint, test both build configurations, verify the macOS bundle launch, and
+# check dependencies (constitution v3.0.0; specs/006-platform-tier-realignment).
 
 on:
   push:
     # Spec Kit feature branches (`NNN-name`) run CI on push, so a change can be verified on
-    # Windows and macOS without opening a pull request.
+    # macOS and Linux (build-only) without opening a pull request.
     branches: [ main, master, '[0-9][0-9][0-9]-*' ]
   pull_request:
     branches: [ main, master ]
@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
@@ -68,42 +68,6 @@ jobs:
         with:
           name: launch-verification-ci-macos
           path: launch-verification-*.json
-
-  launch-windows:
-    name: Launch check (Windows)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - name: Package and assert executable
-        shell: pwsh
-        run: packaging/windows/package-windows.ps1
-      - name: Start the executable and verify it
-        shell: pwsh
-        run: packaging/verify/launch-check.ps1 dist/ImageViewer-windows-x64.exe packaging/verify/fixtures/two-images/a.png launch-verification-windows-x64.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: launch-verification-ci-windows
-          path: launch-verification-*.json
-
-  launch-linux:
-    name: Launch check (Linux, experimental)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - name: Install Linux GUI dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwayland-dev libxkbcommon-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-x11-0 xvfb xdotool mesa-vulkan-drivers
-      - name: Build
-        run: cargo build --release --locked -p iv-app
-      - name: Start under Xvfb and verify
-        run: xvfb-run -a packaging/verify/launch-check.sh target/release/iv-app packaging/verify/fixtures/two-images/a.png launch-verification-linux-x64.json
 
   dependencies:
     name: Dependencies (cargo-deny, budget)

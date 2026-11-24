@@ -1,4 +1,4 @@
-//! OS-idiomatic shell & file association integration (`Windows` HKCU, `macOS` Finder, `Linux` XDG).
+//! OS-idiomatic shell & file association integration (`macOS` Finder, `Linux` XDG).
 
 use std::path::PathBuf;
 use thiserror::Error;
@@ -7,7 +7,7 @@ use thiserror::Error;
 pub enum IntegrationError {
     #[error("executable path contains unsafe characters")]
     UnsafeExePath,
-    #[error("registry or desktop integration failed: {0}")]
+    #[error("desktop integration failed: {0}")]
     Failed(String),
 }
 
@@ -22,10 +22,6 @@ impl OsIntegration {
         Ok(())
     }
 
-    pub fn format_windows_open_command(exe_path: &str) -> String {
-        format!("\"{exe_path}\" \"%1\"")
-    }
-
     pub fn commands_match_normalized(actual: &str, expected: &str) -> bool {
         actual.trim() == expected.trim()
     }
@@ -34,46 +30,6 @@ impl OsIntegration {
         format!(
             "[Desktop Entry]\nType=Application\nName=ImageViewer\nExec={exec_path} %F\nTerminal=false\nCategories=Graphics;Viewer;\nMimeType=image/jpeg;image/png;image/gif;image/webp;image/bmp;image/tiff;image/jxl;image/avif;image/heif;application/zip;application/vnd.comicbook+zip;\n"
         )
-    }
-
-    /// Registers HKCU Explorer verbs on Windows (`--register-shell`).
-    pub fn register_windows_shell(exe_path: &str) -> Result<(), IntegrationError> {
-        Self::validate_exe_path(exe_path)?;
-        #[cfg(target_os = "windows")]
-        {
-            use winreg::RegKey;
-            use winreg::enums::HKEY_CURRENT_USER;
-            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let cmd = Self::format_windows_open_command(exe_path);
-            for sub in [
-                r"Software\Classes\Directory\shell\ImageViewer\command",
-                r"Software\Classes\Directory\Background\shell\ImageViewer\command",
-            ] {
-                let (key, _) = hkcu
-                    .create_subkey(sub)
-                    .map_err(|e| IntegrationError::Failed(e.to_string()))?;
-                key.set_value("", &cmd)
-                    .map_err(|e| IntegrationError::Failed(e.to_string()))?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Unregisters HKCU Explorer verbs on Windows (`--unregister-shell`).
-    pub fn unregister_windows_shell() -> Result<(), IntegrationError> {
-        #[cfg(target_os = "windows")]
-        {
-            use winreg::RegKey;
-            use winreg::enums::HKEY_CURRENT_USER;
-            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            for sub in [
-                r"Software\Classes\Directory\shell\ImageViewer",
-                r"Software\Classes\Directory\Background\shell\ImageViewer",
-            ] {
-                let _ = hkcu.delete_subkey_all(sub);
-            }
-        }
-        Ok(())
     }
 
     /// Installs user-scope XDG `.desktop` entry on Linux.
