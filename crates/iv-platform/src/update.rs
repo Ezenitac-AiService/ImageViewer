@@ -23,7 +23,7 @@ pub enum UpdateError {
     ChecksumMismatch,
     #[error("unsafe target filename or path")]
     UnsafePath,
-    #[error("unsafe Windows /RELAUNCH= path")]
+    #[error("unsafe relaunch path")]
     UnsafeRelaunchPath,
     #[error("network or parse error: {0}")]
     Transport(String),

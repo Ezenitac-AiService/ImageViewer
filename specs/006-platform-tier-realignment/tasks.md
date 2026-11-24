@@ -179,3 +179,14 @@ Task: "T027 Update CONTRIBUTING.md and CONTRIBUTING.en.md in lockstep"
 2. **Increment 2 (`T020`–`T022`)**: `Linux` stripped of runtime launch verification and packaged strictly as build-only unverified (`US3`).
 3. **Increment 3 (`T023`–`T029`)**: Bug-report OS dropdown and all 8 Korean/English documentation pairs synchronized in lockstep (`US4`).
 4. **Increment 4 (`T030`–`T034`)**: Full local + PR CI pass, `main` merge, repository metadata audit, clean `v1.1.0-alpha.2` draft regeneration, and `/speckit-analyze` verification sign-off.
+
+---
+
+## Phase 8: Convergence
+
+- [X] T035 Remove Windows-only Cargo build configuration `.cargo/config.toml` (`[target.x86_64-pc-windows-msvc]` MSVC CRT static-link flags) per FR-013, SC-001 (contradicts)
+- [X] T036 Remove excluded `"x86_64-pc-windows-msvc"` target from `deny.toml` `[graph].targets` and re-verify `cargo deny` default and `--all-features` checks per FR-005, SC-001, SC-006 (contradicts)
+- [X] T037 Add clean-device `macOS` (Apple Silicon & Intel) manual release verification checklist and `launch-verification-manual.md` scaffold (retiring Windows clean-machine obligations and deferring `iOS` to `007`) to `specs/006-platform-tier-realignment/quickstart.md` referenced by `CONTRIBUTING.md`/`CONTRIBUTING.en.md` per FR-011, T033 (missing)
+- [X] T038 Remove dead non-Darwin Linux X11/Xvfb/`xdotool` runtime launch-check branches from `packaging/verify/launch-check.sh` so the script strictly contains `macOS` (`Darwin`) verification logic per FR-003, FR-004, SC-003 (partial)
+- [X] T039 Replace residual Windows-specific wording in `crates/iv-core/src/i18n.rs` (`error.unsupported_os_switch`) and `crates/iv-platform/src/update.rs` (`UpdateError::UnsafeRelaunchPath`, preserving OS-agnostic `validate_relaunch_path` sanitization) with OS-neutral messages per FR-013, SC-001 (partial)
+- [X] T040 Verify Phase 8 convergence edits with TDD test updates (`logger_and_i18n_tests.rs`, `update_tests.rs`) and full `quickstart.md` §1 + `cargo deny` (default & `--all-features`) suite, merge via non-`NNN-*` PR (`chore/006-convergence`) onto `Protect main` with all 4 required checks passing, restore `**Status**: Implemented` in `spec.md`, and confirm/regenerate `v1.1.0-alpha.2` draft under maintainer approval (`FR-012`) if shipped `iv-app` binary changes per FR-005, FR-012, SC-001, SC-006 (partial)
