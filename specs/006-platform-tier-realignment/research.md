@@ -169,3 +169,16 @@ This document consolidates empirical findings from codebase, workflow, packaging
   - *Open PR from `006-platform-tier-realignment` branch*: Rejected; `[0-9][0-9][0-9]-*` triggers duplicate `push` and `pull_request` CI workflows, wasting macOS runner capacity.
 - **Primary Evidence / Observed Output**:
   - Live `gh repo view` output verified `description` has 0 trailing whitespace and 8 clean topics; `.github/workflows/ci.yml:L10` matches `[0-9][0-9][0-9]-*`.
+
+---
+
+## R8. Live Remote Governance, PR Merge, Draft Regeneration & Local macOS DMG Verification Evidence (`T015`–`T016`, `T031`–`T034`)
+
+- **Observed Execution (`2026-11-24`, Maintainer-Approved `FR-012`)**:
+  - **Ruleset Alignment (`T015`–`T016`)**: `PUT repos/Ezenitac-AiService/ImageViewer/rulesets/27903505` succeeded; live audit of `rulesets/27903505` and `rules/branches/main` verified `enforcement: "active"`, `bypass_actors: []`, `strict_required_status_checks_policy: true`, and exact 4 contexts (`Checks (ubuntu-latest)@15368`, `Checks (macos-latest)@15368`, `Launch check (macOS)@15368`, `Dependencies (cargo-deny, budget)@15368`) with 0 Windows contexts.
+  - **Code & Governance PR (`T031`)**: `chore/006-platform-realignment` commit `f01bc2d` opened PR `#6` targeting `main`; all 4 required checks passed (`Dependencies (cargo-deny, budget)` 33s, `Checks (ubuntu-latest)` 2m6s, `Launch check (macOS)` 3m3s, `Checks (macos-latest)` 3m25s) with 0 skipped/failing checks and merged to `main` (`b96cef2`).
+  - **Repository Metadata (`T032`)**: `gh repo view` confirmed trimmed `description` (`"A fast, GPU-accelerated, Zero-Trust cross-platform image and comic archive viewer written in Rust"`, zero Windows claims); `PUT repos/Ezenitac-AiService/ImageViewer/topics` added `macos` alongside `cbz`, `comic-viewer`, `cross-platform`, `egui`, `image-viewer`, `rust`, `wgpu`, `zero-trust`.
+  - **Draft Release Regeneration & Local macOS DMG Verification (`T033`)**: Deleted pre-amendment draft `v1.1.0-alpha.2` and dispatched `release.yml` on `main` (`run 45348570732`: `build-macos`, `build-linux`, `deny`, `verify-macos (macos-latest, macos-arm64)`, `verify-macos (macos-15-intel, macos-x64)`, `publish-draft` all `success`). Verified `gh release view v1.1.0-alpha.2` shows `isDraft: true`, `isPrerelease: true`, and strictly 5 assets (`ImageViewer-macos-universal.dmg`, `ImageViewer-linux-x64.tar.gz`, `launch-verification-macos-arm64.json`, `launch-verification-macos-x64.json`, `SHA256SUMS.txt`). Local Apple Silicon (`darwin 27.2.1 arm64`) verification passed: `shasum -a 256` (`OK`), `codesign -dv` (`Identifier=com.ezenitac.imageviewer`, `Signature=adhoc`), `lipo -info` (`x86_64 arm64`), and `packaging/verify/launch-check.sh` (`window_shown=true`, `first_frame=true`, `clean_exit=true`, `exit_code=0`, `result="pass"`; `navigated=null` deferred to clean-device manual checklist due to Automation/synthetic-input permissions).
+- **Verification Scope**:
+  - **Verified on macOS arm64 host + CI (`arm64`/`x64` macOS, `ubuntu-latest` Linux compile/test/tarball & `cargo deny`)**: All local and automated checks above.
+  - **Deferred / Out of Scope in `006`**: Clean-device Apple Silicon/Intel macOS Gatekeeper manual checklist remains maintainer-executed before un-drafting; `iOS` and `Android` implementation/packaging await feature `007`.
