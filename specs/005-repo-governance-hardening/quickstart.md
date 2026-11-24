@@ -47,6 +47,24 @@ for yml in pathlib.Path(".github").rglob("*.yml"):
     yaml.safe_load(yml.read_text())
 print("All .github YAML files parse cleanly.")
 PY
+
+# 5. Verify zero untrusted github.event.*/ref_name/head_ref/base_ref interpolations inside workflow run: blocks
+python3 - <<'PY'
+import pathlib, re, sys, yaml
+unsafe = []
+pat = re.compile(r"\$\{\{\s*github\.(?:event\.|ref_name|head_ref|base_ref)[^}]*\}\}")
+for wf in sorted(pathlib.Path(".github/workflows").glob("*.yml")):
+    data = yaml.safe_load(wf.read_text())
+    for jid, job in data.get("jobs", {}).items():
+        for idx, step in enumerate(job.get("steps", [])):
+            run_cmd = step.get("run") or ""
+            for m in pat.findall(run_cmd):
+                unsafe.append(f"{wf}:{jid}[{idx}]: {m}")
+if unsafe:
+    print("UNSAFE RUN INTERPOLATIONS:\n" + "\n".join(unsafe))
+    sys.exit(1)
+print("No untrusted context interpolations in workflow run: blocks.")
+PY
 ```
 
 ---
@@ -69,6 +87,8 @@ Follow this exact sequence so no deadlock or broken security redirect occurs:
    - Manually trigger `gh workflow run dependency-audit.yml` (`workflow_dispatch`) on `main` and confirm both `shipped-default` and `all-features` pass.
 5. **Continue `004` `T110` from post-`005` `main`**:
    - Tag/dispatch `v1.1.0-alpha.2` draft release from a post-`005` `main` commit (which contains the SHA-pinned `release.yml`) and run the clean-machine checklist (`specs/004-launch-reliability-refactor/quickstart.md` §4).
+
+> **Operational Note (Post-Protection PR Branch Naming)**: Once `Protect main` is active, open follow-up maintenance or convergence PRs from a non-`NNN-*` branch name (for example, `fix/005-convergence-p9`) so `.github/workflows/ci.yml` triggers a single `pull_request` workflow run instead of duplicate `push` (`[0-9][0-9][0-9]-*`) + `pull_request` runs competing for macOS runner capacity.
 
 ---
 

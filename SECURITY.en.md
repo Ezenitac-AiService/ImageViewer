@@ -10,7 +10,7 @@ This security policy applies to **Ezenitac-AiService/ImageViewer** (the cross-pl
 
 If you discover a security vulnerability (such as path traversal, zip-slip, unsafe symlink handling, integer overflow or excessive memory use in image decoding), please report it privately rather than opening a public issue:
 
-- Use **GitHub Private Vulnerability Reporting** (`Security` -> `Advisories` -> `Report a vulnerability`) on `https://github.com/Ezenitac-AiService/ImageViewer`.
+- Use [**GitHub Private Vulnerability Reporting**](https://github.com/Ezenitac-AiService/ImageViewer/security/advisories/new) (`Security` -> `Advisories` -> `Report a vulnerability`) on `https://github.com/Ezenitac-AiService/ImageViewer`.
 - Please include:
   - Affected OS, architecture, and `ImageViewer` version
   - Minimal reproduction steps or sample trigger file (without sensitive personal data)

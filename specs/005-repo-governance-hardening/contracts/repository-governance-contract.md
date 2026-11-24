@@ -87,6 +87,11 @@ jobs:
 | `EmbarkStudios/cargo-deny-action@v2` | `17aeb3c839e42274e2b8adf721c8c65edfdc74dd` | `# v2` |
 | `softprops/action-gh-release@v2` | `3bb12739c298aeb8a4eeaf626c5b8d85266b0e65` | `# v2` |
 
+3. **Shell Script-Injection Prevention & Tag Validation (Constitution VII)**:
+   - Untrusted GitHub Actions contexts (`github.event.inputs.*`, `github.ref_name`, `github.head_ref`, `github.base_ref`) MUST NOT appear inside any workflow `run:` shell script block via `${{ ... }}`.
+   - Values derived from those contexts MUST be passed through step-level `env:` bindings and consumed strictly via native quoted shell variables (e.g., `TAG: ${{ github.event.inputs.tag || github.ref_name }}` paired with `"${TAG#v}"`).
+   - `.github/workflows/release.yml` (`publish-draft`) SHOULD validate `TAG` against `^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$` as defense-in-depth before invoking release-note generation.
+
 ---
 
 ## 4. Maintainer-Approved Remote Mutation Contracts (`FR-013`)
