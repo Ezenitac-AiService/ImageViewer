@@ -142,6 +142,7 @@ description: "Actionable dependency-ordered task list for Constitution v3.0.0 pl
 - **US3 (Phase 5, `T020`–`T022`)**: `T020` follows `T013` (`ci.yml`); `T021` follows `T014` (`release.yml`); `T022` runs in parallel with `T020`/`T021`.
 - **US4 (Phase 6, `T023`–`T029`)**: `T023`–`T027` run in parallel; `T028` runs after `T012` gives the exact updated 3-target component count; `T029` audits all pairs after `T023`–`T028`.
 - **Polish & Draft Regeneration (Phase 7, `T030`–`T034`)**: `T030` runs after all local file edits (`T004`–`T029`); `T031` merges PR into `main` after `T015` and `T030`; `T032` and `T033` run after `T031`; `T034` finalizes status sync after `T032` and `T033`.
+- **Convergence (Phase 8, `T035`–`T040`)**: `T035`–`T039` execute cleanly in parallel after `T034` (closing `.cargo/config.toml`, `deny.toml`, `quickstart.md` §4 manual checklist, `launch-check.sh` non-Darwin cleanup, and OS-neutral `i18n.rs`/`update.rs` wording), followed sequentially by `T040` verification, PR `#8` merge, and final `v1.1.0-alpha.2` draft regeneration.
 
 ---
 
@@ -179,6 +180,7 @@ Task: "T027 Update CONTRIBUTING.md and CONTRIBUTING.en.md in lockstep"
 2. **Increment 2 (`T020`–`T022`)**: `Linux` stripped of runtime launch verification and packaged strictly as build-only unverified (`US3`).
 3. **Increment 3 (`T023`–`T029`)**: Bug-report OS dropdown and all 8 Korean/English documentation pairs synchronized in lockstep (`US4`).
 4. **Increment 4 (`T030`–`T034`)**: Full local + PR CI pass, `main` merge, repository metadata audit, clean `v1.1.0-alpha.2` draft regeneration, and `/speckit-analyze` verification sign-off.
+5. **Increment 5 (`T035`–`T040`)**: Phase 8 convergence cleanup (`.cargo/config.toml`, `deny.toml`, `quickstart.md` §4 `macOS` clean-device manual checklist, `launch-check.sh` Darwin-only cleanup, OS-neutral `i18n.rs`/`update.rs` wording), PR `#8` merge, and final `v1.1.0-alpha.2` draft regeneration.
 
 ---
 
