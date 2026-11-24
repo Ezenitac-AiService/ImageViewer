@@ -42,7 +42,7 @@ description: "Actionable dependency-ordered task list for repository governance 
 
 **⚠️ CRITICAL**: `Protect main` ruleset activation (`US2`) MUST wait until `T005` merges `004` into `main`; all `005` edits (`T007`–`T010`) MUST happen on `005-repo-governance-hardening` after `T006`.
 
-- [X] T004 Complete `004` `T109` (`/speckit-analyze` consistency verification confirming `SC-010` 514 → ≤ 411 shipped-component metric and T098 count match) across `specs/004-launch-reliability-refactor/tasks.md`, `specs/004-launch-reliability-refactor/spec.md`, and `specs/004-launch-reliability-refactor/research.md`, staging ONLY `specs/004-launch-reliability-refactor/` per `T001`
+- [X] T004 Complete `004` `T109` (`/speckit-analyze` consistency verification confirming `SC-010` 446 → ≤ 356 shipped-component metric and measured 298 count match, superseding the earlier 514/411 draft) across `specs/004-launch-reliability-refactor/tasks.md`, `specs/004-launch-reliability-refactor/spec.md`, and `specs/004-launch-reliability-refactor/research.md`, staging ONLY `specs/004-launch-reliability-refactor/` per `T001`
 - [X] T005 After `T004` completes, request explicit maintainer approval (`FR-013`), open a pull request from `004-launch-reliability-refactor` to `main`, confirm all 7 CI checks pass, and merge into `main` so post-`004` workflow check names are established on the default branch (`FR-005`, `FR-011`, `research.md` R3)
 - [X] T006 Create or rebase branch `005-repo-governance-hardening` cleanly from post-`T005` `main` (carrying `specs/005-repo-governance-hardening/` with zero divergence from `main`)
 - [X] T007 On `005-repo-governance-hardening` (`T006`), narrow `image-extras` in `Cargo.toml` to `image-extras = { version = "0.1", default-features = false, features = ["pcx"] }` (eliminating unused `ora` → `zip 5.1.1`) and run `cargo update -p url` to upgrade `url >= 2.5.9` in `Cargo.lock` (`FR-007`, `research.md` R5)
@@ -197,3 +197,12 @@ Task: "T010 Harden permissions and pin actions in .github/workflows/release.yml"
 - [X] T041 Normalize repository `description` (remove trailing whitespace), assign >= 5 discovery topics, and disable unused `has_wiki` and `has_projects` surfaces under maintainer approval (`FR-013`) per `FR-009 / SC-004 / SC-007` (missing)
 - [X] T042 Enable `delete_branch_on_merge: true` and delete obsolete remote branches (`002-rust-crossplatform-viewer` and merged `004-launch-reliability-refactor`) under maintainer approval (`FR-013`) per `FR-011 / SC-005` (missing)
 - [X] T043 Audit `CHANGELOG*`, `CONTRIBUTING*`, and `specs/003-independent-fork-separation/tasks.md` (recording verified 60-hit `gh search code` evidence) and confirm post-`005` `main` readiness for `004` `T110` (`v1.1.0-alpha.2` tag) per `FR-010 / FR-012 / SC-006` (partial)
+
+---
+
+## Phase 9: Convergence
+
+**Purpose**: Additional security and intake-link convergence gaps discovered via multi-method adversarial verification against `Constitution VII`, `FR-003`, and `SC-001`.
+
+- [X] T044 CRITICAL: Eliminate GitHub Actions shell script injection in `.github/workflows/release.yml` (`publish-draft` job line 182, `permissions: { contents: write }`) by passing `TAG: ${{ github.event.inputs.tag || github.ref_name }}` through step `env:` instead of interpolating `${{ ... }}` directly inside `run:` and validating `TAG` against `^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$` per `Constitution VII / FR-014` (contradicts)
+- [X] T045 Add direct clickable Private Vulnerability Reporting links (`https://github.com/Ezenitac-AiService/ImageViewer/security/advisories/new`) in lockstep to `SECURITY.md` and `SECURITY.en.md` (line 13) so all root security disclosure references navigate directly to the active private intake channel per `SC-001 / FR-003 / Constitution I` (partial)

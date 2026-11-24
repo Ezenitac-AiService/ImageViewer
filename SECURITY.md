@@ -10,7 +10,7 @@
 
 경로 이탈(Path Traversal), 압축 파일 슬립(Zip-Slip), 안전하지 않은 심볼릭 링크 처리, 이미지 디코딩 중 정수 오버플로나 과도한 메모리 사용 등 보안 취약점을 발견하신 경우 공개 이슈(Public Issue) 대신 비공개 채널로 제보해 주세요.
 
-- `https://github.com/Ezenitac-AiService/ImageViewer` 저장소의 **GitHub Private Vulnerability Reporting** (`Security` -> `Advisories` -> `Report a vulnerability`) 기능을 사용해 주세요.
+- `https://github.com/Ezenitac-AiService/ImageViewer` 저장소의 [**GitHub Private Vulnerability Reporting**](https://github.com/Ezenitac-AiService/ImageViewer/security/advisories/new) (`Security` -> `Advisories` -> `Report a vulnerability`) 기능을 사용해 주세요.
 - 제보 시 아래 정보를 포함해 주시면 신속한 확인에 도움이 됩니다:
   - 영향을 받는 운영체제(OS), 아키텍처 및 `ImageViewer` 버전
   - 최소 재현 절차 또는 샘플 파일 (민감한 개인정보 제외)

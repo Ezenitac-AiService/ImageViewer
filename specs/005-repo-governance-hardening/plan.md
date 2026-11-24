@@ -26,7 +26,7 @@ Harden repository governance, security intake boundaries, branch protection, sup
 
 **Constraints**: Constitution v2.4.0 (`I`–`VIII`), explicit maintainer approval before every live remote repository mutation (`FR-013`), strictly read-only permissions (`contents: read`) for scheduled dependency audit (`FR-008`), non-blocking experimental status preserved for `Launch check (Linux, experimental)` (`FR-005`), GitHub public-repo 60-day schedule auto-pause handled via passive vulnerability alerts + manual re-enablement runbook (`SC-003`), bootstrap order (`004` merge before `Protect main` ruleset activation) to prevent check-name mismatch deadlocks
 
-**Scale/Scope**: 1 repository (`Ezenitac-AiService/ImageViewer`), 3 workflow files (1 new + 2 SHA-pinned), 1 new issue chooser config, 1 `Cargo.toml`/`Cargo.lock` dependency update, 1 bilingual notice pair (`NOTICE`/`NOTICE.en.md`) + `specs/003` verification note check, 5 remote repository API endpoints, and 2 obsolete remote branches (`002-rust-crossplatform-viewer`, `004-launch-reliability-refactor` after merge)
+**Scale/Scope**: 1 repository (`Ezenitac-AiService/ImageViewer`), 3 workflow files (1 new + 2 SHA-pinned), 1 new issue chooser config, 1 `Cargo.toml`/`Cargo.lock` dependency update, 1 bilingual notice pair (`NOTICE`/`NOTICE.en.md`) + 1 bilingual security policy pair (`SECURITY.md`/`SECURITY.en.md`) + `specs/003` verification note check, 5 remote repository API endpoints, and 2 obsolete remote branches (`002-rust-crossplatform-viewer`, `004-launch-reliability-refactor` after merge)
 
 ## Constitution Check
 
@@ -72,7 +72,7 @@ specs/005-repo-governance-hardening/
 │   └── config.yml                           # NEW: blank_issues_enabled: false + PVR & upstream contact_links
 └── workflows/
     ├── ci.yml                               # UPDATE: pin all external actions to 40-char commit SHAs
-    ├── release.yml                          # UPDATE: pin all external actions to 40-char commit SHAs
+    ├── release.yml                          # UPDATE: pin all external actions to 40-char commit SHAs, least-privilege permissions, and env:-mediated TAG handling (no shell injection)
     └── dependency-audit.yml                 # NEW: weekly + manual read-only cargo-deny (default & --all-features)
 
 Cargo.toml                                   # UPDATE: narrow image-extras to default-features = false, features = ["pcx"]
@@ -80,6 +80,8 @@ Cargo.lock                                   # UPDATE: upgrade url >= 2.5.9 and 
 
 NOTICE                                       # UPDATE: preserve 2026-11-16 separation + add 2026-11-17 (004) summary
 NOTICE.en.md                                 # UPDATE: synchronized English counterpart to NOTICE
+SECURITY.md                                  # UPDATE: add direct clickable Private Vulnerability Reporting link (SC-001)
+SECURITY.en.md                               # UPDATE: synchronized English counterpart to SECURITY.md
 specs/003-independent-fork-separation/
 └── tasks.md                                 # CHECK/RECORD (if needed): verify SC-003 code-search indexing evidence
 ```

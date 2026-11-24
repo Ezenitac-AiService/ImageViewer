@@ -174,12 +174,17 @@ jobs:
           path: release-assets
           merge-multiple: true
       - name: Checksums and release notes
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag format: $TAG" >&2
+            exit 1
+          fi
           cd release-assets
           sha256sum ImageViewer-windows-x64.exe ImageViewer-macos-universal.dmg ImageViewer-linux-x64.tar.gz > SHA256SUMS.txt
           cat SHA256SUMS.txt
           cd ..
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
           python3 packaging/verify/render-release-notes.py "${TAG#v}" release-assets release-notes.md
       - name: Create DRAFT release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2

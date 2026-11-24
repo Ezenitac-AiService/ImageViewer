@@ -19,6 +19,7 @@ Represents the repository's public issue reporting surface paired with its priva
 | `blank_issues_enabled` | Boolean | MUST be `false` in `.github/ISSUE_TEMPLATE/config.yml` | `FR-002` |
 | `templates` | List (`bug_report.yml`, `feature_request.yml`) | Bilingual (`ko`/`en`), MUST enforce `fork-confirmation` (`required: true`) | `FR-002` |
 | `contact_links` | List (2 entries) | (1) Private Vulnerability Reporting (`.../security/advisories/new`); (2) Upstream `edith2580/ImageViewer/issues` | `FR-002`, `FR-003` |
+| `security_policy_direct_link` | Boolean | `SECURITY.md` and `SECURITY.en.md` MUST include a direct clickable link to `https://github.com/Ezenitac-AiService/ImageViewer/security/advisories/new` in lockstep | `FR-003`, `SC-001`, Constitution I |
 
 **State Transitions**:
 - `DisabledBoth (current)` → `[Maintainer Approval]` → `EnablePVR` (`private_vulnerability_reporting = true`) → `EnablePublicIntake` (`has_issues = true` + `config.yml` deployed on default branch).
