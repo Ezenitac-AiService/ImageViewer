@@ -2,7 +2,7 @@
 
 **Feature Branch**: `006-platform-tier-realignment`  
 **Created**: 2026-11-24  
-**Status**: Draft  
+**Status**: Implemented  
 
 **Input**: User description: "Follow-up downstream alignment for Constitution v3.0.0: macOS and iOS as top-priority targets with exclusive build-result verification, Linux and Android as lower-priority build-only targets without verification, Windows excluded from support."
 
