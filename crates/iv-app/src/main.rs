@@ -4,8 +4,6 @@
 //! logger → panic hook → `phase=start` → settings → CLI → renderer probe → window → first frame.
 //! No step ends the process silently: every fatal path writes a record and shows a dialog.
 
-#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
-
 mod app;
 mod canvas;
 mod fonts;
@@ -84,7 +82,7 @@ fn main() -> ExitCode {
 
     // 3. Command line.
     let args: Vec<String> = std::env::args().collect();
-    let cli = CliOptions::parse(&args, lang, cfg!(target_os = "windows"));
+    let cli = CliOptions::parse(&args, lang);
     let open_path = match cli.command {
         CliCommand::OpenPath(p) => Some(p),
         CliCommand::OpenEmpty => None,

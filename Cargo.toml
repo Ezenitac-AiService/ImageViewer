@@ -53,7 +53,6 @@ eframe = { version = "0.37", default-features = false, features = ["wgpu", "glow
 pollster = "0.4"
 winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
 sys-locale = "0.3"
-winresource = "0.1"
 criterion = "0.5"
 rcgen = "0.13"
 

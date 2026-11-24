@@ -2,24 +2,13 @@
 
 **Language / 언어**: [한국어](FIRST_LAUNCH.md) | **[English](FIRST_LAUNCH.en.md)**
 
-ImageViewer is not yet signed with a paid publisher certificate, so the operating system asks for confirmation **once**, the first time you open the download. You only do this once; after that it starts normally.
+ImageViewer is not yet notarized with a paid Apple Developer certificate, so macOS Gatekeeper asks for confirmation **once**, the first time you open the download. You only do this once; after that it starts normally.
 
-> The exact wording and look of the confirmation depend on the OS version. Screenshots from the pre-release clean-machine check will be added here (task T110).
-
-## Windows 10 / 11
-
-1. Download `ImageViewer-windows-x64.exe` from the [Releases page](https://github.com/Ezenitac-AiService/ImageViewer/releases). It is a single file that runs without installation.
-2. When you run it, **"Windows protected your PC"** may appear.
-3. Click **More info**, then **Run anyway**.
-4. The ImageViewer window opens. No separate black console window appears.
-
-Nothing else needs to be installed (no Visual C++ redistributable).
-
-On PCs with **Smart App Control** turned on, unsigned apps cannot be run at all. Please wait for a publisher-signed release in that case.
+> Exact wording varies by macOS version. Windows is excluded under Constitution v3.0.0 (see [`legacy-v1.0.6`](https://github.com/Ezenitac-AiService/ImageViewer/tree/legacy-v1.0.6)), and mobile first-launch guides (`iOS` / `Android`) await feature `007`.
 
 ## macOS (one download for Apple Silicon and Intel)
 
-1. Download and open `ImageViewer-macos-universal.dmg`. Apple Silicon and Intel Macs use the same file.
+1. Download and open `ImageViewer-macos-universal.dmg` from the [Releases page](https://github.com/Ezenitac-AiService/ImageViewer/releases). Apple Silicon and Intel Macs use the same file.
 2. Drag **ImageViewer** onto the **Applications** folder in the window that opens.
 3. Open ImageViewer from Applications. If a message like "Apple could not verify…" appears, click **Done** (or **Cancel**).
 4. Go to **System Settings → Privacy & Security**, click **Open Anyway** next to the ImageViewer entry near the bottom, and confirm with your password or Touch ID.
@@ -27,9 +16,9 @@ On PCs with **Smart App Control** turned on, unsigned apps cannot be run at all.
 
 If macOS says the app **"is damaged and can't be opened"**, these steps will not help: the file was built incorrectly. Please report it as an [issue](https://github.com/Ezenitac-AiService/ImageViewer/issues).
 
-## Linux (experimental)
+## Linux (Lower-Priority Build-Only, Unverified)
 
-The Linux build passes the automated checks but has not passed launch verification; it is **experimental**.
+Under Constitution v3.0.0, the Linux tarball is a **lower-priority build-only** release artifact and undergoes zero automated launch or runtime verification.
 
 ```bash
 tar -xzf ImageViewer-linux-x64.tar.gz
@@ -44,8 +33,7 @@ When ImageViewer cannot start, it shows a window explaining why and writes a dia
 
 | OS | Diagnostic record folder |
 |---|---|
-| Windows | `%LOCALAPPDATA%\ImageViewer\logs` |
 | macOS | `~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs` |
-| Linux | `~/.config/imageviewer/logs` |
+| Linux (unverified) | `~/.config/imageviewer/logs` |
 
 When you file an issue, please paste the latest `imageviewer-YYYY-MM-DD.log` from that folder. Records contain file names only, never full folder paths.

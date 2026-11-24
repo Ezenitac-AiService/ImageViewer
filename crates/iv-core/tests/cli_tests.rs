@@ -5,7 +5,7 @@ use iv_core::i18n::{I18n, Language};
 
 #[test]
 fn empty_args_launches_empty_viewer() {
-    let opts = CliOptions::parse(&["ImageViewer".to_string()], Language::En, false);
+    let opts = CliOptions::parse(&["ImageViewer".to_string()], Language::En);
     assert!(opts.error.is_none());
     assert!(!opts.is_path_not_found_error);
     assert_eq!(opts.command, CliCommand::OpenEmpty);
@@ -16,7 +16,6 @@ fn ignores_benign_macos_psn_session_flag() {
     let opts = CliOptions::parse(
         &["ImageViewer".to_string(), "-psn_0_123456".to_string()],
         Language::En,
-        false,
     );
     assert!(opts.error.is_none());
     assert_eq!(opts.command, CliCommand::OpenEmpty);
@@ -35,7 +34,6 @@ fn opens_existing_single_path_with_psn_flag() {
             file_path.to_string_lossy().to_string(),
         ],
         Language::En,
-        false,
     );
     assert!(opts.error.is_none());
     assert!(!opts.is_path_not_found_error);
@@ -53,7 +51,6 @@ fn missing_single_path_sets_is_path_not_found_error() {
             "/nonexistent/path/for_iv_test_999.jpg".to_string(),
         ],
         Language::En,
-        false,
     );
     assert!(opts.error.is_some());
     assert!(opts.is_path_not_found_error);
@@ -68,7 +65,6 @@ fn rejects_multiple_positional_paths() {
             "b.jpg".to_string(),
         ],
         Language::En,
-        false,
     );
     assert!(opts.error.is_some());
     assert!(!opts.is_path_not_found_error);
@@ -79,42 +75,27 @@ fn rejects_unknown_flags() {
     let opts = CliOptions::parse(
         &["ImageViewer".to_string(), "--unknown-flag".to_string()],
         Language::En,
-        false,
     );
     assert!(opts.error.is_some());
     assert!(!opts.is_path_not_found_error);
 }
 
 #[test]
-fn repairs_explorer_trailing_quote_on_windows_drive() {
-    let repaired = CliOptions::repair_explorer_quoted_drive(r#"C:\""#);
-    assert_eq!(repaired, r#"C:\"#);
-}
-
-#[test]
 fn shell_registration_switches_are_unavailable_on_every_os() {
     // specs/004 FR-024: shell and file-association registration is Unavailable in this release.
     let expected = I18n::tr(Language::En, "error.unsupported_switch");
-    for is_windows in [true, false] {
-        for switch in ["--register-shell", "/register-shell", "--unregister-shell"] {
-            let parsed = CliOptions::parse(
-                &["ImageViewer".to_string(), switch.to_string()],
-                Language::En,
-                is_windows,
-            );
-            assert_eq!(
-                parsed.command,
-                CliCommand::OpenEmpty,
-                "{switch} windows={is_windows}"
-            );
-            assert_eq!(parsed.error.as_deref(), Some(expected), "{switch}");
-            assert!(!parsed.is_path_not_found_error);
-        }
+    for switch in ["--register-shell", "--unregister-shell"] {
+        let parsed = CliOptions::parse(
+            &["ImageViewer".to_string(), switch.to_string()],
+            Language::En,
+        );
+        assert_eq!(parsed.command, CliCommand::OpenEmpty, "{switch}");
+        assert_eq!(parsed.error.as_deref(), Some(expected), "{switch}");
+        assert!(!parsed.is_path_not_found_error);
     }
     let ko = CliOptions::parse(
         &["ImageViewer".to_string(), "--register-shell".to_string()],
         Language::Ko,
-        true,
     );
     assert_eq!(
         ko.error.as_deref(),

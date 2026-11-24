@@ -21,9 +21,10 @@ body:
     attributes:
       label: 운영체제 / Operating System
       options:
-        - Windows
-        - macOS
-        - Linux
+        - macOS (Apple Silicon / Intel)
+        - Linux (하위 우선순위·빌드 전용·미검증 / Lower Priority, Build-Only, Unverified)
+        - iOS (지원 예정 — v3.0.0 / Planned — Not Yet Released)
+        - Android (빌드 전용 예정 — v3.0.0 / Planned Build-Only — Not Yet Released)
     validations:
       required: true
   - type: input

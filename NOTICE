@@ -20,13 +20,15 @@ Copyright (C) 2026 Ezenitac-AiService
   https://github.com/edith2580/ImageViewer (Windows C#/.NET v1.0.6 기준선)
 
 독립 포크 및 변경 일자:
-  2026-11-16 (최초 독립 포크 분리) · 2026-11-17 (실행 안정성 리팩터링)
+  2026-11-16 (최초 독립 포크 분리) · 2026-11-17 (실행 안정성 리팩터링) · 2026-11-24 (플랫폼 우선순위 재정렬 — Constitution v3.0.0)
   Ezenitac-AiService (https://github.com/Ezenitac-AiService/ImageViewer)
 
 주요 변경 사항 요약:
-  - Windows 전용 C#/.NET v1.0.6 코드베이스를 Windows·macOS·Linux(실험적)를 지원하는
-    크로스 플랫폼 Rust 워크스페이스(iv-core, iv-media, iv-platform, iv-app)로
-    전면 재설계 및 재작성했습니다.
+  - Windows 전용 C#/.NET v1.0.6 코드베이스를 독립 Rust 워크스페이스(iv-core, iv-media,
+    iv-platform, iv-app)로 재작성했으며, 2026-11-24 플랫폼 우선순위 재정렬(Constitution
+    v3.0.0) 이후 활성 지원 대상을 macOS(최우선·실행 검증)와 Linux x64(하위 우선순위·
+    빌드 전용·미검증)로 전환하고 Windows 타깃을 활성 빌드에서 제외했습니다(모바일 iOS·
+    Android는 007 예정, 레거시 C#/.NET 기준선은 legacy-v1.0.6 태그에 보존).
   - Windows 전용 GDI+/DirectComposition/WPF 렌더링을 eframe/egui, winit, wgpu
     (glow OpenGL 대체 경로 포함) 및 zune-jpeg, image, image-webp, tiff, moxcms,
     fast_image_resize, kamadak-exif, 읽기 전용 zip 스트리밍 파이프라인으로

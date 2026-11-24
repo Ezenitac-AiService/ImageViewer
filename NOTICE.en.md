@@ -22,9 +22,9 @@ GNU General Public License in [LICENSE](LICENSE) for more details.
 ## Modification & Origin Notice (GNU GPLv3 Section 5(a))
 
 - **Original Upstream Project**: https://github.com/edith2580/ImageViewer (Windows C#/.NET `v1.0.6` baseline)
-- **Independent Fork & Modification Dates**: `2026-11-16` (initial independent fork separation) · `2026-11-17` (launch reliability refactor) — `Ezenitac-AiService` (https://github.com/Ezenitac-AiService/ImageViewer)
+- **Independent Fork & Modification Dates**: `2026-11-16` (initial independent fork separation) · `2026-11-17` (launch reliability refactor) · `2026-11-24` (platform tier realignment — Constitution `v3.0.0`) — `Ezenitac-AiService` (https://github.com/Ezenitac-AiService/ImageViewer)
 - **Summary of Prominent Modifications**:
-  - Re-architected from the Windows-only C#/.NET `v1.0.6` codebase into a cross-platform Rust workspace (`iv-core`, `iv-media`, `iv-platform`, `iv-app`) targeting Windows, macOS, and Linux (experimental).
+  - Re-architected from the Windows-only C#/.NET `v1.0.6` codebase into a Rust workspace (`iv-core`, `iv-media`, `iv-platform`, `iv-app`); following the `2026-11-24` platform tier realignment (Constitution `v3.0.0`), active builds target `macOS` (top priority, verified) and `Linux x64` (lower priority, build-only, unverified), with `Windows` excluded (`iOS` and `Android` deferred to feature `007`; pre-cutover Windows C#/.NET preserved at `legacy-v1.0.6`).
   - Replaced Windows-only GDI+/DirectComposition/WPF rendering with `eframe`/`egui`, `winit`, `wgpu` (`glow` OpenGL fallback), `zune-jpeg`, `image`, `image-webp`, `tiff`, `moxcms`, `fast_image_resize`, `kamadak-exif`, and read-only `zip` archive streaming (extended formats including `jxl-oxide` are excluded from the default shipped build).
   - Isolated OS bundle identifiers (`com.ezenitac.imageviewer`) and issue/security/release workflows exclusively to `Ezenitac-AiService/ImageViewer` (the `v1.1.0-alpha.2` shipped build excludes update checking and makes no network connections).
 

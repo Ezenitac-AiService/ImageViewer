@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-/// Decoded RGBA8 buffer returned by a host OS codec (`WIC` / `ImageIO` / Linux probe).
+/// Decoded RGBA8 buffer returned by a host OS codec (macOS `ImageIO` or Linux probe).
 #[derive(Debug, Clone)]
 pub struct OsDecodedBuffer {
     pub width: u32,

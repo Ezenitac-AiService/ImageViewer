@@ -4,29 +4,30 @@
 
 All notable changes to this project are documented in this file.
 
-## [1.1.0-alpha.2] - Unreleased (launch reliability refactor)
+## [1.1.0-alpha.2] - Unreleased (launch reliability refactor & platform tier realignment)
 
-Fixes `v1.1.0-alpha.1` being unusable on Windows and macOS. Modification notice under GPLv3 §5(a): modified by `Ezenitac-AiService` on 2026-11-16–17.
+Fixes `v1.1.0-alpha.1` being unusable on macOS and realigns platform support tiers under Constitution `v3.0.0`. Modification notice under GPLv3 §5(a): modified by `Ezenitac-AiService` on 2026-11-16–17 and 2026-11-24.
 
 ### Fixed
-- **Windows**: a console window opened with the app, and closing it closed the app. The app is now built as a GUI program with a statically linked C runtime.
-- **Windows and macOS**: the window did not respond to the mouse. The hand-written window and rendering code was replaced with `eframe`.
-- **macOS**: the downloaded app appeared "damaged". The whole bundle is now signed and shipped as one universal file for Apple Silicon and Intel.
+- **macOS**: the window did not respond to input and the downloaded app appeared "damaged". The hand-written window and rendering code was replaced with `eframe`, and the whole bundle is ad-hoc signed and shipped as a universal Apple Silicon and Intel file.
 - Startup failures exited silently. The app now shows a window explaining the cause and writes a diagnostic record.
 - A race in which concurrent settings saves from several instances could fail.
 - A folder change jumped back to the first image that was opened.
 
 ### Changed
-- This version ships verified capabilities only ([capability register](docs/CAPABILITIES.en.md)). Update checks, extended formats, OS codecs, Explorer menu registration, and the thumbnail strip are excluded, and the app makes no network connections.
+- **Platform Tier Realignment (2026-11-24, Constitution v3.0.0)**:
+  - **Top Priority (build-result and launch verified)**: `macOS` (`aarch64` & `x86_64`) is the active verified target; `iOS` (`arm64`) follows in feature `007` (planned).
+  - **Lower Priority (build-only, unverified)**: `Linux` (`x86_64`) retains CI compilation/unit checks and ships a build-only tarball with zero runtime/launch verification (`Android` planned build-only follows in `007`).
+  - **Excluded**: removed `Windows` targets, packaging, launch checks, and Windows-only dependencies (`windows`, `winreg`, `winresource`) from active builds (pre-cutover Windows C#/.NET `v1.0.6` remains archived at `legacy-v1.0.6`).
+- This version ships verified capabilities only ([capability register](docs/CAPABILITIES.en.md)). Update checks, extended formats, OS codecs, shell registration, and the thumbnail strip are excluded, and the app makes no network connections.
 - File formats are identified from content rather than extension, and files over 512 MB are refused before they are read.
 - The first launch follows the OS language (Korean or English); the language can be changed in Settings.
 - macOS Finder "Open With" is supported.
-- Linux is now an experimental target.
 - Diagnostic record timestamps are UTC.
 
 ### Security
 - Upgraded to `zip` 9 (4 advisories), `lru` 0.19 (2 unsoundness advisories), and `notify` 8 (removes an unmaintained dependency).
-- Releases are started and checked on each OS, and are not published while any dependency has a known vulnerability.
+- Releases are started and checked on top-priority targets (`macOS`), and no draft is created if `cargo deny` detects any known vulnerability.
 
 ## [1.1.0-alpha.1] - 2026-11-16 (Independent Cross-Platform Rust Fork — Alpha Pre-release)
 

@@ -8,7 +8,6 @@ use iv_core::i18n::{I18n, Language};
 /// (Constitution VII, CWE-532).
 pub fn redacted_log_folder(os: &str) -> &'static str {
     match os {
-        "windows" => r"%LOCALAPPDATA%\ImageViewer\logs",
         "macos" => "~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs",
         _ => "~/.config/imageviewer/logs",
     }

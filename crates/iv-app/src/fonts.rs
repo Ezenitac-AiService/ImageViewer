@@ -6,7 +6,6 @@ use std::sync::Arc;
 /// System fonts with Hangul coverage, tried in order; the first readable one is used.
 const CJK_CANDIDATES: &[&str] = &[
     "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-    "C:\\Windows\\Fonts\\malgun.ttf",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
 ];

@@ -4,7 +4,7 @@
 
 The **shipped build** of `ImageViewer` (`Ezenitac-AiService/ImageViewer`, license `GPL-3.0-only`) directly uses the open-source Rust libraries below. Each one names the [capability register](docs/CAPABILITIES.en.md) ids that justify it (specs/004 FR-034). License compatibility, known vulnerabilities, and sources of these and all transitive dependencies are checked automatically in CI and releases with `cargo deny check advisories bans licenses sources` ([`deny.toml`](deny.toml)).
 
-The number of packages in the shipped build, including transitive ones, is measured with `packaging/verify/component-count.sh`: 298 on 2026-11-17 (446 before this release).
+The number of packages in the shipped build, including transitive ones, is measured with `packaging/verify/component-count.sh`: **277** unique packages across the 3 active targets (`aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`) as of `2026-11-24` (down from 298 across 4 targets and 446 pre-refactor).
 
 ## Direct Dependencies in the Shipped Build
 
@@ -14,7 +14,7 @@ The number of packages in the shipped build, including transitive ones, is measu
 | `egui` | UI (toolbars, dialogs, status) | all UI | `MIT OR Apache-2.0` | https://github.com/emilk/egui |
 | `epaint_default_fonts` | Bundled default UI fonts (*Ubuntu Light*, *Hack*, *Noto Emoji*) | all UI | `(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0` | https://github.com/emilk/egui |
 | `winit` | Window creation and event loop | `launch`, `open-with-os` | `Apache-2.0` | https://github.com/rust-windowing/winit |
-| `wgpu` | GPU rendering (Metal / DX12 / Vulkan, including CPU adapters) | `launch` | `MIT OR Apache-2.0` | https://github.com/gfx-rs/wgpu |
+| `wgpu` | GPU rendering (Metal / Vulkan, including CPU adapters) | `launch` | `MIT OR Apache-2.0` | https://github.com/gfx-rs/wgpu |
 | `glow` | OpenGL fallback renderer | `launch` | `MIT OR Apache-2.0 OR Zlib` | https://github.com/grovesNL/glow |
 | `pollster` | Blocking on file-dialog and adapter futures | `open-file-dialog`, `launch` | `Apache-2.0 OR MIT` | https://github.com/zesterer/pollster |
 | `rfd` | Native file/folder dialogs and the fatal-error dialog | `open-file-dialog`, `open-folder-dialog`, `launch` | `MIT` | https://github.com/PolyMeilex/rfd |
@@ -44,8 +44,8 @@ These sit behind default-off features, so they are not shipped, but CI keeps bui
 | Feature | Libraries |
 |---|---|
 | `iv-platform` `updater` | `reqwest`, `rustls`, `sha2` |
-| `iv-platform` `os-codecs` | `windows` (WIC), `objc2-image-io`, `objc2-core-graphics`, `objc2-core-foundation` |
-| `iv-platform` `shell-registration` | `winreg` |
+| `iv-platform` `os-codecs` | `objc2-image-io`, `objc2-core-graphics`, `objc2-core-foundation` |
+| `iv-platform` `shell-registration` | Linux XDG helpers only (no extra crate dependencies) |
 | `iv-media` `extended-formats` | `jxl-oxide`, `image_dds`, `rawpsd`, `image-extras`, `exr` |
 
 The full dependency tree is shown by `cargo tree -p iv-app -e normal`.

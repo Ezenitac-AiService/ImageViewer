@@ -7,13 +7,13 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Ezenitac-AiService/ImageViewer?include_prereleases&sort=semver&label=release&logo=github)](https://github.com/Ezenitac-AiService/ImageViewer/releases)
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 [![Rust: 1.95+ (Edition 2024)](https://img.shields.io/badge/rust-1.95%2B%20(2024)-orange.svg?logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/index.html)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20(experimental)-lightgrey.svg)](#지원-플랫폼-및-릴리스)
+[![Platform](https://img.shields.io/badge/platform-macOS%20(Top%20Priority)%20%7C%20Linux%20(Build--Only)-lightgrey.svg)](#지원-플랫폼-및-릴리스)
 [![Upstream Origin](https://img.shields.io/badge/upstream%20origin-edith2580%2FImageViewer%20(v1.0.6)-informational?logo=github)](https://github.com/edith2580/ImageViewer)
 
-**Windows**와 **macOS**용 이미지·만화 압축 파일(`.zip`/`.cbz`) 뷰어입니다. Linux 빌드는 실험적으로 제공합니다. Rust로 작성했고 `eframe`/`egui`와 `wgpu` 위에서 동작합니다.
+**macOS**(최우선 지원·실행 검증)와 **Linux**(하위 우선순위·빌드 전용·미검증)용 이미지·만화 압축 파일(`.zip`/`.cbz`) 뷰어입니다. `iOS`(최우선 지원)와 `Android`(빌드 전용)는 마일스톤 `007`에서 순차 구현 예정(현재 미빌드)이며, **Windows는 Constitution v3.0.0에 따라 지원 대상에서 제외**되었습니다([`legacy-v1.0.6`](https://github.com/Ezenitac-AiService/ImageViewer/tree/legacy-v1.0.6) 참고). Rust로 작성했고 `eframe`/`egui`와 `wgpu` 위에서 동작합니다.
 
 > [!IMPORTANT]
-> **처음 실행 안내**: 아직 게시자 인증서로 서명하지 않아, 다운로드 후 처음 한 번은 OS 확인이 필요합니다. [처음 실행하기](docs/FIRST_LAUNCH.md)를 따라 주세요.
+> **처음 실행 안내**: 아직 유료 Apple 공증 인증서로 서명하지 않아, 다운로드 후 처음 한 번은 macOS Gatekeeper 확인이 필요합니다. [처음 실행하기](docs/FIRST_LAUNCH.md)를 따라 주세요.
 
 > [!NOTE]
 > **독립 크로스 플랫폼 포크 안내 및 오픈소스 예절 (Fork Etiquette)**
@@ -30,11 +30,11 @@
 
 | 구분 | 업스트림 (`edith2580/ImageViewer` `v1.0.6`) | 독립 포크 (`Ezenitac-AiService/ImageViewer`) |
 |---|---|---|
-| **지원 OS** | Windows (`x64`) | **Windows 10/11** (`x64`), **macOS** (Apple Silicon·Intel 공용), Linux `x64`(실험적) |
+| **지원 OS** | Windows (`x64`) | **macOS** (Apple Silicon·Intel 공용, 최우선 검증), Linux `x64`(하위 우선순위·빌드 전용·미검증); `iOS`/`Android` 예정(`007`), **Windows 제외** |
 | **기술 스택** | C# / .NET WPF + WIC | Rust (Edition 2024) + `eframe`/`egui` + `wgpu` (OpenGL 대체 경로 포함) |
 | **포맷** | WIC가 지원하는 포맷 전반 | 이번 버전은 검증된 핵심 포맷만 제공 ([기능 목록](docs/CAPABILITIES.md)) |
 | **업데이트** | 자동 업데이트 | 이번 버전에는 없음. 앱은 네트워크에 접속하지 않습니다 |
-| **설정 파일** | `%LOCALAPPDATA%\ImageViewer\settings.json` | 같은 경로·형식 유지, `v1.0.6` 설정 자동 이전 |
+| **설정 파일** | `%LOCALAPPDATA%\ImageViewer\settings.json` | macOS `~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/settings.json`, Linux `~/.config/imageviewer/settings.json` (`v1.0.6` JSON 스키마 호환) |
 
 ---
 
@@ -47,11 +47,11 @@
 - **압축 파일**: `.zip` / `.cbz` 읽기 전용 열람
 - **열기**: 파일·폴더 대화상자, 끌어다 놓기, 실행 인수, macOS Finder "다른 앱으로 열기"
 - **보기**: 확대·축소·이동, 맞춤 모드, 회전·반전, 전체 화면
-- **슬라이드쇼, 이미지 정보(EXIF), 여러 페이지 TIFF, 이미지 목록**: Extended 후보이며, 릴리스 전 검증을 통과해야 유지됩니다
+- **슬라이드쇼, 이미지 정보(EXIF), 여러 페이지 TIFF, 이미지 목록**: Extended 후보이며, 릴리스 전 최우선 대상 검증을 통과해야 유지됩니다
 - **안전 장치**: 이미지 크기 상한(기본 150MP), 읽기 전 파일 크기 상한(512MB), 압축 파일 경로 이탈·심볼릭 링크·압축 폭탄·암호화 항목 차단
 - **언어**: 한국어·영어. 처음 실행할 때 OS 언어를 따릅니다
 
-업데이트 확인, 확장 포맷(JPEG XL, PSD, HEIC, RAW 등), 탐색기 메뉴 등록, 썸네일 줄은 **이번 버전에 포함되지 않습니다.**
+업데이트 확인, 확장 포맷(JPEG XL, PSD, HEIC, RAW 등), 셸·파일 연결 등록, 썸네일 줄은 **이번 버전에 포함되지 않습니다.**
 
 v1.0.6 대비 성능 동등성은 아직 측정하지 않았습니다.
 
@@ -59,13 +59,15 @@ v1.0.6 대비 성능 동등성은 아직 측정하지 않았습니다.
 
 ## 지원 플랫폼 및 릴리스
 
-실행 파일과 체크섬(`SHA256SUMS.txt`)은 [Releases 페이지](https://github.com/Ezenitac-AiService/ImageViewer/releases)에서 받을 수 있습니다. 모든 릴리스는 각 OS에서 실제로 실행해 검사한 뒤 게시하며, 릴리스 노트에 검증된 플랫폼이 표로 표시됩니다.
+실행 파일과 체크섬(`SHA256SUMS.txt`)은 [Releases 페이지](https://github.com/Ezenitac-AiService/ImageViewer/releases)에서 받을 수 있습니다. Constitution v3.0.0에 따라 **실행·빌드 결과 검증은 최우선 플랫폼(macOS, 이후 007의 iOS)에만** 적용되며, Linux(`007`의 Android 포함)는 **하위 우선순위 빌드 전용·런타임 미검증**으로 배포됩니다. Windows는 제외되었습니다.
 
-| 운영체제 | 아키텍처 | 파일 | 상태 |
-|---|---|---|---|
-| **Windows 10 / 11** | `x64` | `ImageViewer-windows-x64.exe` (설치 없이 실행) | 지원 |
-| **macOS 11 이상** | Apple Silicon · Intel | `ImageViewer-macos-universal.dmg` | 지원 |
-| **Linux** (X11 / Wayland) | `x64` | `ImageViewer-linux-x64.tar.gz` | 실험적·미검증 |
+| 운영체제 | 아키텍처 | 우선순위 계층 | 파일 | 상태 |
+|---|---|---|---|---|
+| **macOS 11 이상** | Apple Silicon · Intel | 최우선 (Top Priority) | `ImageViewer-macos-universal.dmg` | 지원 (자동·수동 실행 검증) |
+| **iOS** | `arm64` | 최우선 예정 (`007`) | — | 미빌드·미배포 (계획) |
+| **Linux** (X11 / Wayland) | `x86_64` | 하위 (Lower Priority) | `ImageViewer-linux-x64.tar.gz` | 빌드 전용·런타임 미검증 |
+| **Android** | `arm64` | 하위 예정 (`007`) | — | 빌드 전용 계획·미빌드 |
+| **Windows** | — | 제외 (Excluded, v3.0.0) | — | 지원 안 함 (아카이브: [`legacy-v1.0.6`](https://github.com/Ezenitac-AiService/ImageViewer/tree/legacy-v1.0.6)) |
 
 ```bash
 sha256sum -c SHA256SUMS.txt --ignore-missing
@@ -75,7 +77,7 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 
 ## 키보드·마우스
 
-`Primary`는 macOS에서 `Cmd`, Windows·Linux에서 `Ctrl`입니다.
+`Primary`는 macOS에서 `Cmd`, Linux에서 `Ctrl`입니다.
 
 | 동작 | 입력 |
 |---|---|

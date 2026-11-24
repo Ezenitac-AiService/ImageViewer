@@ -275,12 +275,6 @@ impl UpdateClient {
         {
             let _ = std::process::Command::new("xdg-open").arg(url).spawn();
         }
-        #[cfg(target_os = "windows")]
-        {
-            let _ = std::process::Command::new("cmd")
-                .args(["/C", "start", "", url])
-                .spawn();
-        }
         Ok(())
     }
 }
@@ -309,7 +303,6 @@ fn select_asset_for_os<'a>(
         a.browser_download_url.starts_with("https://") && a.name != "SHA256SUMS.txt"
     };
     let suffixes: &[&str] = match target_os {
-        "windows" => &[".exe", ".zip", ".msi"],
         "macos" => &[".dmg", ".pkg"],
         "linux" => &[".appimage", ".tar.gz", ".deb", ".rpm"],
         _ => &[],

@@ -1,4 +1,4 @@
-//! Implements `iv_core::codecs::OsCodecProvider` for Windows `WIC`, macOS `ImageIO`, and Linux probe.
+//! Implements `iv_core::codecs::OsCodecProvider` for macOS `ImageIO` and Linux probe.
 
 use iv_core::codecs::{OsCodecError, OsCodecProvider, OsDecodedBuffer};
 use iv_core::format_guard::FormatGuard;
@@ -160,83 +160,7 @@ fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer,
     })
 }
 
-#[cfg(target_os = "windows")]
-fn decode_platform(bytes: &[u8], max_megapixels: u32) -> Result<OsDecodedBuffer, OsCodecError> {
-    use windows::Win32::Graphics::Imaging::{
-        CLSID_WICImagingFactory, GUID_WICPixelFormat32bppRGBA, IWICImagingFactory,
-        WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
-    };
-    use windows::Win32::System::Com::{
-        CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
-    };
-
-    // SAFETY: Initialize COM on current thread and query WIC decoder dimensions strictly BEFORE CopyPixels.
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        let factory: IWICImagingFactory =
-            CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)
-                .map_err(|_| OsCodecError::MissingCodec)?;
-        let stream = factory
-            .CreateStream()
-            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
-        stream
-            .InitializeFromMemory(bytes)
-            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
-        let decoder = factory
-            .CreateDecoderFromStream(&stream, std::ptr::null(), WICDecodeMetadataCacheOnDemand)
-            .map_err(|_| OsCodecError::MissingCodec)?;
-        let frame = decoder
-            .GetFrame(0)
-            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
-
-        let mut w = 0u32;
-        let mut h = 0u32;
-        frame
-            .GetSize(&mut w, &mut h)
-            .map_err(|_| OsCodecError::UnverifiedDimensions)?;
-        if w == 0 || h == 0 {
-            return Err(OsCodecError::UnverifiedDimensions);
-        }
-        let pixels = u64::from(w)
-            .checked_mul(u64::from(h))
-            .ok_or(OsCodecError::ExceedsPixelLimit)?;
-        let cap = u64::from(max_megapixels.clamp(10, 1000)) * 1_000_000;
-        if pixels > cap {
-            return Err(OsCodecError::ExceedsPixelLimit);
-        }
-
-        let converter = factory
-            .CreateFormatConverter()
-            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
-        converter
-            .Initialize(
-                &frame,
-                &GUID_WICPixelFormat32bppRGBA,
-                WICBitmapDitherTypeNone,
-                None,
-                0.0,
-                WICBitmapPaletteTypeCustom,
-            )
-            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
-
-        let stride = w.checked_mul(4).ok_or(OsCodecError::ExceedsPixelLimit)?;
-        let mut rgba = vec![0u8; (pixels as usize) * 4];
-        converter
-            .CopyPixels(std::ptr::null(), stride, &mut rgba)
-            .map_err(|e| OsCodecError::DecodeFailed(e.to_string()))?;
-
-        Ok(OsDecodedBuffer {
-            width: w,
-            height: h,
-            rgba8: rgba,
-            orientation_applied: false,
-            srgb_converted: false,
-            exif_bytes: None,
-        })
-    }
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(not(target_os = "macos"))]
 fn decode_platform(_bytes: &[u8], _max_megapixels: u32) -> Result<OsDecodedBuffer, OsCodecError> {
     // Linux fails closed with localized missing-codec message when optional system codecs are absent.
     Err(OsCodecError::MissingCodec)
