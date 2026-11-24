@@ -30,7 +30,7 @@ Realign CI/release workflows, default-branch merge gates, workspace manifests/cr
 
 **Constraints**: Constitution `v3.0.0` (`I`–`VIII`), Clarification `Q1`–`Q5`, explicit maintainer approval prior to every live remote mutation (`FR-012`), deadlock-safe `Protect main` transition prior to `006` PR merge (`R1`), zero runtime verification jobs on `Linux` (`FR-004`), strict preservation of OS-agnostic Zero-Trust backslash Zip-Slip & path-redaction guards (`Q5`)
 
-**Scale/Scope**: 3 Cargo manifests + `Cargo.lock`, ~12 Rust source/test files (surgical Windows-target removal only), 1 removed build script (`iv-app/build.rs`), 1 removed directory (`packaging/windows/`) + 2 removed PowerShell scripts, 4 updated packaging/verify files, 2 updated workflows + 1 issue form, `.specify/memory/constitution.md`, 8 bilingual documentation pairs (`16` files), 1 Ruleset update (`id: 27903505`), optional repo topic audit, and 1 draft release deletion/regeneration (`v1.1.0-alpha.2`)
+**Scale/Scope**: 3 Cargo manifests + `Cargo.lock` + `.cargo/config.toml` (removed) + `deny.toml` (updated `[graph].targets`), ~13 Rust source/test files (surgical Windows-target removal & OS-neutral `crates/iv-core/src/i18n.rs` wording), 1 removed build script (`iv-app/build.rs`), 1 removed directory (`packaging/windows/`) + 2 removed PowerShell scripts, 4 updated packaging/verify files, 2 updated workflows + 1 issue form, `.specify/memory/constitution.md`, 8 bilingual documentation pairs (`16` files), 1 Ruleset update (`id: 27903505`), optional repo topic audit, and 1 draft release deletion/regeneration (`v1.1.0-alpha.2`)
 
 ## Constitution Check
 
@@ -71,6 +71,7 @@ specs/006-platform-tier-realignment/
 
 ```text
 .specify/memory/constitution.md                    # UPDATE: strip temporary Sync Impact Report comment (v3.0.0 ready to commit)
+.cargo/config.toml                                 # REMOVE: Windows-only MSVC static CRT build flags ([target.x86_64-pc-windows-msvc])
 
 .github/
 ├── ISSUE_TEMPLATE/bug_report.yml                  # UPDATE: replace Windows OS dropdown with macOS, Linux (build-only), planned iOS/Android
@@ -80,6 +81,7 @@ specs/006-platform-tier-realignment/
 
 Cargo.toml                                         # UPDATE: remove winresource workspace dependency
 Cargo.lock                                         # UPDATE: prune direct workspace windows/winreg/winresource entries cleanly (upstream target-conditional metadata entries remain unused on macOS/Linux)
+deny.toml                                          # UPDATE: remove excluded "x86_64-pc-windows-msvc" from [graph].targets
 crates/
 ├── iv-app/
 │   ├── Cargo.toml                                 # UPDATE: remove [target.'cfg(windows)'.build-dependencies]
@@ -91,6 +93,7 @@ crates/
 │   ├── src/
 │   │   ├── cli.rs                                 # UPDATE: remove is_windows param, `/` switches, repair_explorer_quoted_drive (keep --register-shell fail-closed)
 │   │   ├── codecs.rs                              # UPDATE: doc comment (remove WIC)
+│   │   ├── i18n.rs                                # UPDATE: make error.unsupported_os_switch wording OS-neutral (remove Windows phrasing)
 │   │   └── path_security.rs                       # UPDATE: remove Windows cfg in is_within_root ONLY; PRESERVE normalize_archive_entry_key (\) & PathRedactor
 │   └── tests/cli_tests.rs                         # UPDATE: remove Windows Explorer drive quote test & is_windows arg (PRESERVE diagnostics_tests & path_security_tests)
 └── iv-platform/

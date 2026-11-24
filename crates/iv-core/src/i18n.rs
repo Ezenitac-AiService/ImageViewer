@@ -38,10 +38,10 @@ impl I18n {
             (Language::En, "error.invalid_cli_args") => "Invalid command-line arguments",
             (Language::Ko, "error.invalid_cli_args") => "잘못된 명령줄 인수입니다",
             (Language::En, "error.unsupported_os_switch") => {
-                "Shell registration switches are only supported on Windows"
+                "Shell registration switches are not supported in this version"
             }
             (Language::Ko, "error.unsupported_os_switch") => {
-                "셸 등록 스위치는 Windows에서만 지원됩니다"
+                "이 버전에서는 셸 등록 스위치를 지원하지 않습니다"
             }
             (Language::En, "error.encrypted_archive") => "Encrypted archives are not supported",
             (Language::Ko, "error.encrypted_archive") => "암호화된 압축 파일은 지원되지 않습니다",
@@ -204,7 +204,7 @@ impl I18n {
                 "error.path_not_found" => "The requested file or folder could not be found",
                 "error.invalid_cli_args" => "Invalid command-line arguments",
                 "error.unsupported_os_switch" => {
-                    "Shell registration switches are only supported on Windows"
+                    "Shell registration switches are not supported in this version"
                 }
                 "error.encrypted_archive" => "Encrypted archives are not supported",
                 "error.missing_os_codec" => {

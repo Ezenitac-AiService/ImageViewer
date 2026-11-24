@@ -97,7 +97,12 @@ fn update_client_enforces_https_stream_caps_and_sha256_verification() {
     assert!(matches!(mismatch, Err(UpdateError::ChecksumMismatch)));
     assert!(!dir.path().join("ImageViewer-bad.dmg.part").exists());
 
-    // Sanitize Windows /RELAUNCH=
+    // Sanitize relaunch path
+    assert!(
+        !UpdateError::UnsafeRelaunchPath
+            .to_string()
+            .contains("Windows")
+    );
     assert!(
         UpdateClient::validate_relaunch_path(r"C:\Program Files\ImageViewer\ImageViewer.exe")
             .is_ok()

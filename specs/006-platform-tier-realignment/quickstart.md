@@ -134,3 +134,39 @@ gh release view v1.1.0-alpha.2 --json isDraft,isPrerelease,assets,body
 gh api repos/Ezenitac-AiService/ImageViewer/branches --jq '[.[].name]'
 gh repo view --json description,repositoryTopics
 ```
+
+---
+
+## 4. Clean-Device macOS Manual Release Verification Checklist & Scaffold (`FR-011`)
+
+Under Constitution `v3.0.0`, clean-device manual verification before removing the GitHub Release `draft` flag applies strictly to active top-priority targets: **`macOS` Apple Silicon (`arm64`)** and **`macOS` Intel (`x86_64`)**. Windows clean-machine VM checks are retired, `Linux` (`x86_64`) is lower-priority build-only with zero runtime/manual verification, and `iOS` clean-device rows await feature `007`.
+
+### Clean-Device Verification Steps (`macOS`)
+
+1. Download `ImageViewer-macos-universal.dmg` and `SHA256SUMS.txt` from the draft release on a clean Mac with no developer toolchain (`Xcode` / `rustup` not required).
+2. Verify checksum cleanly: `shasum -a 256 -c SHA256SUMS.txt --ignore-missing`.
+3. Mount `ImageViewer-macos-universal.dmg` and drag **ImageViewer** into `/Applications`.
+4. Launch from `/Applications`: verify the one-time Gatekeeper confirmation flow documented in [docs/FIRST_LAUNCH.md](../../docs/FIRST_LAUNCH.md) ([English](../../docs/FIRST_LAUNCH.en.md)) and confirm **no** *"is damaged and can't be opened"* error occurs.
+5. Verify runtime capabilities (`docs/CAPABILITIES.md` Core + Extended candidates):
+   - Launch on a folder/image via Finder **Open With** and drag-and-drop onto the window.
+   - Navigate (`→` / `←` keys, scroll, first/last), toggle fullscreen (`Ctrl+Cmd+F` / double-click), open animated GIF/WebP, toggle Extended features (`Space` slideshow, `Tab` image info, `PageUp`/`PageDown` multi-page TIFF, `Enter` image list), and save settings across relaunch.
+   - Quit cleanly via `Cmd+Q` and confirm recent diagnostic log in `~/Library/Application Support/com.Ezenitac-AiService.ImageViewer/logs/` records `exit=clean` with no full host folder paths.
+
+### Scaffold (`launch-verification-manual.md`)
+
+Attach the completed record below as `launch-verification-manual.md` to the draft release before publishing:
+
+```markdown
+# Manual Clean-Device Verification: ImageViewer <VERSION>
+
+- **Tag / Draft Commit**: `<TAG>` (`<COMMIT_SHA>`)
+- **Maintainer**: `<GITHUB_HANDLE>`
+- **Date (UTC)**: `<YYYY-MM-DD>`
+
+| Platform | Arch | Tier | Gatekeeper First Launch | Core + Extended Runtime | Clean Quit | Result |
+|---|---|---|---|---|---|---|
+| macOS | Apple Silicon (`arm64`) | Top priority | pending | pending | pending | pending |
+| macOS | Intel (`x86_64`) | Top priority | pending | pending | pending | pending |
+| iOS | `arm64` | Top priority (planned — `007`) | n/a | n/a | n/a | deferred (`007`) |
+| Linux | `x86_64` | Lower priority (build-only) | n/a | n/a (no runtime verification) | n/a | build-only, unverified |
+```

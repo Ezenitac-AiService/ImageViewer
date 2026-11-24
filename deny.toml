@@ -4,9 +4,8 @@
 
 [graph]
 all-features = false
-# Only the shipped desktop targets (specs/004 research R13).
+# Only the active shipped desktop targets (Constitution v3.0.0; specs/006).
 targets = [
-    "x86_64-pc-windows-msvc",
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",

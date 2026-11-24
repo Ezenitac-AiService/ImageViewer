@@ -21,6 +21,8 @@ fn ko_and_en_catalogs_have_parity_for_core_keys() {
         assert_ne!(I18n::tr(Language::En, key), key, "untranslated en {key}");
         assert_ne!(I18n::tr(Language::Ko, key), key, "untranslated ko {key}");
     }
+    assert!(!I18n::tr(Language::En, "error.unsupported_os_switch").contains("Windows"));
+    assert!(!I18n::tr(Language::Ko, "error.unsupported_os_switch").contains("Windows"));
 }
 
 #[test]

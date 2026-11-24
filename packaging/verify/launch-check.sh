@@ -43,14 +43,13 @@ window_shown=false first_frame=false clean_exit=false navigated=null notes=""
 APP_OUT="$(mktemp)"
 
 # --- start
-if [ "$OS" = "Darwin" ] && [ -d "$ARTIFACT" ]; then
-    BIN="$ARTIFACT/Contents/MacOS/iv-app"
-    BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ARTIFACT/Contents/Info.plist")"
-    "$BIN" "$IMAGE" >"$APP_OUT" 2>&1 &
-else
-    BIN="$ARTIFACT"
-    "$BIN" "$IMAGE" >"$APP_OUT" 2>&1 &
+if [ ! -d "$ARTIFACT" ]; then
+    echo "Expected macOS .app bundle directory, got: $ARTIFACT" >&2
+    exit 2
 fi
+BIN="$ARTIFACT/Contents/MacOS/iv-app"
+BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ARTIFACT/Contents/Info.plist")"
+"$BIN" "$IMAGE" >"$APP_OUT" 2>&1 &
 PID=$!
 
 # --- first frame
@@ -58,17 +57,12 @@ name="$(basename "$IMAGE")"
 if wait_for "phase=first_frame source=$name" "$TIMEOUT"; then first_frame=true; fi
 
 # --- window
-if [ "$OS" = "Darwin" ]; then
-    if swift "$HERE/window-probe.swift" "$PID" >/dev/null 2>&1; then window_shown=true; fi
-else
-    # No portable window query under Xvfb; a live process that drew its first frame has a window.
-    if kill -0 "$PID" 2>/dev/null && [ "$first_frame" = true ]; then window_shown=true; fi
-fi
+if swift "$HERE/window-probe.swift" "$PID" >/dev/null 2>&1; then window_shown=true; fi
 
 # --- interaction step (§3): Right Arrow → navigate index=1
 # The folder scan finishes shortly after the first frame, and the window must have focus before
 # the key arrives, so wait a moment and allow one retry.
-if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
+if [ -n "${BUNDLE_ID:-}" ]; then
     sleep 1
     for attempt in 1 2; do
         if osa -e "tell application id \"$BUNDLE_ID\" to activate" -e 'delay 0.5' \
@@ -81,27 +75,10 @@ if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
     done
 fi
 
-# --- Linux (X11/Xvfb): keyboard interaction and close through the app's own Esc binding.
-# `xdotool windowclose` destroys the X window instead of asking the app to close, so it is not
-# used; without a window manager there is no WM_DELETE_WINDOW sender.
-X_WID=""
-if [ "$OS" != "Darwin" ] && command -v xdotool >/dev/null 2>&1; then
-    X_WID="$(xdotool search --pid "$PID" 2>/dev/null | tail -1)"
-    if [ -n "$X_WID" ]; then
-        sleep 1
-        xdotool windowfocus --sync "$X_WID" 2>/dev/null
-        xdotool key Right
-        if wait_for "phase=navigate index=1" 2; then navigated=true; else navigated=false; fi
-    fi
-fi
-
 # --- quit the way the OS does
-if [ "$OS" = "Darwin" ] && [ -n "${BUNDLE_ID:-}" ]; then
+if [ -n "${BUNDLE_ID:-}" ]; then
     osa -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 ||
         notes="${notes:+$notes; }quit Apple Event was not delivered (Automation permission?)"
-elif [ -n "$X_WID" ]; then
-    xdotool windowfocus --sync "$X_WID" 2>/dev/null
-    xdotool key Escape
 else
     notes="${notes:+$notes; }no OS close request available"
 fi
@@ -124,7 +101,7 @@ for v in "$window_shown" "$first_frame" "$clean_exit"; do [ "$v" = true ] || res
 cat >"$RECORD" <<JSON
 {
   "release_file": "$(basename "$ARTIFACT")",
-  "target": {"os": "$(uname -s | tr '[:upper:]' '[:lower:]')", "os_version": "$( [ "$OS" = Darwin ] && sw_vers -productVersion || uname -r)", "arch": "$(uname -m)"},
+  "target": {"os": "$(uname -s | tr '[:upper:]' '[:lower:]')", "os_version": "$(sw_vers -productVersion)", "arch": "$(uname -m)"},
   "layer": "automated",
   "window_shown": $window_shown,
   "first_frame": $first_frame,
